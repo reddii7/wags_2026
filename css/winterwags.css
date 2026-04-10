@@ -1,0 +1,31 @@
+/* Minimal styling for WinterWAGS side-app to keep it visually consistent but isolated */
+.ww-header h3 {
+    margin: 0;
+}
+
+.ww-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.ww-add-form .form-control {
+    min-width: 120px;
+}
+
+.ww-week table {
+    margin-bottom: 6px;
+}
+
+.ww-season table {
+    margin-bottom: 6px;
+}
+
+/* Keep a subtle snowflake accent color for the view */
+.view-container#winterwags-view {
+    --ww-accent: #0d6efd;
+}
+
+.ww-header h3 {
+    color: var(--ww-accent);
+}

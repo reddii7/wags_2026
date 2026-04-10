@@ -1,0 +1,25 @@
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: #f8f9fa;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 400px;
+    border: none !important;
+    border-radius: 1.2rem !important;
+    box-shadow: 0 8px 32px 0 rgba(60, 60, 60, 0.18), 0 1.5px 6px 0 rgba(0, 0, 0, 0.10);
+    overflow: hidden;
+}
+
+.card-body {
+    border-radius: 1.2rem !important;
+    background: #fff;
+}
+
+#forgot-password-link {
+    font-size: 0.95em;
+}
