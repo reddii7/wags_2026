@@ -375,22 +375,21 @@ watch(selectedSeasonId, (seasonId, previous) => {
     <section class="results-shell">
       <div class="results-hero__top">
         <div class="results-filter-row">
-          <div
-            <div class="f1-week-select-shell">
-              <select
-                id="results-competition-select"
-                v-model="selectedCompetitionId"
-                class="f1-week-select"
+          <div class="f1-week-select-shell">
+            <select
+              id="results-competition-select"
+              v-model="selectedCompetitionId"
+              class="f1-week-select"
+            >
+              <option
+                v-for="competition in competitionsForSeason"
+                :key="competition.id"
+                :value="competition.id"
               >
-                <option
-                  v-for="competition in competitionsForSeason"
-                  :key="competition.id"
-                  :value="competition.id"
-                >
-                  {{ formatWeekLabel(competition) }}
-                </option>
-              </select>
-            </div>
+                {{ formatWeekLabel(competition) }}
+              </option>
+            </select>
+          </div>
         </div>
       </div>
 
