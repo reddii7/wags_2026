@@ -5,6 +5,7 @@ import { useTheme } from "./composables/useTheme";
 import { useSession } from "./composables/useSession";
 import { useTopbarControls } from "./composables/useTopbarControls";
 import NavIcon from "./components/NavIcon.vue";
+import TopbarMenu from "./components/TopbarMenu.vue";
 import { triggerHapticFeedback } from "./utils/haptics";
 
 const route = useRoute();
@@ -158,33 +159,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <div class="topbar-actions">
-          <button class="utility-link" type="button" @click="handleThemeToggle">
-            {{ theme === "dark" ? "Light" : "Dark" }}
-          </button>
-          <RouterLink
-            v-if="!isAdminRoute"
-            to="/admin/login"
-            class="utility-link"
-            @click="handleNavTap"
-          >
-            Admin
-          </RouterLink>
-          <RouterLink
-            v-if="isAdminRoute"
-            to="/"
-            class="utility-link"
-            @click="handleNavTap"
-          >
-            Public
-          </RouterLink>
-          <button
-            v-if="isAdminRoute"
-            class="utility-link"
-            type="button"
-            @click="handleAuthAction"
-          >
-            {{ user ? "Sign out" : "Admin login" }}
-          </button>
+          <TopbarMenu />
         </div>
       </div>
     </header>

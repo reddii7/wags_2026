@@ -2,7 +2,7 @@
   <section class="page-stack home-page">
     <section class="hero-block home-hero">
       <div class="home-hero__intro">
-        <span class="feature-label">WAGS Golf Society</span>
+        <span class="feature-label">WAGS Golf</span>
         <h1 class="hero-title home-hero__title">
           Latest results, handicap changes and ranking updates.
         </h1>

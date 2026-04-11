@@ -340,7 +340,10 @@ watch(selectedSeasonId, (seasonId, previous) => {
         </select>
       </div>
       <span class="f1-season-label">
-        {{ selectedSeason?.name || selectedSeason?.start_year || "Season" }} SEASON
+        {{
+          selectedSeason?.name || selectedSeason?.start_year || "Season"
+        }}
+        SEASON
       </span>
     </div>
 
@@ -352,7 +355,10 @@ watch(selectedSeasonId, (seasonId, previous) => {
         :class="{ active: $route.path === '/results' }"
       >
         Latest
-        <span v-if="$route.path === '/results'" class="f1-section-underline"></span>
+        <span
+          v-if="$route.path === '/results'"
+          class="f1-section-underline"
+        ></span>
       </router-link>
       <router-link
         to="/best14"
@@ -360,7 +366,10 @@ watch(selectedSeasonId, (seasonId, previous) => {
         :class="{ active: $route.path === '/best14' }"
       >
         Best 14
-        <span v-if="$route.path === '/best14'" class="f1-section-underline"></span>
+        <span
+          v-if="$route.path === '/best14'"
+          class="f1-section-underline"
+        ></span>
       </router-link>
       <router-link
         to="/leagues"
@@ -368,7 +377,10 @@ watch(selectedSeasonId, (seasonId, previous) => {
         :class="{ active: $route.path === '/leagues' }"
       >
         Leagues
-        <span v-if="$route.path === '/leagues'" class="f1-section-underline"></span>
+        <span
+          v-if="$route.path === '/leagues'"
+          class="f1-section-underline"
+        ></span>
       </router-link>
     </nav>
 
