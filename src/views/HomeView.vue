@@ -4,7 +4,7 @@
       <div class="home-hero__intro">
         <span class="feature-label">WAGS Golf Society</span>
         <h1 class="hero-title home-hero__title">
-          Test: Latest results, handicap changes and ranking updates.
+          Latest results, handicap changes and ranking updates.
         </h1>
       </div>
     </section>
