@@ -188,7 +188,6 @@ const closeBest10 = () => {
 };
 
 onMounted(async () => {
-  setSeasonControl(seasonControl);
   try {
     await loadSeasons();
     await loadLeagues();
@@ -196,10 +195,6 @@ onMounted(async () => {
     error.value = loadError.message;
     loading.value = false;
   }
-});
-
-onBeforeUnmount(() => {
-  clearSeasonControl(seasonControl);
 });
 
 watch(selectedSeasonId, async (seasonId, previous) => {

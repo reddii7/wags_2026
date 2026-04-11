@@ -1,35 +1,29 @@
 <template>
   <div class="topbar-menu-wrapper" @click.outside="closeMenu">
     <button class="topbar-menu-btn" @click="toggleMenu" aria-label="Menu">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="5" cy="12" r="2" fill="currentColor"/>
-        <circle cx="12" cy="12" r="2" fill="currentColor"/>
-        <circle cx="19" cy="12" r="2" fill="currentColor"/>
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <circle cx="5" cy="12" r="2" fill="currentColor" />
+        <circle cx="12" cy="12" r="2" fill="currentColor" />
+        <circle cx="19" cy="12" r="2" fill="currentColor" />
       </svg>
     </button>
     <div v-if="open" class="topbar-menu-dropdown">
       <button class="topbar-menu-item" @click="onThemeToggle">
-        {{ theme === 'dark' ? 'Light Mode' : 'Dark Mode' }}
+        {{ theme === "dark" ? "Light Mode" : "Dark Mode" }}
       </button>
-      <button
-        v-if="!isAdminRoute"
-        class="topbar-menu-item"
-        @click="onAdmin"
-      >
+      <button v-if="!isAdminRoute" class="topbar-menu-item" @click="onAdmin">
         Admin
       </button>
-      <button
-        v-if="isAdminRoute"
-        class="topbar-menu-item"
-        @click="onPublic"
-      >
+      <button v-if="isAdminRoute" class="topbar-menu-item" @click="onPublic">
         Public
       </button>
-      <button
-        v-if="isAdminRoute"
-        class="topbar-menu-item"
-        @click="onSignOut"
-      >
+      <button v-if="isAdminRoute" class="topbar-menu-item" @click="onSignOut">
         Sign out
       </button>
     </div>
@@ -37,19 +31,19 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { useTheme } from '../composables/useTheme';
-import { useSession } from '../composables/useSession';
-import { useRoute, useRouter } from 'vue-router';
+import { ref, computed } from "vue";
+import { useTheme } from "../composables/useTheme";
+import { useSession } from "../composables/useSession";
+import { useRoute, useRouter } from "vue-router";
 
-const emit = defineEmits(['theme-toggle', 'admin', 'public', 'signout']);
+const emit = defineEmits(["theme-toggle", "admin", "public", "signout"]);
 const { theme, toggleTheme } = useTheme();
 const { user, signOut } = useSession();
 const route = useRoute();
 const router = useRouter();
 
 const open = ref(false);
-const isAdminRoute = computed(() => route.path.startsWith('/admin'));
+const isAdminRoute = computed(() => route.path.startsWith("/admin"));
 
 function toggleMenu(e) {
   e.stopPropagation();
@@ -64,16 +58,16 @@ function onThemeToggle() {
 }
 function onAdmin() {
   closeMenu();
-  router.push('/admin/login');
+  router.push("/admin/login");
 }
 function onPublic() {
   closeMenu();
-  router.push('/');
+  router.push("/");
 }
 async function onSignOut() {
   await signOut();
   closeMenu();
-  router.push('/');
+  router.push("/");
 }
 </script>
 
@@ -92,7 +86,7 @@ async function onSignOut() {
   transition: background 0.15s;
 }
 .topbar-menu-btn:active {
-  background: rgba(0,0,0,0.08);
+  background: rgba(0, 0, 0, 0.08);
 }
 .topbar-menu-dropdown {
   position: absolute;
@@ -102,7 +96,7 @@ async function onSignOut() {
   background: var(--dropdown-bg, #232325);
   color: var(--dropdown-fg, #fff);
   border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
   z-index: 100;
   padding: 0.5rem 0;
   display: flex;
@@ -119,6 +113,6 @@ async function onSignOut() {
   transition: background 0.13s;
 }
 .topbar-menu-item:hover {
-  background: rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.07);
 }
 </style>
