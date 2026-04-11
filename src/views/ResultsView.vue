@@ -351,7 +351,7 @@ watch(selectedSeasonId, (seasonId, previous) => {
         class="f1-section-tab"
         :class="{ active: $route.path === '/results' }"
       >
-        Latest
+        Latest Result
         <span v-if="$route.path === '/results'" class="f1-section-underline"></span>
       </router-link>
       <router-link
