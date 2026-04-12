@@ -44,11 +44,18 @@
               <template v-if="latestTopRows.length > 1">
                 resulted in a rollover with
                 {{ latestTopRows.map((row) => row.player).join(", ") }} all
-                shooting {{ latestTopScore }} with £{{ Number(summary.amount).toFixed(2) }} rolling over. {{ summary.num_players }} played, {{ summary.snakes }} snakes, {{ summary.camels }} camels.
+                shooting {{ latestTopScore }} with £{{
+                  Number(summary.amount).toFixed(2)
+                }}
+                rolling over. {{ summary.num_players }} played,
+                {{ summary.snakes }} snakes, {{ summary.camels }} camels.
               </template>
               <template v-else>
-                a win for {{ latestTopRows[0].player }} {{ latestTopScore }}.
-                  a win for {{ latestTopRows[0].player }} {{ latestTopScore }} with winning £{{ Number(summary.amount).toFixed(2) }}. {{ summary.num_players }} played, {{ summary.snakes }} snakes, {{ summary.camels }} camels.
+                a win for {{ latestTopRows[0].player }} {{ latestTopScore }}. a
+                win for {{ latestTopRows[0].player }} {{ latestTopScore }} with
+                winning £{{ Number(summary.amount).toFixed(2) }}.
+                {{ summary.num_players }} played, {{ summary.snakes }} snakes,
+                {{ summary.camels }} camels.
               </template>
             </template>
             <template v-else> No results yet. </template>
@@ -257,15 +264,7 @@ const loadHomeData = async () => {
   // Fetch competition summary from public.get_competition_summary(uuid)
   if (competition?.id) {
     // Debug: log competition id, type, UUID format, and RPC params before RPC call
-    console.log("competition.id:", competition.id, typeof competition.id);
-    console.log(
-      "isUUID-ish:",
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        String(competition.id),
-      ),
-    );
     const rpcParams = { p_competition_id: competition.id };
-    console.log("rpc params:", rpcParams);
     const { data: summaryData, error: summaryError } = await supabase.rpc(
       "get_competition_summary",
       rpcParams,
