@@ -28,26 +28,31 @@
       aria-label="Main sections"
     >
       <RouterLink class="home-card home-card--lead" to="/results">
-        <div class="home-card__header">
-          <span class="home-card__meta">
-            Results
-            {{ latestCompetitionDate }}
-            <template v-if="latestCompetitionWeekLabel">
-              <span class="home-card__meta-separator"> </span>
-              {{ latestCompetitionWeekLabel }}
-            </template>
-          </span>
-        </div>
-        <div class="home-compact-list">
-          <div
-            v-for="row in latestResults.slice(0, 3)"
-            :key="row.id"
-            class="home-compact-row"
+        <div style="padding: 1.5em 1em; width: 100%">
+          <span
+            class="home-news-headline home-name"
+            style="
+              display: block;
+              width: 100%;
+              font-size: 1.2em;
+              font-weight: 600;
+              text-align: left;
+            "
           >
-            <span class="home-rank">{{ row.position }}</span>
-            <span class="home-name">{{ row.player }}</span>
-            <span class="home-value">{{ row.score }}</span>
-          </div>
+            <template v-if="latestTopRows.length">
+              <span>{{ latestCompetitionWeekLabel }} </span>
+              <template v-if="latestTopRows.length > 1">
+                resulted in a rollover with
+                {{ latestTopRows.map((row) => row.player).join(", ") }} all
+                shooting {{ latestTopScore }} with £{{ Number(summary.amount).toFixed(2) }} rolling over. {{ summary.num_players }} played, {{ summary.snakes }} snakes, {{ summary.camels }} camels.
+              </template>
+              <template v-else>
+                a win for {{ latestTopRows[0].player }} {{ latestTopScore }}.
+                  a win for {{ latestTopRows[0].player }} {{ latestTopScore }} with winning £{{ Number(summary.amount).toFixed(2) }}. {{ summary.num_players }} played, {{ summary.snakes }} snakes, {{ summary.camels }} camels.
+              </template>
+            </template>
+            <template v-else> No results yet. </template>
+          </span>
         </div>
       </RouterLink>
 
@@ -126,6 +131,15 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
+// Backend-driven summary for Results card
+const summary = ref({
+  winner_type: "",
+  winner_names: [],
+  amount: 0,
+  num_players: 0,
+  snakes: 0,
+  camels: 0,
+});
 import { RouterLink } from "vue-router";
 import { supabase } from "../lib/supabase";
 
@@ -239,6 +253,39 @@ const loadHomeData = async () => {
   if (competitionError) throw competitionError;
   latestCompetition.value = competition || null;
   latestCompetitionDetails.value = competition || null;
+
+  // Fetch competition summary from public.get_competition_summary(uuid)
+  if (competition?.id) {
+    // Debug: log competition id, type, UUID format, and RPC params before RPC call
+    console.log("competition.id:", competition.id, typeof competition.id);
+    console.log(
+      "isUUID-ish:",
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        String(competition.id),
+      ),
+    );
+    const rpcParams = { p_competition_id: competition.id };
+    console.log("rpc params:", rpcParams);
+    const { data: summaryData, error: summaryError } = await supabase.rpc(
+      "get_competition_summary",
+      rpcParams,
+    );
+    if (summaryError) {
+      console.error("Supabase RPC error:", summaryError);
+      if (summaryError.message)
+        console.error("summaryError.message:", summaryError.message);
+      if (summaryError.code)
+        console.error("summaryError.code:", summaryError.code);
+      if (summaryError.details)
+        console.error("summaryError.details:", summaryError.details);
+      if (summaryError.hint)
+        console.error("summaryError.hint:", summaryError.hint);
+      throw summaryError;
+    }
+    if (summaryData && summaryData.length > 0) {
+      summary.value = summaryData[0];
+    }
+  }
 
   const requests = [];
 
@@ -364,3 +411,17 @@ onMounted(async () => {
   }
 });
 </script>
+
+<style scoped>
+.home-label {
+  color: #888;
+  font-size: 0.85em;
+  margin-right: 0.25em;
+}
+.home-num {
+  font-weight: bold;
+  font-size: 1.1em;
+}
+</style>
+/* Use the same color for .home-news-headline as .home-name */
+.home-news-headline.home-name { color: #444; }
