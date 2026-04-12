@@ -244,12 +244,10 @@ const loadHomeData = async () => {
   if (competition?.id) {
     requests.push(
       supabase
-        .from("rounds")
-        .select(
-          "user_id, stableford_score, has_snake, has_camel, profiles(full_name)",
-        )
+        .from("public_results_view")
+        .select("*")
         .eq("competition_id", competition.id)
-        .order("stableford_score", { ascending: false }),
+        .order("position"),
     );
   } else {
     requests.push(Promise.resolve({ data: [], error: null }));
@@ -303,12 +301,12 @@ const loadHomeData = async () => {
   leagueLeaders.value = [...groupedLeagueLeaders.values()];
 
   latestResults.value = (roundsResponse.data || []).map((row) => ({
-    id: `${competition?.id}-${row.user_id}`,
-    player: row.profiles?.full_name || "Unknown player",
-    score: row.stableford_score ?? "—",
-    snake: Boolean(row.has_snake),
-    camel: Boolean(row.has_camel),
-    position: row.position, // Use backend-provided position
+    id: `${row.competition_id}-${row.user_id}`,
+    player: row.player || row.profiles?.full_name || "Unknown player",
+    score: row.score ?? row.stableford_score ?? "—",
+    snake: Boolean(row.snake ?? row.has_snake),
+    camel: Boolean(row.camel ?? row.has_camel),
+    position: row.position ?? row.pos ?? row.rank_no ?? "",
   }));
 
   // Use backend-calculated handicap changes directly
