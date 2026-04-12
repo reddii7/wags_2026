@@ -225,10 +225,10 @@ const loadHomeData = async () => {
 
   const requests = [];
 
-  if (currentSeason?.id) {
+  if (currentSeason?.start_year) {
     requests.push(
-      supabase.rpc("get_best_14_scores", {
-        p_season_id: currentSeason.id,
+      supabase.rpc("get_best_14_scores_by_season", {
+        p_season: String(currentSeason.start_year),
       }),
     );
     requests.push(
@@ -286,6 +286,8 @@ const loadHomeData = async () => {
 
   best14Leaders.value = (best14Response.data || []).map((player) => ({
     ...player,
+    position: player.rank_no,
+    total_score: player.best_total,
     id: `${currentSeason?.id}-${player.user_id}`,
   }));
 

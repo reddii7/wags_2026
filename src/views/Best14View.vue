@@ -8,6 +8,8 @@ import { triggerHapticFeedback } from "../utils/haptics";
 
 const seasons = ref([]);
 const selectedSeasonId = ref(null);
+const selectedSeasonName = ref(null);
+const onlyPaid = ref(true); // Default to true, can be made reactive in UI
 const rows = ref([]);
 const selectedPlayer = ref(null);
 const detailRows = ref([]);
@@ -81,24 +83,32 @@ const loadSeasons = async () => {
   }
 
   seasons.value = data || [];
-  selectedSeasonId.value =
-    seasons.value.find((season) => season.is_current)?.id ||
-    seasons.value[0]?.id ||
-    null;
+  const current = seasons.value.find((season) => season.is_current);
+  selectedSeasonId.value = current?.id || seasons.value[0]?.id || null;
+  // Always use the numeric year for backend calls
+  selectedSeasonName.value = String(
+    current?.start_year || seasons.value[0]?.start_year || "",
+  );
 };
 
 const loadLeaderboard = async () => {
-  if (!selectedSeasonId.value) {
+  console.log("loadLeaderboard called");
+  if (!selectedSeasonName.value) {
     rows.value = [];
     return;
   }
 
+  console.log("selectedSeasonName", selectedSeasonName.value);
   loading.value = true;
   error.value = "";
 
-  const { data, error: rpcError } = await supabase.rpc("get_best_14_scores", {
-    p_season_id: selectedSeasonId.value,
-  });
+  const { data, error: rpcError } = await supabase.rpc(
+    "get_best_14_scores_by_season",
+    {
+      p_season: selectedSeasonName.value,
+    },
+  );
+  console.log("Best 14 raw data:", data);
 
   if (rpcError) {
     error.value = rpcError.message;
@@ -109,7 +119,9 @@ const loadLeaderboard = async () => {
 
   rows.value = (data || []).map((player) => ({
     ...player,
-    id: `${selectedSeasonId.value}-${player.full_name}`,
+    position: player.rank_no,
+    total_score: player.best_total,
+    id: `${selectedSeasonName.value}-${player.full_name}`,
   }));
   loading.value = false;
 };
@@ -168,6 +180,9 @@ onMounted(async () => {
 
 watch(selectedSeasonId, async (seasonId, previous) => {
   if (!seasonId || seasonId === previous) return;
+  // Always use the numeric year for backend calls
+  const found = seasons.value.find((s) => s.id === seasonId);
+  selectedSeasonName.value = String(found?.start_year || "");
   await loadLeaderboard();
 });
 </script>
