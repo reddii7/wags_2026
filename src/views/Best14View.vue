@@ -107,21 +107,10 @@ const loadLeaderboard = async () => {
     return;
   }
 
-  let lastScore = null;
-  let lastPos = 0;
-  rows.value = (data || [])
-    .slice()
-    .sort((left, right) => (right.total_score ?? 0) - (left.total_score ?? 0))
-    .map((player, index) => {
-      const position = player.total_score === lastScore ? lastPos : index + 1;
-      lastScore = player.total_score;
-      lastPos = position;
-      return {
-        ...player,
-        id: `${selectedSeasonId.value}-${player.full_name}`,
-        position,
-      };
-    });
+  rows.value = (data || []).map((player) => ({
+    ...player,
+    id: `${selectedSeasonId.value}-${player.full_name}`,
+  }));
   loading.value = false;
 };
 

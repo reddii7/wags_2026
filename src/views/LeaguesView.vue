@@ -118,30 +118,10 @@ const loadLeagues = async () => {
     mapped.get(row.league_name).push(row);
   }
 
-  groups.value = [...mapped.entries()].map(([leagueName, players]) => {
-    let lastScore = null;
-    let lastPos = 0;
-    const rows = players
-      .slice()
-      .sort(
-        (left, right) =>
-          (right.total_score ?? 0) - (left.total_score ?? 0) ||
-          left.full_name.localeCompare(right.full_name),
-      )
-      .map((player, index) => {
-        const position = player.total_score === lastScore ? lastPos : index + 1;
-        lastScore = player.total_score;
-        lastPos = position;
-        return {
-          ...player,
-          id: `${leagueName}-${player.full_name}`,
-          position,
-          isLeader: position === 1,
-        };
-      });
-
-    return { leagueName, rows };
-  });
+  groups.value = [...mapped.entries()].map(([leagueName, players]) => ({
+    leagueName,
+    rows: players, // Already ordered and with position from backend
+  }));
   loading.value = false;
 };
 

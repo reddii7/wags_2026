@@ -221,77 +221,22 @@ const loadResults = async () => {
   detailsLoading.value = true;
   error.value = "";
 
-  const [
-    { data: rounds, error: roundsError },
-    { data: compDetails, error: detailsError },
-    { data: handicapHistory, error: handicapError },
-  ] = await Promise.all([
-    supabase
-      .from("rounds")
-      .select(
-        "user_id, stableford_score, has_snake, has_camel, profiles(full_name)",
-      )
-      .eq("competition_id", selectedCompetitionId.value)
-      .order("stableford_score", { ascending: false }),
-    supabase
-      .from("competitions")
-      .select(
-        "status, prize_pot, rollover_amount, winner_id, profiles(full_name)",
-      )
-      .eq("id", selectedCompetitionId.value)
-      .single(),
-    supabase
-      .from("handicap_history")
-      .select("user_id, old_handicap, new_handicap")
-      .eq("competition_id", selectedCompetitionId.value),
-  ]);
+  // Fetch results from backend view/function with all fields precomputed
+  const { data: results, error: resultsError } = await supabase
+    .from("public_results_view") // Replace with your actual view/function name
+    .select("*")
+    .eq("competition_id", selectedCompetitionId.value)
+    .order("position");
 
-  if (roundsError || detailsError || handicapError) {
-    error.value =
-      roundsError?.message ||
-      detailsError?.message ||
-      handicapError?.message ||
-      "Unable to load results.";
+  if (resultsError) {
+    error.value = resultsError.message || "Unable to load results.";
     rows.value = [];
     competitionMeta.value = null;
     detailsLoading.value = false;
     return;
   }
 
-  competitionMeta.value = compDetails;
-  const handicapChanges = new Map();
-  (handicapHistory || []).forEach((item) => {
-    handicapChanges.set(item.user_id, item);
-  });
-
-  let lastScore = null;
-  let lastPos = 0;
-  rows.value = (rounds || []).map((round, index) => {
-    const position = round.stableford_score === lastScore ? lastPos : index + 1;
-    lastScore = round.stableford_score;
-    lastPos = position;
-
-    const handicap = handicapChanges.get(round.user_id);
-    const oldPlaying = handicap ? Math.round(handicap.old_handicap) : null;
-    const newPlaying = handicap ? Math.round(handicap.new_handicap) : null;
-    const handicapDelta =
-      oldPlaying !== null && newPlaying !== null && oldPlaying !== newPlaying
-        ? `H'cap ${oldPlaying}→${newPlaying}`
-        : "";
-
-    return {
-      id: `${selectedCompetitionId.value}-${round.user_id}`,
-      position,
-      player: round.profiles?.full_name || "Unknown player",
-      handicapChange: handicapDelta,
-      score: round.stableford_score ?? "—",
-      snake: Boolean(round.has_snake),
-      camel: Boolean(round.has_camel),
-      handicapDelta,
-      improved: handicapDelta ? newPlaying < oldPlaying : false,
-    };
-  });
-
+  rows.value = results || [];
   detailsLoading.value = false;
 };
 

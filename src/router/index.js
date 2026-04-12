@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '../views/HomeView.vue';
+// ...existing code...
 import Best14View from '../views/Best14View.vue';
 import LeaguesView from '../views/LeaguesView.vue';
 import ResultsView from '../views/ResultsView.vue';
@@ -15,6 +16,7 @@ const router = createRouter({
     routes: [
         { path: '/', name: 'home', component: HomeView },
         { path: '/best14', name: 'best14', component: Best14View },
+        // ...existing code...
         { path: '/leagues', name: 'leagues', component: LeaguesView },
         { path: '/results', name: 'results', component: ResultsView },
         { path: '/handicaps', name: 'handicaps', component: HandicapsView },
