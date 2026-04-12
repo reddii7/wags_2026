@@ -325,64 +325,7 @@ watch(selectedSeasonId, (seasonId, previous) => {
 
 <template>
   <section class="page-stack">
-    <!-- Top Season Bar -->
-    <div class="season-bar f1-season-bar">
-      <div class="f1-season-select-shell">
-        <span class="f1-season-select-v">▼</span>
-        <select
-          v-model="selectedSeasonId"
-          class="f1-season-select-pill"
-          aria-label="Select season"
-        >
-          <option v-for="season in seasons" :key="season.id" :value="season.id">
-            {{ formatSeasonLabel(season) }}
-          </option>
-        </select>
-      </div>
-      <span class="f1-season-label">
-        {{
-          selectedSeason?.name || selectedSeason?.start_year || "Season"
-        }}
-        SEASON
-      </span>
-    </div>
-
-    <!-- Secondary Nav (Tabs/Pills) -->
-    <nav class="f1-section-nav" aria-label="Section navigation">
-      <router-link
-        to="/results"
-        class="f1-section-tab"
-        :class="{ active: $route.path === '/results' }"
-      >
-        Latest
-        <span
-          v-if="$route.path === '/results'"
-          class="f1-section-underline"
-        ></span>
-      </router-link>
-      <router-link
-        to="/best14"
-        class="f1-section-tab"
-        :class="{ active: $route.path === '/best14' }"
-      >
-        Best 14
-        <span
-          v-if="$route.path === '/best14'"
-          class="f1-section-underline"
-        ></span>
-      </router-link>
-      <router-link
-        to="/leagues"
-        class="f1-section-tab"
-        :class="{ active: $route.path === '/leagues' }"
-      >
-        Leagues
-        <span
-          v-if="$route.path === '/leagues'"
-          class="f1-section-underline"
-        ></span>
-      </router-link>
-    </nav>
+    <!-- Season dropdown and section navigation removed as requested -->
 
     <section class="results-shell">
       <div class="results-hero__top">
