@@ -4,7 +4,7 @@
       <div class="home-hero__intro">
         <span class="feature-label">WAGS Golf</span>
         <h1 class="hero-title home-hero__title">
-          Latest results, handicap changes and ranking updates.
+          Latest result, handicap changes and ranking updates.
         </h1>
       </div>
     </section>
@@ -198,59 +198,6 @@ const latestSideGames = computed(() => {
   return `${snakes} snake${snakes === 1 ? "" : "s"} · ${camels} camel${camels === 1 ? "" : "s"}`;
 });
 
-const assignPositions = (rows, scoreKey) => {
-  let lastScore = null;
-  let lastPos = 0;
-
-  return rows.map((row, index) => {
-    const score = row[scoreKey] ?? 0;
-    const position = score === lastScore ? lastPos : index + 1;
-    lastScore = score;
-    lastPos = position;
-    return { ...row, position };
-  });
-};
-
-const getLatestCompetitionChangeMap = (history, competitions) => {
-  const latestCompetitionId = (competitions || []).find((competition) =>
-    (history || []).some((item) => item.competition_id === competition.id),
-  )?.id;
-
-  if (!latestCompetitionId) {
-    return {
-      latestCompetitionId: null,
-      latestChangeByUser: new Map(),
-    };
-  }
-
-  const latestChangeByUser = new Map();
-
-  (history || []).forEach((item) => {
-    if (item.competition_id !== latestCompetitionId) return;
-    if (latestChangeByUser.has(item.user_id)) return;
-
-    const oldHandicap =
-      item.old_handicap !== null ? Math.round(item.old_handicap) : null;
-    const newHandicap =
-      item.new_handicap !== null ? Math.round(item.new_handicap) : null;
-    const hasChange =
-      oldHandicap !== null &&
-      newHandicap !== null &&
-      oldHandicap !== newHandicap;
-
-    latestChangeByUser.set(item.user_id, {
-      oldHandicap,
-      newHandicap,
-      hasChange,
-    });
-  });
-
-  return {
-    latestCompetitionId,
-    latestChangeByUser,
-  };
-};
-
 const loadHomeData = async () => {
   const { data: seasons, error: seasonsError } = await supabase
     .from("seasons")
@@ -308,16 +255,18 @@ const loadHomeData = async () => {
     requests.push(Promise.resolve({ data: [], error: null }));
   }
 
+  // Only fetch competitions for other logic if needed
   requests.push(
     supabase
       .from("competitions")
       .select("id, name, competition_date")
       .order("competition_date", { ascending: false }),
   );
+  // Fetch handicap changes directly from backend view
   requests.push(
     supabase
-      .from("handicap_history")
-      .select("user_id, old_handicap, new_handicap, competition_id, created_at")
+      .from("public_handicap_changes_view")
+      .select("*")
       .order("created_at", { ascending: false }),
   );
 
@@ -335,16 +284,10 @@ const loadHomeData = async () => {
   if (competitionsResponse.error) throw competitionsResponse.error;
   if (handicapResponse.error) throw handicapResponse.error;
 
-  best14Leaders.value = assignPositions(
-    (best14Response.data || [])
-      .slice()
-      .sort((left, right) => (right.total_score ?? 0) - (left.total_score ?? 0))
-      .map((player) => ({
-        ...player,
-        id: `${currentSeason?.id}-${player.user_id}`,
-      })),
-    "total_score",
-  );
+  best14Leaders.value = (best14Response.data || []).map((player) => ({
+    ...player,
+    id: `${currentSeason?.id}-${player.user_id}`,
+  }));
 
   const groupedLeagueLeaders = new Map();
   (leaguesResponse.data || []).forEach((row) => {
@@ -354,54 +297,17 @@ const loadHomeData = async () => {
   });
   leagueLeaders.value = [...groupedLeagueLeaders.values()];
 
-  latestResults.value = assignPositions(
-    (roundsResponse.data || []).map((row) => ({
-      id: `${competition?.id}-${row.user_id}`,
-      player: row.profiles?.full_name || "Unknown player",
-      score: row.stableford_score ?? "—",
-      snake: Boolean(row.has_snake),
-      camel: Boolean(row.has_camel),
-    })),
-    "score",
-  );
+  latestResults.value = (roundsResponse.data || []).map((row) => ({
+    id: `${competition?.id}-${row.user_id}`,
+    player: row.profiles?.full_name || "Unknown player",
+    score: row.stableford_score ?? "—",
+    snake: Boolean(row.has_snake),
+    camel: Boolean(row.has_camel),
+    position: row.position, // Use backend-provided position
+  }));
 
-  const allCompetitions = competitionsResponse.data || [];
-  const allHandicapHistory = handicapResponse.data || [];
-  const {
-    latestCompetitionId: latestMovementCompetitionId,
-    latestChangeByUser,
-  } = getLatestCompetitionChangeMap(allHandicapHistory, allCompetitions);
-
-  latestMovementCompetition.value =
-    allCompetitions.find((entry) => entry.id === latestMovementCompetitionId) ||
-    null;
-
-  if (latestChangeByUser.size) {
-    const userIds = [...latestChangeByUser.keys()];
-    const { data: profiles, error: profilesError } = await supabase
-      .from("profiles")
-      .select("id, full_name, current_handicap")
-      .in("id", userIds);
-
-    if (profilesError) throw profilesError;
-
-    handicapMovements.value = (profiles || [])
-      .map((profile) => {
-        const latestChange = latestChangeByUser.get(profile.id);
-        return {
-          id: profile.id,
-          full_name: profile.full_name || "Unknown player",
-          old_handicap: latestChange?.oldHandicap ?? null,
-          new_handicap: latestChange?.newHandicap ?? null,
-          hasChange: Boolean(latestChange?.hasChange),
-        };
-      })
-      .filter((item) => item.hasChange)
-      .sort((left, right) => left.full_name.localeCompare(right.full_name));
-  } else {
-    handicapMovements.value = [];
-    latestMovementCompetition.value = null;
-  }
+  // Use backend-calculated handicap changes directly
+  handicapMovements.value = handicapResponse.data || [];
 };
 
 onMounted(async () => {
