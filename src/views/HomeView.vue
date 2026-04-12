@@ -2,7 +2,7 @@
   <section class="page-stack home-page">
     <section
       class="hero-block home-hero"
-      style="background: transparent; box-shadow: none; border: none"
+      style="background: #1a1a1a; box-shadow: none; border: none"
     >
       <div
         class="home-hero__intro"
@@ -10,15 +10,20 @@
       >
         <div
           style="
-            color: #fff;
-            font-size: 2.2em;
-            font-weight: 700;
-            line-height: 1.1;
-            letter-spacing: -0.01em;
+            color: #e2e2e2;
+            font-size: 2.6rem;
+            font-weight: 800;
+            line-height: 1.07;
+            letter-spacing: -0.04em;
             max-width: 700px;
             background: transparent;
             box-shadow: none;
             border: none;
+            text-align: left;
+            margin-bottom: 0.7em;
+            font-family:
+              -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+              Helvetica, Arial, sans-serif;
           "
         >
           <span
@@ -28,16 +33,9 @@
               font-size: 0.85rem;
               font-weight: 700;
               letter-spacing: 0.05em;
-              color: #8a8a8e;
+              color: #6a6a6e;
               margin-bottom: 1.2em;
-              font-family:
-                -apple-system,
-                BlinkMacSystemFont,
-                Segoe UI,
-                Roboto,
-                Helvetica,
-                Arial,
-                sans-serif;
+              font-family: inherit;
             "
           >
             <template v-if="summary.week_number && summary.week_date">
@@ -49,34 +47,22 @@
           </span>
           <template v-if="latestTopRows.length">
             <template v-if="latestTopRows.length > 1">
-              <span
-                style="
-                  display: block;
-                  font-size: 2.6rem;
-                  font-weight: 800;
-                  line-height: 1.07;
-                  letter-spacing: -0.04em;
-                  color: #fff;
-                  margin-bottom: 0.7em;
-                  font-family: inherit;
-                  text-align: left;
-                "
-              >
-                resulted in a rollover with
-                {{ latestTopRows.map((row) => row.player).join(", ") }} all
-                shooting {{ latestTopScore }} with £{{
-                  Number(summary.amount).toFixed(2)
-                }}
-                rolling over.
-              </span>
+              resulted in a rollover with
+              {{ latestTopRows.map((row) => row.player).join(", ") }} all
+              shooting {{ latestTopScore }} with £{{
+                Number(summary.amount).toFixed(2)
+              }}
+              rolling over.
               <p
                 style="
-                  font-size: 0.78rem;
-                  font-weight: 600;
-                  line-height: 1.4;
-                  color: #636366;
-                  margin: 1.1em 0 0 0;
-                  text-transform: none;
+                  display: block;
+                  text-transform: uppercase;
+                  font-size: 0.85rem;
+                  font-weight: 700;
+                  letter-spacing: 0.05em;
+                  color: #6a6a6e;
+                  margin: 1.2em 0 0 0;
+                  font-family: inherit;
                 "
               >
                 {{ summary.num_players }} played, {{ summary.snakes }} snakes,
@@ -88,12 +74,14 @@
               winning £{{ Number(summary.amount).toFixed(2) }}.
               <p
                 style="
-                  font-size: 0.78rem;
-                  font-weight: 600;
-                  line-height: 1.4;
-                  color: #636366;
-                  margin: 1.1em 0 0 0;
-                  text-transform: none;
+                  display: block;
+                  text-transform: uppercase;
+                  font-size: 0.85rem;
+                  font-weight: 700;
+                  letter-spacing: 0.05em;
+                  color: #6a6a6e;
+                  margin: 1.2em 0 0 0;
+                  font-family: inherit;
                 "
               >
                 {{ summary.num_players }} played, {{ summary.snakes }} snakes,
@@ -486,4 +474,4 @@ onMounted(async () => {
 }
 </style>
 /* Use the same color for .home-news-headline as .home-name */
-.home-news-headline.home-name { color: #444; }
+.home-news-headline.home-name { color: #E2E2E2; }
