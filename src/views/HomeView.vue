@@ -1,11 +1,108 @@
 <template>
   <section class="page-stack home-page">
-    <section class="hero-block home-hero">
-      <div class="home-hero__intro">
-        <span class="feature-label">WAGS Golf</span>
-        <h1 class="hero-title home-hero__title">
-          Latest result, handicap changes and ranking updates.
-        </h1>
+    <section
+      class="hero-block home-hero"
+      style="background: transparent; box-shadow: none; border: none"
+    >
+      <div
+        class="home-hero__intro"
+        style="background: transparent; box-shadow: none; border: none"
+      >
+        <div
+          style="
+            color: #fff;
+            font-size: 2.2em;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.01em;
+            max-width: 700px;
+            background: transparent;
+            box-shadow: none;
+            border: none;
+          "
+        >
+          <span
+            style="
+              display: block;
+              text-transform: uppercase;
+              font-size: 0.85rem;
+              font-weight: 700;
+              letter-spacing: 0.05em;
+              color: #8a8a8e;
+              margin-bottom: 1.2em;
+              font-family:
+                -apple-system,
+                BlinkMacSystemFont,
+                Segoe UI,
+                Roboto,
+                Helvetica,
+                Arial,
+                sans-serif;
+            "
+          >
+            <template v-if="summary.week_number && summary.week_date">
+              WEEK {{ summary.week_number }}, {{ summary.week_date }}
+            </template>
+            <template v-else>
+              <span style="opacity: 0.5">WEEK &mdash; , &mdash;</span>
+            </template>
+          </span>
+          <template v-if="latestTopRows.length">
+            <template v-if="latestTopRows.length > 1">
+              <span
+                style="
+                  display: block;
+                  font-size: 2.6rem;
+                  font-weight: 800;
+                  line-height: 1.07;
+                  letter-spacing: -0.04em;
+                  color: #fff;
+                  margin-bottom: 0.7em;
+                  font-family: inherit;
+                  text-align: left;
+                "
+              >
+                resulted in a rollover with
+                {{ latestTopRows.map((row) => row.player).join(", ") }} all
+                shooting {{ latestTopScore }} with £{{
+                  Number(summary.amount).toFixed(2)
+                }}
+                rolling over.
+              </span>
+              <p
+                style="
+                  font-size: 0.78rem;
+                  font-weight: 600;
+                  line-height: 1.4;
+                  color: #636366;
+                  margin: 1.1em 0 0 0;
+                  text-transform: none;
+                "
+              >
+                {{ summary.num_players }} played, {{ summary.snakes }} snakes,
+                {{ summary.camels }} camels.
+              </p>
+            </template>
+            <template v-else>
+              a win for {{ latestTopRows[0].player }} {{ latestTopScore }} with
+              winning £{{ Number(summary.amount).toFixed(2) }}.
+              <p
+                style="
+                  font-size: 0.78rem;
+                  font-weight: 600;
+                  line-height: 1.4;
+                  color: #636366;
+                  margin: 1.1em 0 0 0;
+                  text-transform: none;
+                "
+              >
+                {{ summary.num_players }} played, {{ summary.snakes }} snakes,
+                {{ summary.camels }} camels.
+              </p>
+            </template>
+          </template>
+          <template v-else> No results yet. </template>
+        </div>
       </div>
     </section>
 
@@ -27,41 +124,7 @@
       class="home-dashboard"
       aria-label="Main sections"
     >
-      <RouterLink class="home-card home-card--lead" to="/results">
-        <div style="padding: 1.5em 1em; width: 100%">
-          <span
-            class="home-news-headline home-name"
-            style="
-              display: block;
-              width: 100%;
-              font-size: 1.2em;
-              font-weight: 600;
-              text-align: left;
-            "
-          >
-            <template v-if="latestTopRows.length">
-              <span>{{ latestCompetitionWeekLabel }} </span>
-              <template v-if="latestTopRows.length > 1">
-                resulted in a rollover with
-                {{ latestTopRows.map((row) => row.player).join(", ") }} all
-                shooting {{ latestTopScore }} with £{{
-                  Number(summary.amount).toFixed(2)
-                }}
-                rolling over. {{ summary.num_players }} played,
-                {{ summary.snakes }} snakes, {{ summary.camels }} camels.
-              </template>
-              <template v-else>
-                a win for {{ latestTopRows[0].player }} {{ latestTopScore }}. a
-                win for {{ latestTopRows[0].player }} {{ latestTopScore }} with
-                winning £{{ Number(summary.amount).toFixed(2) }}.
-                {{ summary.num_players }} played, {{ summary.snakes }} snakes,
-                {{ summary.camels }} camels.
-              </template>
-            </template>
-            <template v-else> No results yet. </template>
-          </span>
-        </div>
-      </RouterLink>
+      <!-- Results summary moved to hero above -->
 
       <RouterLink class="home-card" to="/handicaps">
         <div class="home-card__header">
