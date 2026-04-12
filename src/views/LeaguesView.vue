@@ -20,7 +20,7 @@ const seasonControl = { seasons, model: selectedSeasonId };
 
 const columns = [
   {
-    key: "position",
+    key: "pos",
     label: "Pos",
     className: "numeric narrow",
     width: "3.5rem",
@@ -115,12 +115,15 @@ const loadLeagues = async () => {
   const mapped = new Map();
   for (const row of data || []) {
     if (!mapped.has(row.league_name)) mapped.set(row.league_name, []);
-    mapped.get(row.league_name).push(row);
+    mapped.get(row.league_name).push({
+      ...row,
+      position: row.rank_no, // Map backend rank_no to position
+    });
   }
 
   groups.value = [...mapped.entries()].map(([leagueName, players]) => ({
     leagueName,
-    rows: players, // Already ordered and with position from backend
+    rows: players, // Now with correct position
   }));
   loading.value = false;
 };

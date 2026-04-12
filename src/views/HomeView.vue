@@ -294,7 +294,10 @@ const loadHomeData = async () => {
   const groupedLeagueLeaders = new Map();
   (leaguesResponse.data || []).forEach((row) => {
     if (!groupedLeagueLeaders.has(row.league_name)) {
-      groupedLeagueLeaders.set(row.league_name, row);
+      groupedLeagueLeaders.set(row.league_name, {
+        ...row,
+        position: row.rank_no, // Map backend rank_no to position
+      });
     }
   });
   leagueLeaders.value = [...groupedLeagueLeaders.values()];
