@@ -61,7 +61,22 @@
             :key="item.id"
             class="home-compact-row"
           >
-            <span class="home-rank">{{ item.old_handicap }}</span>
+            <span
+              v-if="
+                item.old_handicap !== undefined &&
+                item.new_handicap !== undefined
+              "
+              class="mini-pill mini-pill--delta"
+              :class="
+                item.new_handicap < item.old_handicap
+                  ? 'mini-pill--positive'
+                  : 'mini-pill--negative'
+              "
+            >
+              {{ Math.round(item.old_handicap) }}→{{
+                Math.round(item.new_handicap)
+              }}
+            </span>
             <span class="home-name">{{ item.full_name }}</span>
             <span class="home-value">{{ item.new_handicap }}</span>
           </div>
@@ -309,8 +324,32 @@ const loadHomeData = async () => {
     position: row.position ?? row.pos ?? row.rank_no ?? "",
   }));
 
-  // Use backend-calculated handicap changes directly
-  handicapMovements.value = handicapResponse.data || [];
+  // Only show latest handicap changes for the latest competition
+  const allChanges = handicapResponse.data || [];
+  const compId = latestCompetition.value?.id;
+  if (compId) {
+    // Filter to only changes for the latest competition
+    const compChanges = allChanges.filter(
+      (item) => item.competition_id === compId,
+    );
+    // For each user, keep only their latest change (by created_at desc)
+    const userMap = new Map();
+    compChanges.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    for (const item of compChanges) {
+      if (!userMap.has(item.user_id)) {
+        const oldH =
+          item.old_handicap !== null ? Math.round(item.old_handicap) : null;
+        const newH =
+          item.new_handicap !== null ? Math.round(item.new_handicap) : null;
+        if (oldH !== null && newH !== null && oldH !== newH) {
+          userMap.set(item.user_id, item);
+        }
+      }
+    }
+    handicapMovements.value = Array.from(userMap.values());
+  } else {
+    handicapMovements.value = [];
+  }
 };
 
 onMounted(async () => {
