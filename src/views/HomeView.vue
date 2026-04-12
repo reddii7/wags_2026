@@ -57,28 +57,30 @@
         </div>
         <div class="home-compact-list">
           <div
-            v-for="item in handicapMovements.slice(0, 4)"
+            v-for="(item, idx) in handicapMovements.slice(0, 4)"
             :key="item.id"
             class="home-compact-row"
           >
-            <span
-              v-if="
-                item.old_handicap !== undefined &&
-                item.new_handicap !== undefined
-              "
-              class="mini-pill mini-pill--delta"
-              :class="
-                item.new_handicap < item.old_handicap
-                  ? 'mini-pill--positive'
-                  : 'mini-pill--negative'
-              "
-            >
-              {{ Math.round(item.old_handicap) }}→{{
-                Math.round(item.new_handicap)
-              }}
-            </span>
+            <span class="home-rank">{{ idx + 1 }}</span>
             <span class="home-name">{{ item.full_name }}</span>
-            <span class="home-value">{{ item.new_handicap }}</span>
+            <span class="home-value">
+              <span
+                v-if="
+                  item.old_handicap !== undefined &&
+                  item.new_handicap !== undefined
+                "
+                class="mini-pill mini-pill--delta home-pill-compact"
+                :class="
+                  item.new_handicap < item.old_handicap
+                    ? 'mini-pill--positive'
+                    : 'mini-pill--negative'
+                "
+              >
+                {{ Math.round(item.old_handicap) }}→{{
+                  Math.round(item.new_handicap)
+                }}
+              </span>
+            </span>
           </div>
         </div>
       </RouterLink>
