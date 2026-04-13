@@ -403,30 +403,6 @@ watch(selectedSeasonId, (seasonId, previous) => {
         </div>
       </div>
 
-      <h1 class="results-shell__title">{{ selectedCompetitionTitle }}</h1>
-
-      <p class="results-shell__meta">
-        {{ selectedCompetitionDate }}
-        <template v-if="selectedCompetitionWeekLabel">
-          <span class="home-card__meta-separator"> </span>
-          {{ selectedCompetitionWeekLabel }}
-        </template>
-      </p>
-
-      <div
-        class="results-hero__stats"
-        v-if="!loading && !detailsLoading && !error"
-      >
-        <div
-          v-for="item in heroStats"
-          :key="item.label"
-          class="results-hero__stat"
-        >
-          <span class="notice-strip__label">{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-        </div>
-      </div>
-
       <div class="results-shell__body">
         <p v-if="loading || detailsLoading" class="empty-state">
           Loading results…
