@@ -19,7 +19,7 @@
     font-weight: 600;
     line-height: 1.1;
     letter-spacing: -0.01em;
-    color: #E2E2E2;
+    color: #DEDEDE;
 }
 
 /* Body Style */
@@ -486,12 +486,12 @@ letter-spacing: -0.02em;
     padding: calc(env(safe-area-inset-top, 0px) + 0.42rem) 1.35rem 0.28rem;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    background: var(--bg-strong);
+    background: #1E1E1E !important;
     transition: opacity 220ms ease, transform 220ms ease, background 220ms ease;
 }
 
 .app-topbar.scrolled {
-    background: var(--bg-strong);
+    background: #1E1E1E !important;
 }
 
 .topbar-row {
