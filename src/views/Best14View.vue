@@ -92,13 +92,12 @@ const loadSeasons = async () => {
 };
 
 const loadLeaderboard = async () => {
-  console.log("loadLeaderboard called");
+  // Debug logging removed
   if (!selectedSeasonName.value) {
     rows.value = [];
     return;
   }
-
-  console.log("selectedSeasonName", selectedSeasonName.value);
+  // Debug logging removed
   loading.value = true;
   error.value = "";
 
@@ -108,7 +107,7 @@ const loadLeaderboard = async () => {
       p_season: selectedSeasonName.value,
     },
   );
-  console.log("Best 14 raw data:", data);
+  // Debug logging removed
 
   if (rpcError) {
     error.value = rpcError.message;

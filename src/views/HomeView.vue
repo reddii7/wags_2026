@@ -12,21 +12,53 @@
             </template>
           </span>
           <template v-if="latestTopRows.length">
-            <template v-if="latestTopRows.length > 1">
+            <template v-if="summary.winner_type === 'rollover'">
               <span>
-                {{ latestTopRows.map((row) => row.player).join(", ") }}
-                all scored {{ latestTopScore }} points, the £{{ Number(summary.amount).toFixed(2) }} pot rolls over to next week.
+                {{
+                  summary.winner_names && summary.winner_names.length
+                    ? summary.winner_names.join(", ")
+                    : ""
+                }}
+                all scored, the £{{ Number(summary.amount).toFixed(2) }} pot
+                rolls over to next week.
               </span>
-              <p class="home-hero-sublabel home-hero-subtext">
-                {{ summary.num_players }} played, {{ summary.snakes }} snakes, {{ summary.camels }} camels.
-              </p>
             </template>
-            <template v-else>
-              <span>{{ latestTopRows[0].player }} won with {{ latestTopScore }}, taking home £{{ Number(summary.amount).toFixed(2) }}.</span>
-              <p class="home-hero-sublabel home-hero-subtext">
-                {{ summary.num_players }} played, {{ summary.snakes }} snakes, {{ summary.camels }} camels.
-              </p>
+            <template
+              v-else-if="
+                summary.winner_type === 'winner' &&
+                summary.winner_names &&
+                summary.winner_names.length === 1
+              "
+            >
+              <span>
+                {{ summary.winner_names[0] }} won
+                <template
+                  v-if="summary.second_names && summary.second_names.length"
+                >
+                  , narrowly beating {{ summary.second_names.join(", ") }}
+                </template>
+                , adding £{{ Number(summary.amount).toFixed(2) }} to his season
+                winnings.
+              </span>
             </template>
+            <template
+              v-else-if="
+                summary.winner_type === 'winner' &&
+                summary.winner_names &&
+                summary.winner_names.length > 1
+              "
+            >
+              <span>
+                {{ summary.winner_names.join(", ") }} tied for the win, adding
+                £{{ Number(summary.amount).toFixed(2) }} to their season
+                winnings.
+              </span>
+            </template>
+            <template v-else> No results yet. </template>
+            <p class="home-hero-sublabel home-hero-subtext">
+              {{ summary.num_players }} played, {{ summary.snakes }} snakes,
+              {{ summary.camels }} camels.
+            </p>
           </template>
           <template v-else> No results yet. </template>
         </div>
@@ -89,7 +121,7 @@
 
       <RouterLink class="home-card" to="/best14">
         <div class="home-card__header">
-          <span class="home-hero-sublabel">Best 14</span>
+          <span class="home-hero-sublabel">Best 14 LEADERS</span>
         </div>
         <div class="home-compact-list">
           <div
@@ -260,15 +292,7 @@ const loadHomeData = async () => {
       rpcParams,
     );
     if (summaryError) {
-      console.error("Supabase RPC error:", summaryError);
-      if (summaryError.message)
-        console.error("summaryError.message:", summaryError.message);
-      if (summaryError.code)
-        console.error("summaryError.code:", summaryError.code);
-      if (summaryError.details)
-        console.error("summaryError.details:", summaryError.details);
-      if (summaryError.hint)
-        console.error("summaryError.hint:", summaryError.hint);
+      // Debug logging removed
       throw summaryError;
     }
     if (summaryData && summaryData.length > 0) {

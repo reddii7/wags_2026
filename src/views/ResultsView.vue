@@ -12,6 +12,14 @@ const competitionMeta = ref(null);
 const loading = ref(true);
 const detailsLoading = ref(false);
 const error = ref("");
+const summary = ref({
+  amount: 0,
+  num_players: 0,
+  snakes: 0,
+  camels: 0,
+  week_number: null,
+  week_date: null,
+});
 
 const columns = [
   {
@@ -215,6 +223,14 @@ const loadResults = async () => {
   if (!selectedCompetitionId.value) {
     rows.value = [];
     competitionMeta.value = null;
+    summary.value = {
+      amount: 0,
+      num_players: 0,
+      snakes: 0,
+      camels: 0,
+      week_number: null,
+      week_date: null,
+    };
     return;
   }
 
@@ -222,21 +238,52 @@ const loadResults = async () => {
   error.value = "";
 
   // Fetch results from backend view/function with all fields precomputed
-  const { data: results, error: resultsError } = await supabase
-    .from("public_results_view") // Replace with your actual view/function name
-    .select("*")
-    .eq("competition_id", selectedCompetitionId.value)
-    .order("position");
+  const [
+    { data: results, error: resultsError },
+    { data: summaryData, error: summaryError },
+  ] = await Promise.all([
+    supabase
+      .from("public_results_view") // Replace with your actual view/function name
+      .select("*")
+      .eq("competition_id", selectedCompetitionId.value)
+      .order("position"),
+    supabase
+      .from("results_summary") // This should be a view or table with the summary fields
+      .select(
+        "amount, num_players, snakes, camels, week_number, week_date, winner_type, winner_names, second_names",
+      )
+      .eq("competition_id", selectedCompetitionId.value)
+      .single(),
+  ]);
 
-  if (resultsError) {
-    error.value = resultsError.message || "Unable to load results.";
+  if (resultsError || summaryError) {
+    error.value =
+      (resultsError && resultsError.message) ||
+      (summaryError && summaryError.message) ||
+      "Unable to load results.";
     rows.value = [];
     competitionMeta.value = null;
+    summary.value = {
+      amount: 0,
+      num_players: 0,
+      snakes: 0,
+      camels: 0,
+      week_number: null,
+      week_date: null,
+    };
     detailsLoading.value = false;
     return;
   }
 
   rows.value = results || [];
+  summary.value = summaryData || {
+    amount: 0,
+    num_players: 0,
+    snakes: 0,
+    camels: 0,
+    week_number: null,
+    week_date: null,
+  };
   detailsLoading.value = false;
 };
 
@@ -270,7 +317,70 @@ watch(selectedSeasonId, (seasonId, previous) => {
 
 <template>
   <section class="page-stack">
-    <!-- Season dropdown and section navigation removed as requested -->
+    <section class="hero-block home-hero">
+      <div class="home-hero__intro">
+        <div class="wags-headline">
+          <span class="home-hero-sublabel wags-body">
+            <template v-if="summary.week_number && summary.week_date">
+              WEEK {{ summary.week_number }}, {{ summary.week_date }}
+            </template>
+            <template v-else>
+              <span style="opacity: 0.5">WEEK &mdash; , &mdash;</span>
+            </template>
+          </span>
+          <template v-if="leadingRows.length">
+            <template v-if="summary.winner_type === 'rollover'">
+              <span>
+                {{
+                  summary.winner_names && summary.winner_names.length
+                    ? summary.winner_names.join(", ")
+                    : ""
+                }}
+                all scored, the £{{ Number(summary.amount).toFixed(2) }} pot
+                rolls over to next week.
+              </span>
+            </template>
+            <template
+              v-else-if="
+                summary.winner_type === 'winner' &&
+                summary.winner_names &&
+                summary.winner_names.length === 1
+              "
+            >
+              <span>
+                {{ summary.winner_names[0] }} won
+                <template
+                  v-if="summary.second_names && summary.second_names.length"
+                >
+                  , narrowly beating {{ summary.second_names.join(", ") }}
+                </template>
+                , adding £{{ Number(summary.amount).toFixed(2) }} to his season
+                winnings.
+              </span>
+            </template>
+            <template
+              v-else-if="
+                summary.winner_type === 'winner' &&
+                summary.winner_names &&
+                summary.winner_names.length > 1
+              "
+            >
+              <span>
+                {{ summary.winner_names.join(", ") }} tied for the win, adding
+                £{{ Number(summary.amount).toFixed(2) }} to their season
+                winnings.
+              </span>
+            </template>
+            <template v-else> No results yet. </template>
+            <p class="home-hero-sublabel home-hero-subtext">
+              {{ summary.num_players }} played, {{ summary.snakes }} snakes,
+              {{ summary.camels }} camels.
+            </p>
+          </template>
+          <template v-else> No results yet. </template>
+        </div>
+      </div>
+    </section>
 
     <section class="results-shell">
       <div class="results-hero__top">
