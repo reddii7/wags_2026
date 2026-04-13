@@ -14,7 +14,7 @@
             font-size: 2.6rem;
             font-weight: 800;
             line-height: 1.07;
-            letter-spacing: -0.04em;
+            letter-spacing: -0.02em;
             max-width: 700px;
             background: transparent;
             box-shadow: none;
