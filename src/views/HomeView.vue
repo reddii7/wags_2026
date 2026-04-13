@@ -2,8 +2,8 @@
   <section class="page-stack home-page">
     <section class="hero-block home-hero">
       <div class="home-hero__intro">
-        <div class="home-hero-headline">
-          <span class="home-hero-sublabel">
+        <div class="wags-headline">
+          <span class="home-hero-sublabel wags-body">
             <template v-if="summary.week_number && summary.week_date">
               WEEK {{ summary.week_number }}, {{ summary.week_date }}
             </template>
@@ -13,7 +13,17 @@
           </span>
           <template v-if="latestTopRows.length">
             <template v-if="latestTopRows.length > 1">
-              <span v-if="summary.week_number" style="display:inline; font: inherit; color: inherit; font-weight: inherit; font-size: inherit; margin-right:0.15em;">
+              <span
+                v-if="summary.week_number"
+                style="
+                  display: inline;
+                  font: inherit;
+                  color: inherit;
+                  font-weight: inherit;
+                  font-size: inherit;
+                  margin-right: 0.15em;
+                "
+              >
                 Week {{ summary.week_number }}
               </span>
               resulted in a rollover with

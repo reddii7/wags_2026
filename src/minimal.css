@@ -1,0 +1,84 @@
+/* Minimal Apple-Only Base Stylesheet for WAGS */
+:root {
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    --font-serif: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+    --text: #E2E2E2;
+    --muted: #A1A1A1;
+    --bg: #1C1C1E;
+    --accent: #3A5A40;
+}
+
+html,
+body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 0;
+}
+
+.wags-headline {
+    font-family: var(--font-serif);
+    font-size: 34px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--text);
+}
+
+.wags-body {
+    font-family: var(--font-sans);
+    font-size: 20px;
+    line-height: 1.6;
+    color: var(--muted);
+}
+
+.home-hero__title {
+    font-family: var(--font-serif);
+    font-size: 2.2rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.home-hero-sublabel {
+    font-family: var(--font-sans);
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 1.2em;
+}
+
+.home-hero-headline {
+    composes: wags-headline;
+    margin-bottom: 0.7em;
+}
+
+/* Utility classes for spacing */
+.mt-1 {
+    margin-top: 1rem;
+}
+
+.mb-1 {
+    margin-bottom: 1rem;
+}
+
+.pt-1 {
+    padding-top: 1rem;
+}
+
+.pb-1 {
+    padding-bottom: 1rem;
+}
+
+/* Minimal container for hero block */
+.hero-block {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 1.5rem 1.2rem;
+    border-radius: 28px;
+}
+
+/* Add more as needed for your app's layout */

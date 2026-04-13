@@ -11,19 +11,34 @@
     border: none;
 }
 
-.home-hero-headline {
-    color: var(--text);
-    font-size: 2.6rem;
-    font-weight: 700;
-    line-height: 1.00;
+
+/* Headline Style */
+.wags-headline {
+    font-family: var(--font-serif);
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.1;
     letter-spacing: -0.01em;
-    max-width: 700px;
+    color: #E2E2E2;
+}
+
+/* Body Style */
+.wags-body {
+    font-family: var(--font-sans);
+    font-size: 18px;
+    line-height: 1.6;
+    color: #A1A1A1;
+}
+
+/* Update home-hero-headline to use wags-headline */
+.home-hero-headline {
+    composes: wags-headline;
+    max-width: 900px;
     background: transparent;
     box-shadow: none;
     border: none;
     text-align: left;
     margin-bottom: 0.7em;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
 .home-hero-sublabel {
@@ -255,14 +270,14 @@
     --focus-ring: rgba(58, 90, 64, 0.18);
     --shadow: 0 6px 18px rgba(16, 16, 18, 0.035);
     --nav-glass-bg: rgba(249, 247, 242, 0.85);
-    --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', sans-serif;
-    --font-serif: -apple-system-short-headline, 'New York', 'Iowan Old Style', serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    --font-serif: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
     --step-body: clamp(0.98rem, 0.96rem + 0.18vw, 1.04rem);
     --step-label: 0.75rem;
 }
 
 :root[data-theme='dark'] {
-    --bg: #1C1C1E;
+    --bg: #1E1E1E;
     --bg-rgb: 28, 28, 30;
     --bg-strong: rgba(28, 28, 30, 0.92);
     --bg-soft: rgba(28, 28, 30, 0.82);
@@ -365,11 +380,9 @@ button,
 }
 
 .brand-name,
-.app-title,
-.hero-title {
-    font-family: var(--font-serif);
-    font-weight: 500;
-    letter-spacing: -0.02em;
+font-family: var(--font-serif);
+font-weight: 500;
+letter-spacing: -0.02em;
 }
 
 .panel-heading h3,
@@ -672,33 +685,219 @@ button,
 
 @media (max-width: 640px) {
     .app-main {
-        padding: 4.45rem 0.82rem calc(6.2rem + env(safe-area-inset-bottom, 0px));
+        padding: 4.05rem 0.74rem calc(5.8rem + env(safe-area-inset-bottom, 0px));
     }
 
     .app-topbar {
         padding-top: calc(env(safe-area-inset-top, 0px) + 0.42rem);
-        padding-bottom: 0.28rem;
-        padding-left: 0.82rem;
-        padding-right: 0.82rem;
+        padding-bottom: 0.2rem;
+        padding-left: 0.74rem;
+        padding-right: 0.74rem;
     }
 
-    .hero-block {
-        padding: 1.4rem;
-        border-radius: 28px;
-    }
-
-    .hero-copy {
-        font-size: 0.96rem;
+    .feature-card--minimal {
+        padding-left: 0;
+        padding-right: 0;
     }
 
     .quiet-list-row {
         grid-template-columns: 54px minmax(0, 1fr) 72px;
-        font-size: 0.94rem;
+        font-size: 0.92rem;
     }
 
     .panel-heading {
+        flex-direction: row;
+        align-items: baseline;
+    }
+
+    .topbar-row--admin {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+
+    .topbar-row--season {
+        gap: 0.45rem;
+    }
+
+    .topbar-season-nav {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .admin-topbar-tabs {
+        gap: 0.22rem;
+    }
+
+    .admin-tab-link {
+        font-size: 0.92rem;
+    }
+
+    .admin-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .home-page {
+        gap: 0.72rem;
+    }
+
+    .results-shell {
+        padding: 0.1rem 0 0;
+        gap: 0.68rem;
+    }
+
+    .results-hero__top {
+        align-items: flex-start;
+        gap: 0.45rem;
+    }
+
+    .results-filter-row {
+        width: 100%;
+        gap: 0.5rem;
+    }
+
+    .results-shell__title {
+        max-width: 10ch;
+        font-size: clamp(1.65rem, 10vw, 2.5rem);
+    }
+
+    .results-shell__meta {
+        font-size: 0.72rem;
+    }
+
+    .results-hero__stats {
+        gap: 0.45rem 0.8rem;
+    }
+
+    .results-select-shell--minimal {
+        width: 100%;
+    }
+
+    .results-select-shell--season,
+    .results-select-shell--week {
+        max-width: none;
+    }
+
+    .home-hero {
+        padding: 1.2rem 0.95rem;
+        border-radius: 28px;
+        gap: 0.95rem;
+    }
+
+    .home-hero__copy {
+        font-size: 0.94rem;
+        line-height: 1.6;
+    }
+
+    .home-dashboard {
+        grid-template-columns: 1fr;
+    }
+
+    .home-card {
+        min-height: 0;
+        padding: 1rem 0.9rem 0.95rem;
+        border-radius: 24px;
+    }
+
+    .home-card strong {
+        font-size: 1.18rem;
+    }
+
+    .home-card p {
+        max-width: none;
+        font-size: 0.9rem;
+    }
+
+    .home-card__header {
+        align-items: flex-start;
+    }
+
+    .home-lead-heading p {
+        max-width: none;
+        font-size: 0.92rem;
+    }
+
+    .home-lead-strip {
+        gap: 0.35rem;
+    }
+
+    .home-lead-stat {
+        padding: 0.62rem 0.7rem;
+        border-radius: 16px;
+    }
+
+    .home-compact-row {
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        gap: 0.45rem;
+    }
+
+    .home-card--lead {
+        min-height: 0;
+    }
+
+    .app-dialog {
+        width: min(100%, 560px);
+        padding: 0.45rem;
+    }
+
+    .app-dialog__panel {
+        width: min(100%, 520px);
+        max-height: 80vh;
+        padding: 0.82rem 0.82rem 0.92rem;
+        border-radius: 24px;
+    }
+
+    .app-dialog__header {
+        gap: 0.35rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .app-dialog__header .panel-heading {
         flex-direction: column;
         align-items: flex-start;
+        gap: 0.08rem;
+    }
+
+    .app-dialog__header .panel-heading h3 {
+        font-size: 1.1rem;
+    }
+
+    .app-dialog__header .panel-heading span {
+        font-size: 0.82rem;
+    }
+
+    .app-dialog__close {
+        align-self: flex-end;
+        padding: 0.28rem 0.46rem;
+        font-size: 0.74rem;
+    }
+
+    .admin-score-row {
+        grid-template-columns: minmax(0, 1fr) 56px 72px;
+        grid-template-areas:
+            'player score due'
+            'paid actions actions';
+        align-items: start;
+    }
+
+    .admin-score-row> :nth-child(1) {
+        grid-area: player;
+    }
+
+    .admin-score-row> :nth-child(2) {
+        grid-area: score;
+    }
+
+    .admin-score-row> :nth-child(3) {
+        grid-area: due;
+    }
+
+    .admin-score-row> :nth-child(4) {
+        grid-area: paid;
+        justify-content: flex-start;
+    }
+
+    .admin-score-row> :nth-child(5) {
+        grid-area: actions;
     }
 
     .topbar-actions {
@@ -706,8 +905,8 @@ button,
     }
 
     .utility-link {
-        padding: 0.46rem 0.66rem;
-        font-size: 0.78rem;
+        padding: 0.42rem 0.58rem;
+        font-size: 0.74rem;
     }
 
     .bottom-nav {
@@ -716,24 +915,26 @@ button,
         bottom: 0;
         gap: 0;
         width: 100%;
-        padding: 0.48rem 0.42rem calc(0.76rem + env(safe-area-inset-bottom, 0px));
+        padding: 0.42rem 0.28rem calc(0.66rem + env(safe-area-inset-bottom, 0px));
+        border-radius: 0;
     }
 
     .bottom-nav-link {
-        min-height: 4.55rem;
-        font-size: 0.82rem;
-        padding: 0.52rem 0.3rem;
-        gap: 0.34rem;
+        min-height: 4.3rem;
+        font-size: 0.76rem;
+        padding: 0.46rem 0.18rem;
+        gap: 0.28rem;
+        border-radius: 0;
     }
 
     .nav-icon {
-        width: 1.46rem;
-        height: 1.46rem;
+        width: 1.3rem;
+        height: 1.3rem;
     }
 
     .bottom-nav-label {
-        font-size: 0.68rem;
-        letter-spacing: 0.07em;
+        font-size: 0.58rem;
+        letter-spacing: 0.06em;
     }
 }
 
@@ -754,12 +955,6 @@ button,
 .hero-block.compact,
 .compact-panel {
     max-width: 760px;
-}
-
-.hero-title {
-    margin: 0.35rem 0 0.75rem;
-    font-size: clamp(2rem, 4vw, 3.5rem);
-    line-height: 0.95;
 }
 
 .hero-copy {
@@ -856,7 +1051,7 @@ button,
 .home-hero__title {
     max-width: 11ch;
     margin: 0;
-    font-family: 'New York', -apple-system-short-headline, 'Iowan Old Style', serif;
+    font-family: var(--font-serif);
 }
 
 .home-status {
@@ -1974,11 +2169,6 @@ button,
         padding: 1.2rem 0.95rem;
         border-radius: 28px;
         gap: 0.95rem;
-    }
-
-    .home-hero__title {
-        max-width: 12ch;
-        font-size: clamp(1.7rem, 8vw, 2.3rem);
     }
 
     .home-hero__copy {
