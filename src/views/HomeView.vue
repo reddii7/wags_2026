@@ -1,43 +1,9 @@
 <template>
   <section class="page-stack home-page">
-    <section
-      class="hero-block home-hero"
-      style="background: #1a1a1a; box-shadow: none; border: none"
-    >
-      <div
-        class="home-hero__intro"
-        style="background: transparent; box-shadow: none; border: none"
-      >
-        <div
-          style="
-            color: #e2e2e2;
-            font-size: 2.6rem;
-            font-weight: 800;
-            line-height: 1.07;
-            letter-spacing: -0.02em;
-            max-width: 700px;
-            background: transparent;
-            box-shadow: none;
-            border: none;
-            text-align: left;
-            margin-bottom: 0.7em;
-            font-family:
-              -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
-              Helvetica, Arial, sans-serif;
-          "
-        >
-          <span
-            style="
-              display: block;
-              text-transform: uppercase;
-              font-size: 0.85rem;
-              font-weight: 700;
-              letter-spacing: 0.05em;
-              color: #6a6a6e;
-              margin-bottom: 1.2em;
-              font-family: inherit;
-            "
-          >
+    <section class="hero-block home-hero">
+      <div class="home-hero__intro">
+        <div class="home-hero-headline">
+          <span class="home-hero-sublabel">
             <template v-if="summary.week_number && summary.week_date">
               WEEK {{ summary.week_number }}, {{ summary.week_date }}
             </template>
@@ -53,18 +19,7 @@
                 Number(summary.amount).toFixed(2)
               }}
               rolling over.
-              <p
-                style="
-                  display: block;
-                  text-transform: uppercase;
-                  font-size: 0.85rem;
-                  font-weight: 700;
-                  letter-spacing: 0.05em;
-                  color: #6a6a6e;
-                  margin: 1.2em 0 0 0;
-                  font-family: inherit;
-                "
-              >
+              <p class="home-hero-sublabel home-hero-subtext">
                 {{ summary.num_players }} played, {{ summary.snakes }} snakes,
                 {{ summary.camels }} camels.
               </p>
@@ -72,18 +27,7 @@
             <template v-else>
               a win for {{ latestTopRows[0].player }} {{ latestTopScore }} with
               winning £{{ Number(summary.amount).toFixed(2) }}.
-              <p
-                style="
-                  display: block;
-                  text-transform: uppercase;
-                  font-size: 0.85rem;
-                  font-weight: 700;
-                  letter-spacing: 0.05em;
-                  color: #6a6a6e;
-                  margin: 1.2em 0 0 0;
-                  font-family: inherit;
-                "
-              >
+              <p class="home-hero-sublabel home-hero-subtext">
                 {{ summary.num_players }} played, {{ summary.snakes }} snakes,
                 {{ summary.camels }} camels.
               </p>
