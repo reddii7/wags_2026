@@ -14,9 +14,6 @@
       </svg>
     </button>
     <div v-if="open" class="topbar-menu-dropdown">
-      <button class="topbar-menu-item" @click="onThemeToggle">
-        {{ theme === "dark" ? "Light Mode" : "Dark Mode" }}
-      </button>
       <button v-if="!isAdminRoute" class="topbar-menu-item" @click="onAdmin">
         Admin
       </button>
