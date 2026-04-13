@@ -13,6 +13,9 @@
           </span>
           <template v-if="latestTopRows.length">
             <template v-if="latestTopRows.length > 1">
+              <span v-if="summary.week_number" style="display:inline; font: inherit; color: inherit; font-weight: inherit; font-size: inherit; margin-right:0.15em;">
+                Week {{ summary.week_number }}
+              </span>
               resulted in a rollover with
               {{ latestTopRows.map((row) => row.player).join(", ") }} all
               shooting {{ latestTopScore }} with £{{
