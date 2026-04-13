@@ -73,7 +73,7 @@
 
       <RouterLink class="home-card" to="/handicaps">
         <div class="home-card__header">
-          <span class="feature-label">Handicap changes</span>
+          <span class="home-hero-sublabel">Handicap changes</span>
         </div>
         <div class="home-compact-list">
           <div
@@ -107,7 +107,7 @@
 
       <RouterLink class="home-card" to="/best14">
         <div class="home-card__header">
-          <span class="feature-label">Best 14</span>
+          <span class="home-hero-sublabel">Best 14</span>
         </div>
         <div class="home-compact-list">
           <div
@@ -124,7 +124,7 @@
 
       <RouterLink class="home-card" to="/leagues">
         <div class="home-card__header">
-          <span class="feature-label">Division leaders</span>
+          <span class="home-hero-sublabel">Division leaders</span>
         </div>
         <div class="home-compact-list">
           <div
