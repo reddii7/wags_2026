@@ -877,8 +877,7 @@ button,
     padding: 1.2rem 1.05rem 1.15rem;
     border-radius: 28px;
     text-decoration: none;
-    background: var(--surface-2);
-    border: 0.5px solid var(--line);
+    background: var(--bg);
     box-shadow: none;
     transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
 }
@@ -964,11 +963,9 @@ button,
     gap: 0.55rem;
     align-items: center;
     padding: 0.5rem 0;
-    border-top: 0.5px solid var(--line);
 }
 
 .home-compact-row:first-child {
-    border-top: 0;
     padding-top: 0.1rem;
 }
 
