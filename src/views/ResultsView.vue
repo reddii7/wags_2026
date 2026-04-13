@@ -138,7 +138,9 @@ const winnerLabel = computed(() =>
 
 const winnerValue = computed(() => {
   if (!leadingRows.value.length) return "TBC";
-  return leadingRows.value.map((row) => row.player).join(", ");
+  const names = leadingRows.value.map((row) => row.player).join(", ");
+  const score = leadingRows.value[0]?.score;
+  return score !== undefined && score !== null ? `${names} (${score})` : names;
 });
 
 const moneyValue = computed(() => {
@@ -336,8 +338,15 @@ watch(selectedSeasonId, (seasonId, previous) => {
                     ? summary.winner_names.join(", ")
                     : ""
                 }}
-                all scored, the £{{ Number(summary.amount).toFixed(2) }} pot
-                rolls over to next week.
+                all scored
+                <template v-if="summary.winner_score">
+                  {{ " " + summary.winner_score + " points" }}
+                </template>
+                <template v-else-if="leadingRows.length">
+                  {{ " " + leadingRows[0].score + " points" }}
+                </template>
+                , the £{{ Number(summary.amount).toFixed(2) }} pot rolls over to
+                next week.
               </span>
             </template>
             <template
@@ -349,6 +358,12 @@ watch(selectedSeasonId, (seasonId, previous) => {
             >
               <span>
                 {{ summary.winner_names[0] }} won
+                <template v-if="summary.winner_score">
+                  with {{ summary.winner_score }} points
+                </template>
+                <template v-else-if="leadingRows.length">
+                  with {{ leadingRows[0].score }} points
+                </template>
                 <template
                   v-if="summary.second_names && summary.second_names.length"
                 >
