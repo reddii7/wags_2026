@@ -38,12 +38,6 @@ const columns = [
     className: "player",
     width: "minmax(0, 1fr)",
   },
-  {
-    key: "handicapChange",
-    label: "CHG",
-    className: "results-change",
-    width: "7.25rem",
-  },
   { key: "score", label: "PTS", className: "numeric", width: "4.75rem" },
 ];
 
@@ -408,17 +402,6 @@ watch(
                 >
               </div>
             </div>
-          </template>
-          <template #handicapChange="{ row }">
-            <span
-              v-if="row.handicapChange"
-              class="mini-pill mini-pill--delta"
-              :class="
-                row.improved ? 'mini-pill--positive' : 'mini-pill--negative'
-              "
-            >
-              {{ row.handicapChange }}
-            </span>
           </template>
         </QuietList>
       </div>

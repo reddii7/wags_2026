@@ -104,7 +104,7 @@ const latestSideGames = computed(() => {
 });
 
 const loadHomeData = async () => {
-  // If root metadata isn't ready or we are already loading, skip
+  // Guard: Don't fetch if metadata isn't ready
   if (props.metadata.loading || !props.metadata.season) return;
 
   const { season, latestComp, summary: metaSummary } = props.metadata;
@@ -113,7 +113,7 @@ const loadHomeData = async () => {
   latestCompetitionDetails.value = latestComp;
   if (metaSummary) summary.value = metaSummary;
 
-  loading.value = true;
+  // loading.value is already true by default
   error.value = "";
 
   try {
@@ -133,14 +133,14 @@ const loadHomeData = async () => {
 
     best14Leaders.value = (dash.best14 || []).map((player) => ({
       ...player,
-      position: player.position ?? player.pos ?? player.rank_no ?? "",
+      position: player.position ?? player.pos ?? player.rank_no ?? "1",
       total_score: player.best_total,
       id: `${season?.id}-${player.user_id}`,
     }));
 
     leagueLeaders.value = (dash.leagues || []).map((row) => ({
       ...row,
-      position: row.position ?? row.pos ?? row.rank_no ?? "",
+      position: row.position ?? row.pos ?? row.rank_no ?? "1",
     }));
 
     latestResults.value = (dash.results || []).map((row) => ({
@@ -152,21 +152,8 @@ const loadHomeData = async () => {
       position: row.position ?? row.pos ?? row.rank_no ?? "",
     }));
 
-    const userMap = new Map();
-    (dash.handicaps || [])
-      .filter((item) => {
-        const oldH =
-          item.old_handicap !== null ? Math.round(item.old_handicap) : null;
-        const newH =
-          item.new_handicap !== null ? Math.round(item.new_handicap) : null;
-        return oldH !== null && newH !== null && oldH !== newH;
-      })
-      .forEach((item) => {
-        if (!userMap.has(item.user_id)) {
-          userMap.set(item.user_id, item);
-        }
-      });
-    handicapMovements.value = Array.from(userMap.values());
+    // Data is now pre-filtered for actual changes in the SQL function
+    handicapMovements.value = dash.handicaps || [];
   } catch (err) {
     console.error("Dashboard load error:", err);
     error.value = err.message || "Unable to load dashboard.";
@@ -286,7 +273,7 @@ watch(
         <div class="home-compact-list">
           <div
             v-for="(item, idx) in handicapMovements.slice(0, 4)"
-            :key="item.id"
+            :key="item.user_id"
             class="home-compact-row"
           >
             <span class="home-rank">{{ idx + 1 }}</span>
