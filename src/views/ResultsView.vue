@@ -404,36 +404,4 @@ watch(
   </section>
 </template>
 
-<style scoped>
-.week-selector {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--surface-100);
-  background: transparent;
-}
-.week-selector__scroll {
-  display: flex;
-  overflow-x: auto;
-  padding: 0 1rem;
-  gap: 0.5rem;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.week-selector__scroll::-webkit-scrollbar {
-  display: none;
-}
-.week-pill {
-  padding: 0.4rem 1rem;
-  border-radius: 2rem;
-  background: var(--surface-100, rgba(255, 255, 255, 0.1));
-  color: var(--text-muted, #888);
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
-  border: none;
-  transition: all 0.2s;
-}
-.week-pill.active {
-  background: var(--brand, #4f46e5);
-  color: white;
-}
-</style>
+<style scoped></style>

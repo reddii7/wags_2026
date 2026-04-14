@@ -1,169 +1,9 @@
-<template>
-  <section class="page-stack home-page">
-    <section class="hero-block home-hero">
-      <div class="home-hero__intro">
-        <div class="wags-headline">
-          <span class="home-hero-sublabel wags-body">
-            <template v-if="summary.week_number && summary.week_date">
-              WEEK {{ summary.week_number }}, {{ summary.week_date }}
-            </template>
-            <template v-else>
-              <span style="opacity: 0.5">WEEK &mdash; , &mdash;</span>
-            </template>
-          </span>
-          <template v-if="latestTopRows.length">
-            <template v-if="summary.winner_type === 'rollover'">
-              <span>
-                {{
-                  summary.winner_names && summary.winner_names.length
-                    ? summary.winner_names.join(", ")
-                    : ""
-                }}
-                all scored
-                <template v-if="latestTopRows.length">
-                  {{ " " + latestTopRows[0].score }}
-                </template>
-                , the £{{ Number(summary.amount).toFixed(2) }} pot rolls over to
-                next week.
-              </span>
-            </template>
-            <template
-              v-else-if="
-                summary.winner_type === 'winner' &&
-                summary.winner_names &&
-                summary.winner_names.length === 1
-              "
-            >
-              <span>
-                {{ summary.winner_names[0] }} won
-                <template
-                  v-if="summary.second_names && summary.second_names.length"
-                >
-                  , narrowly beating {{ summary.second_names.join(", ") }}
-                </template>
-                , adding £{{ Number(summary.amount).toFixed(2) }} to his season
-                winnings.
-              </span>
-            </template>
-            <template
-              v-else-if="
-                summary.winner_type === 'winner' &&
-                summary.winner_names &&
-                summary.winner_names.length > 1
-              "
-            >
-              <span>
-                {{ summary.winner_names.join(", ") }} tied for the win, adding
-                £{{ Number(summary.amount).toFixed(2) }} to their season
-                winnings.
-              </span>
-            </template>
-            <template v-else> No results yet. </template>
-            <p class="home-hero-sublabel home-hero-subtext">
-              {{ summary.num_players }} played, {{ summary.snakes }} snakes,
-              {{ summary.camels }} camels.
-            </p>
-          </template>
-          <template v-else> No results yet. </template>
-        </div>
-      </div>
-    </section>
-
-    <section
-      v-if="loading"
-      class="content-panel content-panel--minimal home-status"
-    >
-      <p class="empty-state">Loading dashboard…</p>
-    </section>
-    <section
-      v-else-if="error"
-      class="content-panel content-panel--minimal home-status"
-    >
-      <p class="empty-state">{{ error }}</p>
-    </section>
-
-    <section
-      v-if="!loading && !error"
-      class="home-dashboard"
-      aria-label="Main sections"
-    >
-      <!-- Results summary moved to hero above -->
-
-      <RouterLink class="home-card" to="/handicaps">
-        <div class="home-card__header">
-          <span class="home-hero-sublabel">Handicap changes</span>
-        </div>
-        <div class="home-compact-list">
-          <div
-            v-for="(item, idx) in handicapMovements.slice(0, 4)"
-            :key="item.id"
-            class="home-compact-row"
-          >
-            <span class="home-rank">{{ idx + 1 }}</span>
-            <span class="home-name">{{ item.full_name }}</span>
-            <span class="home-value">
-              <span
-                v-if="
-                  item.old_handicap !== undefined &&
-                  item.new_handicap !== undefined
-                "
-                class="mini-pill mini-pill--delta home-pill-compact"
-                :class="
-                  item.new_handicap < item.old_handicap
-                    ? 'mini-pill--positive'
-                    : 'mini-pill--negative'
-                "
-              >
-                {{ Math.round(item.old_handicap) }}→{{
-                  Math.round(item.new_handicap)
-                }}
-              </span>
-            </span>
-          </div>
-        </div>
-      </RouterLink>
-
-      <RouterLink class="home-card" to="/best14">
-        <div class="home-card__header">
-          <span class="home-hero-sublabel">Best 14 LEADERS</span>
-        </div>
-        <div class="home-compact-list">
-          <div
-            v-for="player in best14Leaders.slice(0, 3)"
-            :key="player.id"
-            class="home-compact-row"
-          >
-            <span class="home-rank">{{ player.position }}</span>
-            <span class="home-name">{{ player.full_name }}</span>
-            <span class="home-value">{{ player.total_score }}</span>
-          </div>
-        </div>
-      </RouterLink>
-
-      <RouterLink class="home-card" to="/leagues">
-        <div class="home-card__header">
-          <span class="home-hero-sublabel">Division leaders</span>
-        </div>
-        <div class="home-compact-list">
-          <div
-            v-for="leader in leagueLeaders.slice(0, 4)"
-            :key="leader.league_name"
-            class="home-compact-row"
-          >
-            <span class="home-rank home-rank--league">{{
-              formatLeagueLabel(leader.league_name)
-            }}</span>
-            <span class="home-name">{{ leader.full_name }}</span>
-            <span class="home-value">{{ leader.total_score }}</span>
-          </div>
-        </div>
-      </RouterLink>
-    </section>
-  </section>
-</template>
-
 <script setup>
 import { computed, onMounted, ref } from "vue";
+import { supabase } from "../lib/supabase";
+
+const emit = defineEmits(["navigate"]);
+
 // Backend-driven summary for Results card
 const summary = ref({
   winner_type: "",
@@ -173,8 +13,6 @@ const summary = ref({
   snakes: 0,
   camels: 0,
 });
-import { RouterLink } from "vue-router";
-import { supabase } from "../lib/supabase";
 
 const loading = ref(true);
 const error = ref("");
@@ -287,67 +125,44 @@ const loadHomeData = async () => {
   latestCompetition.value = competition || null;
   latestCompetitionDetails.value = competition || null;
 
-  // Fetch competition summary from public.get_competition_summary(uuid)
   if (competition?.id) {
-    // Debug: log competition id, type, UUID format, and RPC params before RPC call
-    const rpcParams = { p_competition_id: competition.id };
     const { data: summaryData, error: summaryError } = await supabase.rpc(
       "get_competition_summary",
-      rpcParams,
+      { p_competition_id: competition.id },
     );
-    if (summaryError) {
-      // Debug logging removed
-      throw summaryError;
-    }
+    if (summaryError) throw summaryError;
     if (summaryData && summaryData.length > 0) {
       summary.value = summaryData[0];
     }
   }
 
-  const requests = [];
-
-  if (currentSeason?.start_year) {
-    requests.push(
-      supabase.rpc("get_best_14_scores_by_season", {
-        p_season: String(currentSeason.start_year),
-      }),
-    );
-    requests.push(
-      supabase.rpc("get_league_standings_best10", {
-        p_season_id: currentSeason.id,
-      }),
-    );
-  } else {
-    requests.push(Promise.resolve({ data: [], error: null }));
-    requests.push(Promise.resolve({ data: [], error: null }));
-  }
-
-  if (competition?.id) {
-    requests.push(
-      supabase
-        .from("public_results_view")
-        .select("*")
-        .eq("competition_id", competition.id)
-        .order("position"),
-    );
-  } else {
-    requests.push(Promise.resolve({ data: [], error: null }));
-  }
-
-  // Only fetch competitions for other logic if needed
-  requests.push(
+  const requests = [
+    currentSeason?.start_year
+      ? supabase.rpc("get_best_14_scores_by_season", {
+          p_season: String(currentSeason.start_year),
+        })
+      : Promise.resolve({ data: [], error: null }),
+    currentSeason?.id
+      ? supabase.rpc("get_league_standings_best10", {
+          p_season_id: currentSeason.id,
+        })
+      : Promise.resolve({ data: [], error: null }),
+    competition?.id
+      ? supabase
+          .from("public_results_view")
+          .select("*")
+          .eq("competition_id", competition.id)
+          .order("position")
+      : Promise.resolve({ data: [], error: null }),
     supabase
       .from("competitions")
       .select("id, name, competition_date")
       .order("competition_date", { ascending: false }),
-  );
-  // Fetch handicap changes directly from backend view
-  requests.push(
     supabase
       .from("public_handicap_changes_view")
       .select("*")
       .order("created_at", { ascending: false }),
-  );
+  ];
 
   const [
     best14Response,
@@ -375,7 +190,7 @@ const loadHomeData = async () => {
     if (!groupedLeagueLeaders.has(row.league_name)) {
       groupedLeagueLeaders.set(row.league_name, {
         ...row,
-        position: row.rank_no, // Map backend rank_no to position
+        position: row.rank_no,
       });
     }
   });
@@ -390,28 +205,18 @@ const loadHomeData = async () => {
     position: row.position ?? row.pos ?? row.rank_no ?? "",
   }));
 
-  // Only show latest handicap changes for the latest competition
   const allChanges = handicapResponse.data || [];
   const compId = latestCompetition.value?.id;
   if (compId) {
-    // Filter to only changes for the latest competition
     const compChanges = allChanges.filter(
       (item) => item.competition_id === compId,
     );
-    // For each user, keep only their latest change (by created_at desc)
     const userMap = new Map();
-    compChanges.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    for (const item of compChanges) {
+    compChanges.forEach((item) => {
       if (!userMap.has(item.user_id)) {
-        const oldH =
-          item.old_handicap !== null ? Math.round(item.old_handicap) : null;
-        const newH =
-          item.new_handicap !== null ? Math.round(item.new_handicap) : null;
-        if (oldH !== null && newH !== null && oldH !== newH) {
-          userMap.set(item.user_id, item);
-        }
+        userMap.set(item.user_id, item);
       }
-    }
+    });
     handicapMovements.value = Array.from(userMap.values());
   } else {
     handicapMovements.value = [];
@@ -428,6 +233,182 @@ onMounted(async () => {
   }
 });
 </script>
+
+<template>
+  <section class="page-stack home-page">
+    <section class="hero-block home-hero">
+      <div class="home-hero__intro">
+        <div class="wags-headline">
+          <span class="home-hero-sublabel wags-body">
+            <template v-if="summary.week_number && summary.week_date">
+              WEEK {{ summary.week_number }}, {{ summary.week_date }}
+            </template>
+            <template v-else>
+              <span style="opacity: 0.5">WEEK &mdash; , &mdash;</span>
+            </template>
+          </span>
+          <template v-if="latestTopRows.length">
+            <template v-if="summary.winner_type === 'rollover'">
+              <span>
+                {{
+                  summary.winner_names && summary.winner_names.length
+                    ? summary.winner_names.join(", ")
+                    : ""
+                }}
+                all scored
+                <template v-if="latestTopRows.length">
+                  {{ " " + latestTopRows[0].score }}
+                </template>
+                , the £{{ Number(summary.amount).toFixed(2) }} pot rolls over to
+                next week.
+              </span>
+            </template>
+            <template
+              v-else-if="
+                summary.winner_type === 'winner' &&
+                summary.winner_names &&
+                summary.winner_names.length === 1
+              "
+            >
+              <span>
+                {{ summary.winner_names[0] }} won
+                <template
+                  v-if="summary.second_names && summary.second_names.length"
+                >
+                  , narrowly beating {{ summary.second_names.join(", ") }}
+                </template>
+                , adding £{{ Number(summary.amount).toFixed(2) }} to his season
+                winnings.
+              </span>
+            </template>
+            <template
+              v-else-if="
+                summary.winner_type === 'winner' &&
+                summary.winner_names &&
+                summary.winner_names.length > 1
+              "
+            >
+              <span>
+                {{ summary.winner_names.join(", ") }} tied for the win, adding
+                £{{ Number(summary.amount).toFixed(2) }} to their season
+                winnings.
+              </span>
+            </template>
+            <template v-else> No results yet. </template>
+            <p class="home-hero-sublabel home-hero-subtext">
+              {{ summary.num_players }} played, {{ summary.snakes }} snakes,
+              {{ summary.camels }} camels.
+            </p>
+          </template>
+          <template v-else> No results yet. </template>
+        </div>
+      </div>
+    </section>
+
+    <section
+      v-if="loading"
+      class="content-panel content-panel--minimal home-status"
+    >
+      <p class="empty-state">Loading dashboard…</p>
+    </section>
+    <section
+      v-else-if="error"
+      class="content-panel content-panel--minimal home-status"
+    >
+      <p class="empty-state">{{ error }}</p>
+    </section>
+
+    <section
+      v-if="!loading && !error"
+      class="home-dashboard"
+      aria-label="Main sections"
+    >
+      <!-- Results summary moved to hero above -->
+
+      <button
+        class="home-card row-button"
+        type="button"
+        @click="$emit('navigate', 'handicaps')"
+      >
+        <div class="home-card__header">
+          <span class="home-hero-sublabel">Handicap changes</span>
+        </div>
+        <div class="home-compact-list">
+          <div
+            v-for="(item, idx) in handicapMovements.slice(0, 4)"
+            :key="item.id"
+            class="home-compact-row"
+          >
+            <span class="home-rank">{{ idx + 1 }}</span>
+            <span class="home-name">{{ item.full_name }}</span>
+            <span class="home-value">
+              <span
+                v-if="
+                  item.old_handicap !== undefined &&
+                  item.new_handicap !== undefined
+                "
+                class="mini-pill mini-pill--delta home-pill-compact"
+                :class="
+                  item.new_handicap < item.old_handicap
+                    ? 'mini-pill--positive'
+                    : 'mini-pill--negative'
+                "
+              >
+                {{ Math.round(item.old_handicap) }}→{{
+                  Math.round(item.new_handicap)
+                }}
+              </span>
+            </span>
+          </div>
+        </div>
+      </button>
+
+      <button
+        class="home-card row-button"
+        type="button"
+        @click="$emit('navigate', 'stats')"
+      >
+        <div class="home-card__header">
+          <span class="home-hero-sublabel">Best 14 LEADERS</span>
+        </div>
+        <div class="home-compact-list">
+          <div
+            v-for="player in best14Leaders.slice(0, 3)"
+            :key="player.id"
+            class="home-compact-row"
+          >
+            <span class="home-rank">{{ player.position }}</span>
+            <span class="home-name">{{ player.full_name }}</span>
+            <span class="home-value">{{ player.total_score }}</span>
+          </div>
+        </div>
+      </button>
+
+      <button
+        class="home-card row-button"
+        type="button"
+        @click="$emit('navigate', 'stats')"
+      >
+        <div class="home-card__header">
+          <span class="home-hero-sublabel">Division leaders</span>
+        </div>
+        <div class="home-compact-list">
+          <div
+            v-for="leader in leagueLeaders.slice(0, 4)"
+            :key="leader.league_name"
+            class="home-compact-row"
+          >
+            <span class="home-rank home-rank--league">{{
+              formatLeagueLabel(leader.league_name)
+            }}</span>
+            <span class="home-name">{{ leader.full_name }}</span>
+            <span class="home-value">{{ leader.total_score }}</span>
+          </div>
+        </div>
+      </button>
+    </section>
+  </section>
+</template>
 
 <style scoped>
 .home-label {

@@ -76,7 +76,13 @@ onBeforeUnmount(() => {
     <main class="app-main">
       <div class="view-frame">
         <transition name="page-fade" mode="out-in">
-          <component :is="currentSectionComponent" :key="currentSectionName" />
+          <component
+            :is="currentSectionComponent"
+            :key="currentSectionName"
+            @navigate="
+              (target) => switchSection(sections.find((s) => s.name === target))
+            "
+          />
         </transition>
       </div>
     </main>
