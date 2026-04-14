@@ -1,13 +1,14 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
-import { useTopbarControls } from "../composables/useTopbarControls";
 import { supabase } from "../lib/supabase";
 import { triggerHapticFeedback } from "../utils/haptics";
 
-const seasons = ref([]);
-const selectedSeasonId = ref(null);
+const props = defineProps({
+  season: { type: Object, required: true },
+});
+
 const groups = ref([]);
 const selectedPlayer = ref(null);
 const detailRows = ref([]);
@@ -15,12 +16,10 @@ const detailLoading = ref(false);
 const isDetailOpen = ref(false);
 const loading = ref(true);
 const error = ref("");
-const { setSeasonControl, clearSeasonControl } = useTopbarControls();
-const seasonControl = { seasons, model: selectedSeasonId };
 
 const columns = [
   {
-    key: "pos",
+    key: "position",
     label: "Pos",
     className: "numeric narrow",
     width: "3.5rem",
@@ -76,22 +75,8 @@ const formatLeagueTitle = (value) => {
   return match?.[0] ? `LEAGUE ${match[0]}` : String(value).toUpperCase();
 };
 
-const loadSeasons = async () => {
-  const { data, error: queryError } = await supabase
-    .from("seasons")
-    .select("id, name, start_year, is_current")
-    .order("start_year", { ascending: false });
-
-  if (queryError) throw queryError;
-  seasons.value = data || [];
-  selectedSeasonId.value =
-    seasons.value.find((season) => season.is_current)?.id ||
-    seasons.value[0]?.id ||
-    null;
-};
-
 const loadLeagues = async () => {
-  if (!selectedSeasonId.value) {
+  if (!props.season?.id) {
     groups.value = [];
     return;
   }
@@ -101,7 +86,7 @@ const loadLeagues = async () => {
   const { data, error: rpcError } = await supabase.rpc(
     "get_league_standings_best10",
     {
-      p_season_id: selectedSeasonId.value,
+      p_season_id: props.season.id,
     },
   );
 
@@ -129,7 +114,7 @@ const loadLeagues = async () => {
 };
 
 const openBest10 = async (player) => {
-  if (!player?.user_id || !selectedSeasonId.value) return;
+  if (!player?.user_id || !props.season?.id) return;
 
   triggerHapticFeedback();
 
@@ -143,7 +128,7 @@ const openBest10 = async (player) => {
     "get_player_best_10_scores",
     {
       p_profile_id: player.user_id,
-      p_season_id: selectedSeasonId.value,
+      p_season_id: props.season.id,
     },
   );
 
@@ -171,19 +156,16 @@ const closeBest10 = () => {
 };
 
 onMounted(async () => {
-  try {
-    await loadSeasons();
-    await loadLeagues();
-  } catch (loadError) {
-    error.value = loadError.message;
-    loading.value = false;
-  }
-});
-
-watch(selectedSeasonId, async (seasonId, previous) => {
-  if (!seasonId || seasonId === previous) return;
   await loadLeagues();
 });
+
+watch(
+  () => props.season?.id,
+  async (newId) => {
+    if (!newId) return;
+    await loadLeagues();
+  },
+);
 </script>
 
 <template>
@@ -194,13 +176,15 @@ watch(selectedSeasonId, async (seasonId, previous) => {
           League Standings
         </div>
         <p class="wags-body" style="margin: 0 auto; max-width: 500px">
-          Current standings for each league. Tap a player to view their best 10
-          scores.
+          Standings for each league. Tap a player to view their best 10 scores.
         </p>
       </div>
     </section>
-    <p v-if="loading" class="empty-state">Loading league tables…</p>
+    <p v-if="loading" class="empty-state">Loading standings…</p>
     <p v-else-if="error" class="empty-state">{{ error }}</p>
+    <p v-else-if="!groups.length" class="empty-state">
+      No league data found for this season.
+    </p>
 
     <section
       v-for="group in groups"

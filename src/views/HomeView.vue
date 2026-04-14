@@ -20,10 +20,7 @@
                     : ""
                 }}
                 all scored
-                <template v-if="summary.winner_score">
-                  {{ " " + summary.winner_score }}
-                </template>
-                <template v-else-if="latestTopRows.length">
+                <template v-if="latestTopRows.length">
                   {{ " " + latestTopRows[0].score }}
                 </template>
                 , the £{{ Number(summary.amount).toFixed(2) }} pot rolls over to

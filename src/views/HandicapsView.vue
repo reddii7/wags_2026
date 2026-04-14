@@ -61,10 +61,7 @@ const trendValues = computed(() =>
 );
 
 const getLatestCompetitionChangeMap = (history, competitions) => {
-  const latestCompetitionId = (competitions || []).find((competition) =>
-    (history || []).some((item) => item.competition_id === competition.id),
-  )?.id;
-
+  const latestCompetitionId = (competitions || [])[0]?.id;
   if (!latestCompetitionId) {
     return new Map();
   }

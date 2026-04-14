@@ -1,14 +1,14 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
-import { useTopbarControls } from "../composables/useTopbarControls";
 import { supabase } from "../lib/supabase";
 import { triggerHapticFeedback } from "../utils/haptics";
 
-const seasons = ref([]);
-const selectedSeasonId = ref(null);
-const selectedSeasonName = ref(null);
+const props = defineProps({
+  season: { type: Object, required: true },
+});
+
 const onlyPaid = ref(true); // Default to true, can be made reactive in UI
 const rows = ref([]);
 const selectedPlayer = ref(null);
@@ -17,8 +17,6 @@ const detailLoading = ref(false);
 const isDetailOpen = ref(false);
 const loading = ref(true);
 const error = ref("");
-const { setSeasonControl, clearSeasonControl } = useTopbarControls();
-const seasonControl = { seasons, model: selectedSeasonId };
 
 const columns = [
   {
@@ -72,42 +70,21 @@ const formatDate = (value) => {
   }).format(date);
 };
 
-const loadSeasons = async () => {
-  const { data, error: rpcError } = await supabase
-    .from("seasons")
-    .select("id, name, start_year, is_current")
-    .order("start_year", { ascending: false });
-
-  if (rpcError) {
-    throw rpcError;
-  }
-
-  seasons.value = data || [];
-  const current = seasons.value.find((season) => season.is_current);
-  selectedSeasonId.value = current?.id || seasons.value[0]?.id || null;
-  // Always use the numeric year for backend calls
-  selectedSeasonName.value = String(
-    current?.start_year || seasons.value[0]?.start_year || "",
-  );
-};
-
 const loadLeaderboard = async () => {
-  // Debug logging removed
-  if (!selectedSeasonName.value) {
+  if (!props.season?.start_year) {
     rows.value = [];
     return;
   }
-  // Debug logging removed
+
   loading.value = true;
   error.value = "";
 
   const { data, error: rpcError } = await supabase.rpc(
     "get_best_14_scores_by_season",
     {
-      p_season: selectedSeasonName.value,
+      p_season: String(props.season.start_year),
     },
   );
-  // Debug logging removed
 
   if (rpcError) {
     error.value = rpcError.message;
@@ -120,13 +97,13 @@ const loadLeaderboard = async () => {
     ...player,
     position: player.rank_no,
     total_score: player.best_total,
-    id: `${selectedSeasonName.value}-${player.full_name}`,
+    id: `${props.season.start_year}-${player.full_name}`,
   }));
   loading.value = false;
 };
 
 const openBest14 = async (player) => {
-  if (!player?.user_id || !selectedSeasonId.value) return;
+  if (!player?.user_id || !props.season?.id) return;
 
   triggerHapticFeedback();
 
@@ -140,7 +117,7 @@ const openBest14 = async (player) => {
     "get_player_best_14_scores",
     {
       p_profile_id: player.user_id,
-      p_season_id: selectedSeasonId.value,
+      p_season_id: props.season.id,
     },
   );
 
@@ -168,22 +145,16 @@ const closeBest14 = () => {
 };
 
 onMounted(async () => {
-  try {
-    await loadSeasons();
-    await loadLeaderboard();
-  } catch (loadError) {
-    error.value = loadError.message;
-    loading.value = false;
-  }
-});
-
-watch(selectedSeasonId, async (seasonId, previous) => {
-  if (!seasonId || seasonId === previous) return;
-  // Always use the numeric year for backend calls
-  const found = seasons.value.find((s) => s.id === seasonId);
-  selectedSeasonName.value = String(found?.start_year || "");
   await loadLeaderboard();
 });
+
+watch(
+  () => props.season?.id,
+  async (newId) => {
+    if (!newId) return;
+    await loadLeaderboard();
+  },
+);
 </script>
 
 <template>
@@ -194,8 +165,8 @@ watch(selectedSeasonId, async (seasonId, previous) => {
           Best 14 Leaderboard
         </div>
         <p class="wags-body" style="margin: 0 auto; max-width: 500px">
-          Best 14 scores for each player. Tap a player to view their
-          round-by-round breakdown.
+          Top scores for each player. Tap a player to view their round-by-round
+          breakdown.
         </p>
       </div>
     </section>

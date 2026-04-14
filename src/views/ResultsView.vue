@@ -3,8 +3,10 @@ import { computed, onMounted, ref, watch } from "vue";
 import QuietList from "../components/QuietList.vue";
 import { supabase } from "../lib/supabase";
 
-const seasons = ref([]);
-const selectedSeasonId = ref(null);
+const props = defineProps({
+  season: { type: Object, required: true },
+});
+
 const competitions = ref([]);
 const selectedCompetitionId = ref(null);
 const rows = ref([]);
@@ -19,6 +21,8 @@ const summary = ref({
   camels: 0,
   week_number: null,
   week_date: null,
+  winner_names: [],
+  second_names: [],
 });
 
 const columns = [
@@ -50,21 +54,15 @@ const selectedCompetition = computed(
     ) || null,
 );
 
-const selectedSeason = computed(
-  () =>
-    seasons.value.find((season) => season.id === selectedSeasonId.value) ||
-    null,
-);
-
 const competitionsForSeason = computed(() => {
-  if (!selectedSeason.value) return [];
+  if (!props.season) return [];
 
   return competitions.value.filter((competition) => {
     if (!competition.competition_date) return false;
 
     return (
-      competition.competition_date >= selectedSeason.value.start_date &&
-      competition.competition_date <= selectedSeason.value.end_date
+      competition.competition_date >= props.season.start_date &&
+      competition.competition_date <= props.season.end_date
     );
   });
 });
@@ -143,33 +141,6 @@ const winnerValue = computed(() => {
   return score !== undefined && score !== null ? `${names} (${score})` : names;
 });
 
-const moneyValue = computed(() => {
-  const details = competitionMeta.value;
-  if (!details) return "-";
-
-  const prizePot = Number(details.prize_pot || 0);
-  const rollover = Number(details.rollover_amount || 0);
-
-  if (details.winner_id && prizePot > 0) {
-    return `£${prizePot.toFixed(2)}`;
-  }
-
-  if (!details.winner_id) {
-    const rolloverValue = rollover > 0 ? rollover : prizePot;
-    return rolloverValue > 0 ? `Rollover £${rolloverValue.toFixed(2)}` : "-";
-  }
-
-  return rollover > 0 ? `£${rollover.toFixed(2)}` : "-";
-});
-
-const heroStats = computed(() => [
-  { label: winnerLabel.value, value: winnerValue.value },
-  {
-    label: moneyValue.value.startsWith("Rollover") ? "Rollover" : "Amount",
-    value: moneyValue.value.replace(/^Rollover\s+/, ""),
-  },
-]);
-
 const syncSelectedCompetition = () => {
   const seasonCompetitions = competitionsForSeason.value;
 
@@ -193,31 +164,14 @@ const syncSelectedCompetition = () => {
     null;
 };
 
-const loadFilters = async () => {
-  const [
-    { data: competitionData, error: competitionsError },
-    { data: seasonData, error: seasonsError },
-  ] = await Promise.all([
-    supabase
-      .from("competitions")
-      .select("id, name, competition_date, status")
-      .order("competition_date", { ascending: false }),
-    supabase
-      .from("seasons")
-      .select("id, name, start_year, start_date, end_date, is_current")
-      .order("start_year", { ascending: false }),
-  ]);
+const loadCompetitions = async () => {
+  const { data, error: compError } = await supabase
+    .from("competitions")
+    .select("id, name, competition_date, status")
+    .order("competition_date", { ascending: false });
 
-  if (competitionsError || seasonsError) {
-    throw competitionsError || seasonsError;
-  }
-
-  competitions.value = competitionData || [];
-  seasons.value = seasonData || [];
-  selectedSeasonId.value =
-    seasons.value.find((season) => season.is_current)?.id ||
-    seasons.value[0]?.id ||
-    null;
+  if (compError) throw compError;
+  competitions.value = data || [];
   syncSelectedCompetition();
 };
 
@@ -255,7 +209,7 @@ const loadResults = async () => {
         "amount, num_players, snakes, camels, week_number, week_date, winner_type, winner_names, second_names",
       )
       .eq("competition_id", selectedCompetitionId.value)
-      .single(),
+      .maybeSingle(),
   ]);
 
   if (resultsError || summaryError) {
@@ -272,6 +226,8 @@ const loadResults = async () => {
       camels: 0,
       week_number: null,
       week_date: null,
+      winner_names: [],
+      second_names: [],
     };
     detailsLoading.value = false;
     return;
@@ -285,13 +241,15 @@ const loadResults = async () => {
     camels: 0,
     week_number: null,
     week_date: null,
+    winner_names: [],
+    second_names: [],
   };
   detailsLoading.value = false;
 };
 
 onMounted(async () => {
   try {
-    await loadFilters();
+    await loadCompetitions();
     await loadResults();
   } catch (loadError) {
     error.value = loadError.message;
@@ -306,15 +264,12 @@ watch(selectedCompetitionId, async (competitionId, previous) => {
   await loadResults();
 });
 
-watch(selectedSeasonId, (seasonId, previous) => {
-  if (!seasonId || seasonId === previous) return;
-  syncSelectedCompetition();
-
-  if (!selectedCompetitionId.value) {
-    rows.value = [];
-    competitionMeta.value = null;
-  }
-});
+watch(
+  () => props.season?.id,
+  () => {
+    syncSelectedCompetition();
+  },
+);
 </script>
 
 <template>
@@ -339,10 +294,7 @@ watch(selectedSeasonId, (seasonId, previous) => {
                     : ""
                 }}
                 all scored
-                <template v-if="summary.winner_score">
-                  {{ " " + summary.winner_score + " points" }}
-                </template>
-                <template v-else-if="leadingRows.length">
+                <template v-if="leadingRows.length">
                   {{ " " + leadingRows[0].score + " points" }}
                 </template>
                 , the £{{ Number(summary.amount).toFixed(2) }} pot rolls over to
@@ -358,10 +310,7 @@ watch(selectedSeasonId, (seasonId, previous) => {
             >
               <span>
                 {{ summary.winner_names[0] }} won
-                <template v-if="summary.winner_score">
-                  with {{ summary.winner_score }} points
-                </template>
-                <template v-else-if="leadingRows.length">
+                <template v-if="leadingRows.length">
                   with {{ leadingRows[0].score }} points
                 </template>
                 <template
@@ -396,6 +345,21 @@ watch(selectedSeasonId, (seasonId, previous) => {
         </div>
       </div>
     </section>
+
+    <nav v-if="competitionsForSeason.length > 1" class="section-nav">
+      <div class="week-selector__scroll" style="padding: 0.5rem">
+        <button
+          v-for="comp in competitionsForSeason"
+          :key="comp.id"
+          type="button"
+          class="section-pill"
+          :class="{ active: selectedCompetitionId === comp.id }"
+          @click="selectedCompetitionId = comp.id"
+        >
+          {{ formatWeekLabel(comp) }}
+        </button>
+      </div>
+    </nav>
 
     <section class="results-shell">
       <div class="results-shell__body">
@@ -439,3 +403,37 @@ watch(selectedSeasonId, (seasonId, previous) => {
     </section>
   </section>
 </template>
+
+<style scoped>
+.week-selector {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--surface-100);
+  background: transparent;
+}
+.week-selector__scroll {
+  display: flex;
+  overflow-x: auto;
+  padding: 0 1rem;
+  gap: 0.5rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.week-selector__scroll::-webkit-scrollbar {
+  display: none;
+}
+.week-pill {
+  padding: 0.4rem 1rem;
+  border-radius: 2rem;
+  background: var(--surface-100, rgba(255, 255, 255, 0.1));
+  color: var(--text-muted, #888);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: none;
+  transition: all 0.2s;
+}
+.week-pill.active {
+  background: var(--brand, #4f46e5);
+  color: white;
+}
+</style>

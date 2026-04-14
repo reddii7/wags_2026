@@ -33,11 +33,11 @@ function toggleMenu(e) {
   e.stopPropagation();
   open.value = !open.value;
 }
-function onThemeToggle() {
-  toggleTheme();
+function closeMenu() {
   open.value = false;
 }
-function closeMenu() {
+function onThemeToggle() {
+  toggleTheme();
   open.value = false;
 }
 </script>
