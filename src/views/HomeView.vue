@@ -104,10 +104,15 @@ const latestSideGames = computed(() => {
 });
 
 const loadHomeData = async () => {
-  // Guard: Don't fetch if metadata isn't ready
-  if (props.metadata.loading || !props.metadata.season) return;
+  // Guard: Wait for the app-level fetch to finish
+  if (props.metadata.loading || !props.metadata.dashboard) return;
 
-  const { season, latestComp, summary: metaSummary } = props.metadata;
+  const {
+    season,
+    latestComp,
+    summary: metaSummary,
+    dashboard: dash,
+  } = props.metadata;
 
   latestCompetition.value = latestComp;
   latestCompetitionDetails.value = latestComp;
@@ -117,46 +122,24 @@ const loadHomeData = async () => {
   error.value = "";
 
   try {
-    // Single optimized call for the entire dashboard
-    const { data: dash, error: rpcError } = await supabase.rpc(
-      "get_dashboard_overview",
-      {
-        p_season_id: season.id,
-        p_competition_id: latestComp.id,
-      },
-    );
-
-    if (rpcError) throw rpcError;
-
     // Update week number from the fresh season count
     summary.value.week_number = dash.week_count || summary.value.week_number;
 
     best14Leaders.value = (dash.best14 || []).map((player) => ({
       ...player,
-      position: player.position ?? player.pos ?? player.rank_no ?? "1",
+      position: player.position ?? player.pos ?? "1",
       total_score: player.best_total,
       id: `${season?.id}-${player.user_id}`,
     }));
 
     leagueLeaders.value = (dash.leagues || []).map((row) => ({
       ...row,
-      position: row.position ?? row.pos ?? row.rank_no ?? "1",
-    }));
-
-    latestResults.value = (dash.results || []).map((row) => ({
-      id: `${row.competition_id}-${row.user_id}`,
-      player: row.player || row.profiles?.full_name || "Unknown player",
-      score: row.score ?? row.stableford_score ?? "—",
-      snake: Boolean(row.snake ?? row.has_snake),
-      camel: Boolean(row.camel ?? row.has_camel),
-      position: row.position ?? row.pos ?? row.rank_no ?? "",
+      position: row.position ?? row.pos ?? "1",
     }));
 
     // Data is now pre-filtered for actual changes in the SQL function
     handicapMovements.value = dash.handicaps || [];
   } catch (err) {
-    console.error("Dashboard load error:", err);
-    error.value = err.message || "Unable to load dashboard.";
   } finally {
     loading.value = false;
   }

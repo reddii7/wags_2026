@@ -14,6 +14,7 @@ const globalMetadata = ref({
   season: null,
   latestComp: null,
   summary: null,
+  dashboard: null,
   loading: true,
 });
 const hasScrolled = ref(false);
@@ -71,22 +72,28 @@ async function loadGlobalMetadata() {
       seasonsRes.data?.find((s) => s.is_current) || seasonsRes.data?.[0];
     const latestComp = compRes.data;
 
-    // Round 2: If we have a competition, get the summary immediately
-    // This removes the one-second wait inside HomeView
-    let summaryData = null;
-    if (latestComp?.id) {
-      const { data } = await supabase
-        .from("results_summary")
-        .select("*")
-        .eq("competition_id", latestComp.id)
-        .maybeSingle();
-      summaryData = data;
+    // Round 2: Fetch Summary AND Dashboard in parallel
+    if (latestComp?.id && season?.id) {
+      const [summaryRes, dashRes] = await Promise.all([
+        supabase
+          .from("results_summary")
+          .select("*")
+          .eq("competition_id", latestComp.id)
+          .maybeSingle(),
+        supabase.rpc("get_dashboard_overview", {
+          p_season_id: season.id,
+          p_competition_id: latestComp.id,
+        }),
+      ]);
+
+      globalMetadata.value.summary = summaryRes.data;
+      globalMetadata.value.dashboard = dashRes.data;
     }
 
     globalMetadata.value = {
+      ...globalMetadata.value,
       season,
       latestComp,
-      summary: summaryData,
       loading: false,
     };
   } catch (err) {
