@@ -119,7 +119,7 @@ const weekNumberMap = computed(() => {
 const formatWeekLabel = (competition) => {
   if (!competition) return "Week";
   const num = weekNumberMap.value.get(competition.id);
-  return num ? `Week ${num}` : formatDate(competition.competition_date);
+  return num ? `W${num}` : formatDate(competition.competition_date);
 };
 
 const leadingRows = computed(() => {
@@ -352,17 +352,21 @@ watch(
       </div>
     </section>
 
-    <nav v-if="competitionsForSeason.length > 1" class="section-nav">
-      <div class="week-selector__scroll" style="padding: 0.5rem">
+    <nav v-if="competitionsForSeason.length > 1" class="f1-round-nav">
+      <div class="f1-round-scroll">
         <button
           v-for="comp in competitionsForSeason"
           :key="comp.id"
           type="button"
-          class="section-pill"
+          class="f1-round-item"
           :class="{ active: selectedCompetitionId === comp.id }"
           @click="selectedCompetitionId = comp.id"
         >
           {{ formatWeekLabel(comp) }}
+          <span
+            v-if="selectedCompetitionId === comp.id"
+            class="f1-round-line"
+          ></span>
         </button>
       </div>
     </nav>
@@ -414,5 +418,50 @@ watch(
     </section>
   </section>
 </template>
+<style scoped>
+.f1-round-nav {
+  background: var(--bg-strong);
+  border-bottom: 1px solid var(--line);
+  padding: 0.25rem 0;
+}
 
-<style scoped></style>
+.f1-round-scroll {
+  display: flex;
+  overflow-x: auto;
+  padding: 0 1rem;
+  gap: 0.25rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.f1-round-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.f1-round-item {
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.6rem 0.75rem;
+  min-width: 3.2rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.f1-round-item.active {
+  color: var(--text);
+}
+
+.f1-round-line {
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  right: 20%;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+}
+</style>
