@@ -22,19 +22,19 @@ const error = ref("");
 const columns = [
   {
     key: "full_name",
-    label: "Player",
+    label: "PLAYER",
     className: "player",
     width: "minmax(0, 1fr)",
   },
   {
     key: "change",
-    label: "Change",
+    label: "CHG",
     className: "results-change",
     width: "6.5rem",
   },
   {
     key: "current_handicap",
-    label: "H'cap",
+    label: "H'CAP",
     className: "numeric",
     width: "4.75rem",
   },
@@ -262,7 +262,7 @@ watch(selectedPlayerId, async (playerId, previous) => {
       <QuietList
         v-else
         :columns="columns"
-        :hide-head="true"
+        :hide-head="false"
         :rows="players"
         empty-text="No handicaps found."
       >

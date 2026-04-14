@@ -28,23 +28,23 @@ const summary = ref({
 const columns = [
   {
     key: "position",
-    label: "Pos",
+    label: "POS",
     className: "numeric narrow",
     width: "3.5rem",
   },
   {
     key: "player",
-    label: "Player",
+    label: "PLAYER",
     className: "player",
     width: "minmax(0, 1fr)",
   },
   {
     key: "handicapChange",
-    label: "H'cap",
+    label: "CHG",
     className: "results-change",
     width: "7.25rem",
   },
-  { key: "score", label: "Pts", className: "numeric", width: "4.75rem" },
+  { key: "score", label: "PTS", className: "numeric", width: "4.75rem" },
 ];
 
 const selectedCompetition = computed(
@@ -234,7 +234,10 @@ const loadResults = async () => {
     return;
   }
 
-  rows.value = results || [];
+  rows.value = (results || []).map((row) => ({
+    ...row,
+    position: row.position ?? row.pos ?? row.rank_no ?? "",
+  }));
   summary.value = summaryData || {
     amount: 0,
     num_players: 0,
@@ -385,7 +388,7 @@ watch(
         <QuietList
           v-else
           :columns="columns"
-          :hide-head="true"
+          :hide-head="false"
           :rows="rows"
           empty-text="No results found for this competition."
         >

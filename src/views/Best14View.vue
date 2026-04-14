@@ -21,19 +21,19 @@ const error = ref("");
 const columns = [
   {
     key: "position",
-    label: "Pos",
+    label: "POS",
     className: "numeric narrow",
     width: "3.5rem",
   },
   {
     key: "full_name",
-    label: "Player",
+    label: "PLAYER",
     className: "player",
     width: "minmax(0, 1fr)",
   },
   {
     key: "total_score",
-    label: "Best 14",
+    label: "PTS",
     className: "numeric",
     width: "5.5rem",
   },
@@ -95,7 +95,7 @@ const loadLeaderboard = async () => {
 
   rows.value = (data || []).map((player) => ({
     ...player,
-    position: player.rank_no,
+    position: player.position ?? player.pos ?? player.rank_no ?? "",
     total_score: player.best_total,
     id: `${props.season.start_year}-${player.full_name}`,
   }));
@@ -178,7 +178,7 @@ watch(
       <QuietList
         v-else
         :columns="columns"
-        :hide-head="true"
+        :hide-head="false"
         :rows="rows"
         empty-text="No Best 14 scores yet."
       >

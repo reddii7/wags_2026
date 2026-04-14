@@ -20,19 +20,19 @@ const error = ref("");
 const columns = [
   {
     key: "position",
-    label: "Pos",
+    label: "POS",
     className: "numeric narrow",
     width: "3.5rem",
   },
   {
     key: "full_name",
-    label: "Player",
+    label: "PLAYER",
     className: "player",
     width: "minmax(0, 1fr)",
   },
   {
     key: "total_score",
-    label: "Best 10",
+    label: "PTS",
     className: "numeric",
     width: "5.5rem",
   },
@@ -102,7 +102,7 @@ const loadLeagues = async () => {
     if (!mapped.has(row.league_name)) mapped.set(row.league_name, []);
     mapped.get(row.league_name).push({
       ...row,
-      position: row.rank_no, // Map backend rank_no to position
+      position: row.position ?? row.pos ?? row.rank_no ?? "",
     });
   }
 
@@ -198,7 +198,7 @@ watch(
       </div>
       <QuietList
         :columns="columns"
-        :hide-head="true"
+        :hide-head="false"
         :rows="group.rows"
         empty-text="No players in this league."
       >
