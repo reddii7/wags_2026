@@ -1,8 +1,11 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { supabase } from "../lib/supabase";
 
 const emit = defineEmits(["navigate"]);
+const props = defineProps({
+  metadata: { type: Object, required: true },
+});
 
 // Backend-driven summary for Results card
 const summary = ref({
@@ -101,145 +104,140 @@ const latestSideGames = computed(() => {
 });
 
 const loadHomeData = async () => {
-  // Step 1: Fetch metadata in parallel
-  const [seasonsRes, competitionRes] = await Promise.all([
-    supabase
-      .from("seasons")
-      .select("id, name, start_year, start_date, end_date, is_current")
-      .order("start_year", { ascending: false }),
-    supabase
-      .from("competitions")
-      .select(
-        "id, name, competition_date, status, winner_id, prize_pot, rollover_amount, profiles(full_name)",
-      )
-      .eq("status", "closed")
-      .order("competition_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  if (props.metadata.loading) return;
 
-  if (seasonsRes.error) throw seasonsRes.error;
-  if (competitionRes.error) throw competitionRes.error;
-
-  const currentSeason =
-    seasonsRes.data?.find((s) => s.is_current) || seasonsRes.data?.[0] || null;
-  const competition = competitionRes.data || null;
+  const currentSeason = props.metadata.season;
+  const competition = props.metadata.latestComp;
 
   latestCompetition.value = competition;
   latestCompetitionDetails.value = competition;
 
-  // Step 2: Fetch all specific data and summary in parallel
-  const requests = [
-    competition?.id
-      ? supabase.rpc("get_competition_summary", {
-          p_competition_id: competition.id,
-        })
-      : Promise.resolve({ data: [], error: null }),
+  loading.value = true;
+  error.value = "";
 
-    currentSeason?.start_year
-      ? supabase.rpc("get_best_14_scores_by_season", {
-          p_season: String(currentSeason.start_year),
-        })
-      : Promise.resolve({ data: [], error: null }),
-    currentSeason?.id
-      ? supabase.rpc("get_league_standings_best10", {
-          p_season_id: currentSeason.id,
-        })
-      : Promise.resolve({ data: [], error: null }),
-    competition?.id
-      ? supabase
-          .from("public_results_view")
-          .select("*")
-          .eq("competition_id", competition.id)
-          .order("position")
-      : Promise.resolve({ data: [], error: null }),
-    competition?.id
-      ? supabase
-          .from("public_handicap_changes_view")
-          .select("*")
-          .eq("competition_id", competition.id)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [], error: null }),
-    competition?.id
-      ? supabase
-          .from("competitions")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "closed")
-          .gte("competition_date", currentSeason.start_date)
-          .lte("competition_date", competition.competition_date)
-      : Promise.resolve({ count: 0 }),
-  ];
+  try {
+    // Step 2: Fetch all specific data and summary in parallel
+    const requests = [
+      competition?.id
+        ? supabase.rpc("get_competition_summary", {
+            p_competition_id: competition.id,
+          })
+        : Promise.resolve({ data: [], error: null }),
 
-  const [summaryRes, best14Res, leaguesRes, roundsRes, handicapRes, countRes] =
-    await Promise.all(requests);
+      currentSeason?.start_year
+        ? supabase.rpc("get_best_14_scores_by_season", {
+            p_season: String(currentSeason.start_year),
+          })
+        : Promise.resolve({ data: [], error: null }),
+      currentSeason?.id
+        ? supabase.rpc("get_league_standings_best10", {
+            p_season_id: currentSeason.id,
+          })
+        : Promise.resolve({ data: [], error: null }),
+      competition?.id
+        ? supabase
+            .from("public_results_view")
+            .select("*")
+            .eq("competition_id", competition.id)
+            .order("position")
+        : Promise.resolve({ data: [], error: null }),
+      competition?.id
+        ? supabase
+            .from("public_handicap_changes_view")
+            .select("*")
+            .eq("competition_id", competition.id)
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
+      competition?.id && currentSeason?.start_date
+        ? supabase
+            .from("competitions")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "closed")
+            .gte("competition_date", currentSeason.start_date)
+            .lte("competition_date", competition.competition_date)
+        : Promise.resolve({ count: 0 }),
+    ];
 
-  if (summaryRes.error) throw summaryRes.error;
-  if (best14Res.error) throw best14Res.error;
-  if (leaguesRes.error) throw leaguesRes.error;
-  if (roundsRes.error) throw roundsRes.error;
-  if (handicapRes.error) throw handicapRes.error;
+    const [
+      summaryRes,
+      best14Res,
+      leaguesRes,
+      roundsRes,
+      handicapRes,
+      countRes,
+    ] = await Promise.all(requests);
 
-  if (summaryRes.data && summaryRes.data.length > 0) {
-    summary.value = {
-      ...summaryRes.data[0],
-      week_number: countRes.count || summaryRes.data[0].week_number,
-    };
-  }
+    if (summaryRes.error) throw summaryRes.error;
+    if (best14Res.error) throw best14Res.error;
+    if (leaguesRes.error) throw leaguesRes.error;
+    if (roundsRes.error) throw roundsRes.error;
+    if (handicapRes.error) throw handicapRes.error;
 
-  best14Leaders.value = (best14Res.data || []).map((player) => ({
-    ...player,
-    position: player.rank_no,
-    total_score: player.best_total,
-    id: `${currentSeason?.id}-${player.user_id}`,
-  }));
-
-  const groupedLeagueLeaders = new Map();
-  (leaguesRes.data || []).forEach((row) => {
-    if (!groupedLeagueLeaders.has(row.league_name)) {
-      groupedLeagueLeaders.set(row.league_name, {
-        ...row,
-        position: row.rank_no,
-      });
+    if (summaryRes.data && summaryRes.data.length > 0) {
+      summary.value = {
+        ...summaryRes.data[0],
+        week_number: countRes.count || summaryRes.data[0].week_number,
+      };
     }
-  });
-  leagueLeaders.value = [...groupedLeagueLeaders.values()];
 
-  latestResults.value = (roundsRes.data || []).map((row) => ({
-    id: `${row.competition_id}-${row.user_id}`,
-    player: row.player || row.profiles?.full_name || "Unknown player",
-    score: row.score ?? row.stableford_score ?? "—",
-    snake: Boolean(row.snake ?? row.has_snake),
-    camel: Boolean(row.camel ?? row.has_camel),
-    position: row.position ?? row.pos ?? row.rank_no ?? "",
-  }));
+    best14Leaders.value = (best14Res.data || []).map((player) => ({
+      ...player,
+      position: player.rank_no,
+      total_score: player.best_total,
+      id: `${currentSeason?.id}-${player.user_id}`,
+    }));
 
-  // Data is now pre-filtered by competition_id at the database level
-  const userMap = new Map();
-  (handicapRes.data || [])
-    .filter((item) => {
-      const oldH =
-        item.old_handicap !== null ? Math.round(item.old_handicap) : null;
-      const newH =
-        item.new_handicap !== null ? Math.round(item.new_handicap) : null;
-      return oldH !== null && newH !== null && oldH !== newH;
-    })
-    .forEach((item) => {
-      if (!userMap.has(item.user_id)) {
-        userMap.set(item.user_id, item);
+    const groupedLeagueLeaders = new Map();
+    (leaguesRes.data || []).forEach((row) => {
+      if (!groupedLeagueLeaders.has(row.league_name)) {
+        groupedLeagueLeaders.set(row.league_name, {
+          ...row,
+          position: row.rank_no,
+        });
       }
     });
-  handicapMovements.value = Array.from(userMap.values());
-};
+    leagueLeaders.value = [...groupedLeagueLeaders.values()];
 
-onMounted(async () => {
-  try {
-    await loadHomeData();
-  } catch (loadError) {
-    error.value = loadError.message || "Unable to load dashboard.";
+    latestResults.value = (roundsRes.data || []).map((row) => ({
+      id: `${row.competition_id}-${row.user_id}`,
+      player: row.player || row.profiles?.full_name || "Unknown player",
+      score: row.score ?? row.stableford_score ?? "—",
+      snake: Boolean(row.snake ?? row.has_snake),
+      camel: Boolean(row.camel ?? row.has_camel),
+      position: row.position ?? row.pos ?? row.rank_no ?? "",
+    }));
+
+    // Data is now pre-filtered by competition_id at the database level
+    const userMap = new Map();
+    (handicapRes.data || [])
+      .filter((item) => {
+        const oldH =
+          item.old_handicap !== null ? Math.round(item.old_handicap) : null;
+        const newH =
+          item.new_handicap !== null ? Math.round(item.new_handicap) : null;
+        return oldH !== null && newH !== null && oldH !== newH;
+      })
+      .forEach((item) => {
+        if (!userMap.has(item.user_id)) {
+          userMap.set(item.user_id, item);
+        }
+      });
+    handicapMovements.value = Array.from(userMap.values());
+  } catch (err) {
+    console.error("Dashboard load error:", err);
+    error.value = err.message || "Unable to load dashboard.";
   } finally {
     loading.value = false;
   }
-});
+};
+
+watch(
+  () => props.metadata.loading,
+  (isLoading) => {
+    if (!isLoading) loadHomeData();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -302,13 +300,13 @@ onMounted(async () => {
                 winnings.
               </span>
             </template>
-            <template v-else> No results yet. </template>
+            <template v-else-if="!loading"> No results yet. </template>
             <p class="home-hero-sublabel home-hero-subtext">
               {{ summary.num_players }} played, {{ summary.snakes }} snakes,
               {{ summary.camels }} camels.
             </p>
           </template>
-          <template v-else> No results yet. </template>
+          <template v-else-if="!loading"> No results yet. </template>
         </div>
       </div>
     </section>

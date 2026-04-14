@@ -344,13 +344,17 @@ watch(
                 winnings.
               </span>
             </template>
-            <template v-else> No results yet. </template>
+            <template v-else-if="!loading && !detailsLoading">
+              No results yet.
+            </template>
             <p class="home-hero-sublabel home-hero-subtext">
               {{ summary.num_players }} played, {{ summary.snakes }} snakes,
               {{ summary.camels }} camels.
             </p>
           </template>
-          <template v-else> No results yet. </template>
+          <template v-else-if="!loading && !detailsLoading">
+            No results yet.
+          </template>
         </div>
       </div>
     </section>
