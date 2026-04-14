@@ -599,7 +599,7 @@ letter-spacing: -0.02em;
     margin: 0 auto;
     min-height: 80vh;
     /* Prevents footer jump during data load */
-    will-change: transform, opacity;
+    will-change: contents;
     backface-visibility: hidden;
     perspective: 1000;
 }
@@ -2433,4 +2433,16 @@ letter-spacing: -0.02em;
 .bottom-nav-link.router-link-active {
     background: transparent !important;
     box-shadow: none !important;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+
+    50% {
+        opacity: 0.2;
+    }
 }

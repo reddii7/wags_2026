@@ -409,6 +409,9 @@ onMounted(async () => {
   font-weight: bold;
   font-size: 1.1em;
 }
+
+/* Use the same color for the headline as the player names */
+.home-news-headline.home-name {
+  color: #e2e2e2;
+}
 </style>
-/* Use the same color for .home-news-headline as .home-name */
-.home-news-headline.home-name { color: #E2E2E2; }
