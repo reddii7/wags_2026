@@ -101,42 +101,41 @@ const latestSideGames = computed(() => {
 });
 
 const loadHomeData = async () => {
-  const { data: seasons, error: seasonsError } = await supabase
-    .from("seasons")
-    .select("id, name, start_year, is_current")
-    .order("start_year", { ascending: false });
+  // Step 1: Fetch metadata in parallel
+  const [seasonsRes, competitionRes] = await Promise.all([
+    supabase
+      .from("seasons")
+      .select("id, name, start_year, is_current")
+      .order("start_year", { ascending: false }),
+    supabase
+      .from("competitions")
+      .select(
+        "id, name, competition_date, status, winner_id, prize_pot, rollover_amount, profiles(full_name)",
+      )
+      .eq("status", "closed")
+      .order("competition_date", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  if (seasonsError) throw seasonsError;
+  if (seasonsRes.error) throw seasonsRes.error;
+  if (competitionRes.error) throw competitionRes.error;
 
   const currentSeason =
-    seasons?.find((season) => season.is_current) || seasons?.[0] || null;
+    seasonsRes.data?.find((s) => s.is_current) || seasonsRes.data?.[0] || null;
+  const competition = competitionRes.data || null;
 
-  const { data: competition, error: competitionError } = await supabase
-    .from("competitions")
-    .select(
-      "id, name, competition_date, status, winner_id, prize_pot, rollover_amount, profiles(full_name)",
-    )
-    .eq("status", "closed")
-    .order("competition_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  latestCompetition.value = competition;
+  latestCompetitionDetails.value = competition;
 
-  if (competitionError) throw competitionError;
-  latestCompetition.value = competition || null;
-  latestCompetitionDetails.value = competition || null;
-
-  if (competition?.id) {
-    const { data: summaryData, error: summaryError } = await supabase.rpc(
-      "get_competition_summary",
-      { p_competition_id: competition.id },
-    );
-    if (summaryError) throw summaryError;
-    if (summaryData && summaryData.length > 0) {
-      summary.value = summaryData[0];
-    }
-  }
-
+  // Step 2: Fetch all specific data and summary in parallel
   const requests = [
+    competition?.id
+      ? supabase.rpc("get_competition_summary", {
+          p_competition_id: competition.id,
+        })
+      : Promise.resolve({ data: [], error: null }),
+
     currentSeason?.start_year
       ? supabase.rpc("get_best_14_scores_by_season", {
           p_season: String(currentSeason.start_year),
@@ -154,31 +153,29 @@ const loadHomeData = async () => {
           .eq("competition_id", competition.id)
           .order("position")
       : Promise.resolve({ data: [], error: null }),
-    supabase
-      .from("competitions")
-      .select("id, name, competition_date")
-      .order("competition_date", { ascending: false }),
-    supabase
-      .from("public_handicap_changes_view")
-      .select("*")
-      .order("created_at", { ascending: false }),
+    competition?.id
+      ? supabase
+          .from("public_handicap_changes_view")
+          .select("*")
+          .eq("competition_id", competition.id)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
   ];
 
-  const [
-    best14Response,
-    leaguesResponse,
-    roundsResponse,
-    competitionsResponse,
-    handicapResponse,
-  ] = await Promise.all(requests);
+  const [summaryRes, best14Res, leaguesRes, roundsRes, handicapRes] =
+    await Promise.all(requests);
 
-  if (best14Response.error) throw best14Response.error;
-  if (leaguesResponse.error) throw leaguesResponse.error;
-  if (roundsResponse.error) throw roundsResponse.error;
-  if (competitionsResponse.error) throw competitionsResponse.error;
-  if (handicapResponse.error) throw handicapResponse.error;
+  if (summaryRes.error) throw summaryRes.error;
+  if (best14Res.error) throw best14Res.error;
+  if (leaguesRes.error) throw leaguesRes.error;
+  if (roundsRes.error) throw roundsRes.error;
+  if (handicapRes.error) throw handicapRes.error;
 
-  best14Leaders.value = (best14Response.data || []).map((player) => ({
+  if (summaryRes.data && summaryRes.data.length > 0) {
+    summary.value = summaryRes.data[0];
+  }
+
+  best14Leaders.value = (best14Res.data || []).map((player) => ({
     ...player,
     position: player.rank_no,
     total_score: player.best_total,
@@ -186,7 +183,7 @@ const loadHomeData = async () => {
   }));
 
   const groupedLeagueLeaders = new Map();
-  (leaguesResponse.data || []).forEach((row) => {
+  (leaguesRes.data || []).forEach((row) => {
     if (!groupedLeagueLeaders.has(row.league_name)) {
       groupedLeagueLeaders.set(row.league_name, {
         ...row,
@@ -196,7 +193,7 @@ const loadHomeData = async () => {
   });
   leagueLeaders.value = [...groupedLeagueLeaders.values()];
 
-  latestResults.value = (roundsResponse.data || []).map((row) => ({
+  latestResults.value = (roundsRes.data || []).map((row) => ({
     id: `${row.competition_id}-${row.user_id}`,
     player: row.player || row.profiles?.full_name || "Unknown player",
     score: row.score ?? row.stableford_score ?? "—",
@@ -205,22 +202,14 @@ const loadHomeData = async () => {
     position: row.position ?? row.pos ?? row.rank_no ?? "",
   }));
 
-  const allChanges = handicapResponse.data || [];
-  const compId = latestCompetition.value?.id;
-  if (compId) {
-    const compChanges = allChanges.filter(
-      (item) => item.competition_id === compId,
-    );
-    const userMap = new Map();
-    compChanges.forEach((item) => {
-      if (!userMap.has(item.user_id)) {
-        userMap.set(item.user_id, item);
-      }
-    });
-    handicapMovements.value = Array.from(userMap.values());
-  } else {
-    handicapMovements.value = [];
-  }
+  // Data is now pre-filtered by competition_id at the database level
+  const userMap = new Map();
+  (handicapRes.data || []).forEach((item) => {
+    if (!userMap.has(item.user_id)) {
+      userMap.set(item.user_id, item);
+    }
+  });
+  handicapMovements.value = Array.from(userMap.values());
 };
 
 onMounted(async () => {
