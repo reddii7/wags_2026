@@ -117,76 +117,33 @@ const loadHomeData = async () => {
   error.value = "";
 
   try {
-    // Fetch only the leaderboard "slices" we need for the dashboard
-    const requests = [
-      season?.start_year
-        ? supabase
-            .rpc("get_best_14_scores_by_season", {
-              p_season: String(season.start_year),
-            })
-            .limit(3)
-        : Promise.resolve({ data: [], error: null }),
-      season?.id
-        ? supabase.rpc("get_league_standings_best10", {
-            p_season_id: season.id,
-          })
-        : Promise.resolve({ data: [], error: null }),
-      latestComp?.id
-        ? supabase
-            .from("public_results_view")
-            .select("*")
-            .eq("competition_id", latestComp.id)
-            .order("position")
-            .limit(5)
-        : Promise.resolve({ data: [], error: null }),
-      latestComp?.id
-        ? supabase
-            .from("public_handicap_changes_view")
-            .select("*")
-            .eq("competition_id", latestComp.id)
-            .order("created_at", { ascending: false })
-            .limit(10)
-        : Promise.resolve({ data: [], error: null }),
-      latestComp?.id && season?.start_date
-        ? supabase
-            .from("competitions")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "closed")
-            .gte("competition_date", season.start_date)
-            .lte("competition_date", latestComp.competition_date)
-        : Promise.resolve({ count: 0 }),
-    ];
+    // Single optimized call for the entire dashboard
+    const { data: dash, error: rpcError } = await supabase.rpc(
+      "get_dashboard_overview",
+      {
+        p_season_id: season.id,
+        p_competition_id: latestComp.id,
+      },
+    );
 
-    const [best14Res, leaguesRes, roundsRes, handicapRes, countRes] =
-      await Promise.all(requests);
-
-    if (best14Res.error) throw best14Res.error;
-    if (leaguesRes.error) throw leaguesRes.error;
-    if (roundsRes.error) throw roundsRes.error;
-    if (handicapRes.error) throw handicapRes.error;
+    if (rpcError) throw rpcError;
 
     // Update week number from the fresh season count
-    summary.value.week_number = countRes.count || summary.value.week_number;
+    summary.value.week_number = dash.week_count || summary.value.week_number;
 
-    best14Leaders.value = (best14Res.data || []).map((player) => ({
+    best14Leaders.value = (dash.best14 || []).map((player) => ({
       ...player,
       position: player.position ?? player.pos ?? player.rank_no ?? "",
       total_score: player.best_total,
       id: `${season?.id}-${player.user_id}`,
     }));
 
-    const groupedLeagueLeaders = new Map();
-    (leaguesRes.data || []).forEach((row) => {
-      if (!groupedLeagueLeaders.has(row.league_name)) {
-        groupedLeagueLeaders.set(row.league_name, {
-          ...row,
-          position: row.position ?? row.pos ?? row.rank_no ?? "",
-        });
-      }
-    });
-    leagueLeaders.value = [...groupedLeagueLeaders.values()];
+    leagueLeaders.value = (dash.leagues || []).map((row) => ({
+      ...row,
+      position: row.position ?? row.pos ?? row.rank_no ?? "",
+    }));
 
-    latestResults.value = (roundsRes.data || []).map((row) => ({
+    latestResults.value = (dash.results || []).map((row) => ({
       id: `${row.competition_id}-${row.user_id}`,
       player: row.player || row.profiles?.full_name || "Unknown player",
       score: row.score ?? row.stableford_score ?? "—",
@@ -196,7 +153,7 @@ const loadHomeData = async () => {
     }));
 
     const userMap = new Map();
-    (handicapRes.data || [])
+    (dash.handicaps || [])
       .filter((item) => {
         const oldH =
           item.old_handicap !== null ? Math.round(item.old_handicap) : null;

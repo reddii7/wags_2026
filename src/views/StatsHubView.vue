@@ -156,7 +156,6 @@ onMounted(loadSeasons);
   text-transform: uppercase;
   color: var(--text);
   letter-spacing: -0.02em;
-  padding-top: 0.2rem;
 }
 
 .f1-section-nav {
