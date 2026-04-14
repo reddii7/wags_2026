@@ -109,10 +109,13 @@ onBeforeUnmount(() => {
 
 .page-fade-enter-active,
 .page-fade-leave-active {
-  transition: opacity 120ms cubic-bezier(0.4, 1.6, 0.6, 1);
+  transition:
+    opacity 300ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 .page-fade-enter-from,
 .page-fade-leave-to {
   opacity: 0;
+  transform: scale(0.98);
 }
 </style>

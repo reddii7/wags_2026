@@ -597,7 +597,11 @@ letter-spacing: -0.02em;
     position: relative;
     width: min(100%, 1180px);
     margin: 0 auto;
-    /* Remove display: flex and flex-direction */
+    min-height: 80vh;
+    /* Prevents footer jump during data load */
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    perspective: 1000;
 }
 
 /* Absolutely position the transitioning view for smooth transitions */

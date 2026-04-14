@@ -363,9 +363,14 @@ watch(
 
     <section class="results-shell">
       <div class="results-shell__body">
-        <p v-if="loading || detailsLoading" class="empty-state">
-          Loading results…
-        </p>
+        <div v-if="loading || detailsLoading" class="page-stack">
+          <div
+            v-for="i in 5"
+            :key="i"
+            class="home-lead-stat"
+            style="opacity: 0.5; height: 60px; animation: pulse 1.5s infinite"
+          ></div>
+        </div>
         <p v-else-if="error" class="empty-state">{{ error }}</p>
         <QuietList
           v-else
