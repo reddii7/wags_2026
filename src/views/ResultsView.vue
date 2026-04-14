@@ -105,20 +105,21 @@ const selectedCompetitionTitle = computed(() => {
   return cleaned || "Results";
 });
 
-const formatSeasonLabel = (season) => {
-  if (!season) return "Season";
-  return season.name || String(season.start_year || "Season");
-};
+const weekNumberMap = computed(() => {
+  const map = new Map();
+  const chronological = [...competitionsForSeason.value].sort(
+    (a, b) => new Date(a.competition_date) - new Date(b.competition_date),
+  );
+  chronological.forEach((comp, index) => {
+    map.set(comp.id, index + 1);
+  });
+  return map;
+});
 
 const formatWeekLabel = (competition) => {
   if (!competition) return "Week";
-
-  const match = String(competition.name || "").match(/\bweek\s*\d+\b/i);
-  if (match) {
-    return match[0].replace(/^week/i, "Week").replace(/\s+/g, " ");
-  }
-
-  return formatDate(competition.competition_date);
+  const num = weekNumberMap.value.get(competition.id);
+  return num ? `Week ${num}` : formatDate(competition.competition_date);
 };
 
 const leadingRows = computed(() => {
@@ -278,8 +279,13 @@ watch(
       <div class="home-hero__intro">
         <div class="wags-headline">
           <span class="home-hero-sublabel wags-body">
-            <template v-if="summary.week_number && summary.week_date">
-              WEEK {{ summary.week_number }}, {{ summary.week_date }}
+            <template
+              v-if="
+                selectedCompetition && weekNumberMap.has(selectedCompetitionId)
+              "
+            >
+              WEEK {{ weekNumberMap.get(selectedCompetitionId) }},
+              {{ selectedCompetitionDate }}
             </template>
             <template v-else>
               <span style="opacity: 0.5">WEEK &mdash; , &mdash;</span>

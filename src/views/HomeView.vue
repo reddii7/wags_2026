@@ -105,7 +105,7 @@ const loadHomeData = async () => {
   const [seasonsRes, competitionRes] = await Promise.all([
     supabase
       .from("seasons")
-      .select("id, name, start_year, is_current")
+      .select("id, name, start_year, start_date, end_date, is_current")
       .order("start_year", { ascending: false }),
     supabase
       .from("competitions")
@@ -160,9 +160,17 @@ const loadHomeData = async () => {
           .eq("competition_id", competition.id)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+    competition?.id
+      ? supabase
+          .from("competitions")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "closed")
+          .gte("competition_date", currentSeason.start_date)
+          .lte("competition_date", competition.competition_date)
+      : Promise.resolve({ count: 0 }),
   ];
 
-  const [summaryRes, best14Res, leaguesRes, roundsRes, handicapRes] =
+  const [summaryRes, best14Res, leaguesRes, roundsRes, handicapRes, countRes] =
     await Promise.all(requests);
 
   if (summaryRes.error) throw summaryRes.error;
@@ -172,7 +180,10 @@ const loadHomeData = async () => {
   if (handicapRes.error) throw handicapRes.error;
 
   if (summaryRes.data && summaryRes.data.length > 0) {
-    summary.value = summaryRes.data[0];
+    summary.value = {
+      ...summaryRes.data[0],
+      week_number: countRes.count || summaryRes.data[0].week_number,
+    };
   }
 
   best14Leaders.value = (best14Res.data || []).map((player) => ({
@@ -204,11 +215,19 @@ const loadHomeData = async () => {
 
   // Data is now pre-filtered by competition_id at the database level
   const userMap = new Map();
-  (handicapRes.data || []).forEach((item) => {
-    if (!userMap.has(item.user_id)) {
-      userMap.set(item.user_id, item);
-    }
-  });
+  (handicapRes.data || [])
+    .filter((item) => {
+      const oldH =
+        item.old_handicap !== null ? Math.round(item.old_handicap) : null;
+      const newH =
+        item.new_handicap !== null ? Math.round(item.new_handicap) : null;
+      return oldH !== null && newH !== null && oldH !== newH;
+    })
+    .forEach((item) => {
+      if (!userMap.has(item.user_id)) {
+        userMap.set(item.user_id, item);
+      }
+    });
   handicapMovements.value = Array.from(userMap.values());
 };
 
@@ -229,8 +248,8 @@ onMounted(async () => {
       <div class="home-hero__intro">
         <div class="wags-headline">
           <span class="home-hero-sublabel wags-body">
-            <template v-if="summary.week_number && summary.week_date">
-              WEEK {{ summary.week_number }}, {{ summary.week_date }}
+            <template v-if="summary.week_number && latestCompetitionDate">
+              WEEK {{ summary.week_number }}, {{ latestCompetitionDate }}
             </template>
             <template v-else>
               <span style="opacity: 0.5">WEEK &mdash; , &mdash;</span>
