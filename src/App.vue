@@ -10,7 +10,12 @@ import StatsHubView from "./views/StatsHubView.vue";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
-const globalMetadata = ref({ season: null, latestComp: null, loading: true });
+const globalMetadata = ref({
+  season: null,
+  latestComp: null,
+  summary: null,
+  loading: true,
+});
 const hasScrolled = ref(false);
 let lastScrollY = 0;
 
@@ -47,6 +52,7 @@ const currentSectionName = computed(
 
 async function loadGlobalMetadata() {
   try {
+    // Round 1: Fetch Seasons and the Latest Closed Competition metadata
     const [seasonsRes, compRes] = await Promise.all([
       supabase
         .from("seasons")
@@ -61,9 +67,26 @@ async function loadGlobalMetadata() {
         .maybeSingle(),
     ]);
 
+    const season =
+      seasonsRes.data?.find((s) => s.is_current) || seasonsRes.data?.[0];
+    const latestComp = compRes.data;
+
+    // Round 2: If we have a competition, get the summary immediately
+    // This removes the one-second wait inside HomeView
+    let summaryData = null;
+    if (latestComp?.id) {
+      const { data } = await supabase
+        .from("results_summary")
+        .select("*")
+        .eq("competition_id", latestComp.id)
+        .maybeSingle();
+      summaryData = data;
+    }
+
     globalMetadata.value = {
-      season: seasonsRes.data?.find((s) => s.is_current) || seasonsRes.data?.[0],
-      latestComp: compRes.data,
+      season,
+      latestComp,
+      summary: summaryData,
       loading: false,
     };
   } catch (err) {
