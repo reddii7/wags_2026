@@ -187,7 +187,18 @@ watch(selectedSeasonId, async (seasonId, previous) => {
 </script>
 
 <template>
-  <section class="page-stack">
+  <section class="page-stack best14-page">
+    <section class="hero-block home-hero">
+      <div class="home-hero__intro">
+        <div class="wags-headline" style="margin-bottom: 0.5rem">
+          Best 14 Leaderboard
+        </div>
+        <p class="wags-body" style="margin: 0 auto; max-width: 500px">
+          Best 14 scores for each player. Tap a player to view their
+          round-by-round breakdown.
+        </p>
+      </div>
+    </section>
     <section
       class="content-panel content-panel--minimal content-panel--flush-top"
     >

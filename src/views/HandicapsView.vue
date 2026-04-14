@@ -243,7 +243,18 @@ watch(selectedPlayerId, async (playerId, previous) => {
 </script>
 
 <template>
-  <section class="page-stack">
+  <section class="page-stack handicaps-page">
+    <section class="hero-block home-hero">
+      <div class="home-hero__intro">
+        <div class="wags-headline" style="margin-bottom: 0.5rem">
+          Handicap Changes
+        </div>
+        <p class="wags-body" style="margin: 0 auto; max-width: 500px">
+          Latest handicap for each player. Tap a player to view their handicap
+          history.
+        </p>
+      </div>
+    </section>
     <section
       class="content-panel content-panel--minimal content-panel--flush-top"
     >

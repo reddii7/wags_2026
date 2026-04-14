@@ -398,26 +398,6 @@ watch(selectedSeasonId, (seasonId, previous) => {
     </section>
 
     <section class="results-shell">
-      <div class="results-hero__top">
-        <div class="results-filter-row">
-          <div class="f1-week-select-shell">
-            <select
-              id="results-competition-select"
-              v-model="selectedCompetitionId"
-              class="f1-week-select"
-            >
-              <option
-                v-for="competition in competitionsForSeason"
-                :key="competition.id"
-                :value="competition.id"
-              >
-                {{ formatWeekLabel(competition) }}
-              </option>
-            </select>
-          </div>
-        </div>
-      </div>
-
       <div class="results-shell__body">
         <p v-if="loading || detailsLoading" class="empty-state">
           Loading results…

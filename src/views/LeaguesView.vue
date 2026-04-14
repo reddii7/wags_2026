@@ -187,7 +187,18 @@ watch(selectedSeasonId, async (seasonId, previous) => {
 </script>
 
 <template>
-  <section class="page-stack">
+  <section class="page-stack leagues-page">
+    <section class="hero-block home-hero">
+      <div class="home-hero__intro">
+        <div class="wags-headline" style="margin-bottom: 0.5rem">
+          League Standings
+        </div>
+        <p class="wags-body" style="margin: 0 auto; max-width: 500px">
+          Current standings for each league. Tap a player to view their best 10
+          scores.
+        </p>
+      </div>
+    </section>
     <p v-if="loading" class="empty-state">Loading league tables…</p>
     <p v-else-if="error" class="empty-state">{{ error }}</p>
 
