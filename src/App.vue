@@ -3,12 +3,14 @@ import { ref, computed, onBeforeUnmount, onMounted, markRaw } from "vue";
 import { useTheme } from "./composables/useTheme";
 import NavIcon from "./components/NavIcon.vue";
 import { triggerHapticFeedback } from "./utils/haptics";
+import { supabase } from "./lib/supabase";
 import HomeView from "./views/HomeView.vue";
 import HandicapsView from "./views/HandicapsView.vue";
 import StatsHubView from "./views/StatsHubView.vue";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
+const globalMetadata = ref({ season: null, latestComp: null, loading: true });
 const hasScrolled = ref(false);
 let lastScrollY = 0;
 
@@ -43,6 +45,33 @@ const currentSectionName = computed(
   () => currentSection.value?.name || sections[0].name,
 );
 
+async function loadGlobalMetadata() {
+  try {
+    const [seasonsRes, compRes] = await Promise.all([
+      supabase
+        .from("seasons")
+        .select("id, name, start_year, start_date, end_date, is_current")
+        .order("start_year", { ascending: false }),
+      supabase
+        .from("competitions")
+        .select("id, name, competition_date, status")
+        .eq("status", "closed")
+        .order("competition_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    globalMetadata.value = {
+      season: seasonsRes.data?.find((s) => s.is_current) || seasonsRes.data?.[0],
+      latestComp: compRes.data,
+      loading: false,
+    };
+  } catch (err) {
+    console.error("Failed to load global metadata:", err);
+    globalMetadata.value.loading = false;
+  }
+}
+
 const handleScroll = () => {
   const currentY = window.scrollY || 0;
   hasScrolled.value = currentY > 18;
@@ -61,6 +90,7 @@ onMounted(() => {
   lastScrollY = window.scrollY || 0;
   window.addEventListener("scroll", handleScroll, { passive: true });
   handleScroll();
+  loadGlobalMetadata();
 });
 onBeforeUnmount(() => {
   window.removeEventListener("scroll", handleScroll);
@@ -79,6 +109,7 @@ onBeforeUnmount(() => {
           <component
             :is="currentSectionComponent"
             :key="currentSectionName"
+            :metadata="globalMetadata"
             @navigate="
               (target) => switchSection(sections.find((s) => s.name === target))
             "
