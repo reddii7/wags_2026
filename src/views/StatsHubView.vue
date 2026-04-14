@@ -52,8 +52,8 @@ onMounted(loadSeasons);
       <div class="f1-season-row">
         <div class="f1-circle-trigger">
           <svg
-            width="12"
-            height="8"
+            width="10"
+            height="6"
             viewBox="0 0 12 8"
             fill="none"
             class="f1-chevron"
@@ -61,7 +61,7 @@ onMounted(loadSeasons);
             <path
               d="M1 1.5L6 6.5L11 1.5"
               stroke="currentColor"
-              stroke-width="2"
+              stroke-width="1.5"
               stroke-linecap="round"
               stroke-linejoin="round"
             />
@@ -123,8 +123,8 @@ onMounted(loadSeasons);
 
 .f1-circle-trigger {
   position: relative;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   background: var(--surface-3);
   border-radius: 50%;
   display: flex;
@@ -151,11 +151,11 @@ onMounted(loadSeasons);
 }
 
 .f1-season-label {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.4rem;
+  font-weight: 800;
   text-transform: uppercase;
-  color: var(--muted);
-  letter-spacing: 0.05em;
+  color: var(--text);
+  letter-spacing: -0.02em;
   padding-top: 0.2rem;
 }
 
