@@ -5,6 +5,7 @@ import { triggerHapticFeedback } from "../utils/haptics";
 import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
 import ResultsView from "./ResultsView.vue";
+import WinnersTable from "../../WinnersTable.vue";
 
 const props = defineProps({
   metadata: { type: Object, required: true },
@@ -18,6 +19,7 @@ const tabs = [
   { id: "results", label: "RESULTS", component: markRaw(ResultsView) },
   { id: "leagues", label: "LEAGUES", component: markRaw(LeaguesView) },
   { id: "best14", label: "BEST 14", component: markRaw(Best14View) },
+  { id: "winners", label: "WINNERS", component: markRaw(WinnersTable) },
 ];
 
 const activeTabId = ref(tabs[0].id);
