@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch, nextTick } from "vue";
 import { supabase } from "../lib/supabase";
 
 const emit = defineEmits(["navigate"]);
@@ -104,8 +104,11 @@ const latestSideGames = computed(() => {
 });
 
 const loadHomeData = async () => {
-  // Guard: Wait for the app-level fetch to finish
-  if (props.metadata.loading || !props.metadata.dashboard) return;
+  // If root metadata isn't ready or dashboard is missing, don't try to map
+  if (props.metadata.loading) {
+    loading.value = true;
+    return;
+  }
 
   const {
     season,
@@ -117,6 +120,10 @@ const loadHomeData = async () => {
   latestCompetition.value = latestComp;
   latestCompetitionDetails.value = latestComp;
   if (metaSummary) summary.value = metaSummary;
+  if (!dash) {
+    loading.value = false;
+    return;
+  }
 
   // loading.value is already true by default
   error.value = "";
@@ -124,6 +131,17 @@ const loadHomeData = async () => {
   try {
     // Update week number from the fresh season count
     summary.value.week_number = dash.week_count || summary.value.week_number;
+    if (dash.summary) summary.value = { ...summary.value, ...dash.summary };
+
+    // Map Results so computed winners are available immediately
+    latestResults.value = (dash.results || []).map((row) => ({
+      id: `${row.competition_id}-${row.user_id}`,
+      player: row.player || row.full_name || "Unknown player",
+      score: row.score ?? row.stableford_score ?? row.total_score ?? "—",
+      snake: Boolean(row.snake ?? row.has_snake),
+      camel: Boolean(row.camel ?? row.has_camel),
+      position: row.position ?? row.pos ?? row.rank_no ?? "1",
+    }));
 
     best14Leaders.value = (dash.best14 || []).map((player) => ({
       ...player,
@@ -134,14 +152,18 @@ const loadHomeData = async () => {
 
     leagueLeaders.value = (dash.leagues || []).map((row) => ({
       ...row,
-      position: row.position ?? row.pos ?? "1",
+      position: "1", // Force 1 as these are division leaders
     }));
 
     // Data is now pre-filtered for actual changes in the SQL function
     handicapMovements.value = dash.handicaps || [];
   } catch (err) {
+    console.error("Dashboard mapping error:", err);
   } finally {
-    loading.value = false;
+    // Give Vue one tick to calculate latestTopRows before showing the hero
+    nextTick(() => {
+      loading.value = false;
+    });
   }
 };
 
@@ -220,7 +242,9 @@ watch(
               {{ summary.camels }} camels.
             </p>
           </template>
-          <template v-else-if="!loading"> No results yet. </template>
+          <template v-else-if="!loading && !metadata.loading">
+            No results yet.
+          </template>
         </div>
       </div>
     </section>

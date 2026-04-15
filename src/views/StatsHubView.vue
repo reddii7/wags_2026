@@ -148,6 +148,7 @@ onMounted(loadSeasons);
   letter-spacing: -0.02em;
   color: var(--text);
   line-height: 1;
+  display: block;
 }
 
 .f1-season-label {
@@ -156,6 +157,7 @@ onMounted(loadSeasons);
   text-transform: uppercase;
   color: var(--text);
   letter-spacing: -0.02em;
+  line-height: 1;
 }
 
 .f1-section-nav {

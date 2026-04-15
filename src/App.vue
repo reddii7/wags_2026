@@ -20,6 +20,78 @@ const globalMetadata = ref({
 const hasScrolled = ref(false);
 let lastScrollY = 0;
 
+async function loadGlobalMetadata() {
+  try {
+    // Round 1: Fetch Seasons and the Latest Closed Competition metadata
+    const [seasonsRes, compRes] = await Promise.all([
+      supabase
+        .from("seasons")
+        .select("id, name, start_year, start_date, end_date, is_current")
+        .order("start_year", { ascending: false }),
+      supabase
+        .from("competitions")
+        .select(
+          "id, name, competition_date, status, winner_id, prize_pot, rollover_amount",
+        )
+        .eq("status", "closed")
+        .order("competition_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const season =
+      seasonsRes.data?.find((s) => s.is_current) || seasonsRes.data?.[0];
+    const latestComp = compRes.data;
+
+    // Defensive check: only call Round 2 if we have actual IDs
+    if (season?.id && latestComp?.id) {
+      try {
+        const [summaryRes, dashRes] = await Promise.all([
+          supabase
+            .from("results_summary")
+            .select("*")
+            .eq("competition_id", latestComp.id)
+            .maybeSingle(),
+          supabase.rpc("get_dashboard_overview", {
+            p_season_id: season.id,
+            p_competition_id: latestComp.id,
+          }),
+        ]);
+
+        if (dashRes.error) throw dashRes.error;
+
+        globalMetadata.value.summary = summaryRes.data;
+        globalMetadata.value.dashboard = dashRes.data;
+      } catch (rpcErr) {
+        console.error("Dashboard RPC Error:", rpcErr);
+        // Ensure dashboard is at least an empty object to prevent child crashes
+        globalMetadata.value.dashboard = {
+          results: [],
+          best14: [],
+          leagues: [],
+          handicaps: [],
+          week_count: 0,
+        };
+      }
+    } else {
+      globalMetadata.value.dashboard = {
+        results: [],
+        best14: [],
+        leagues: [],
+        handicaps: [],
+        week_count: 0,
+      };
+    }
+
+    globalMetadata.value.season = season;
+    globalMetadata.value.latestComp = latestComp;
+  } catch (err) {
+    console.error("Failed to load global metadata:", err);
+  } finally {
+    globalMetadata.value.loading = false;
+  }
+}
+
 const sections = [
   { name: "home", label: "Home", icon: "home", component: markRaw(HomeView) },
   {
@@ -50,57 +122,6 @@ const currentSectionComponent = computed(
 const currentSectionName = computed(
   () => currentSection.value?.name || sections[0].name,
 );
-
-async function loadGlobalMetadata() {
-  try {
-    // Round 1: Fetch Seasons and the Latest Closed Competition metadata
-    const [seasonsRes, compRes] = await Promise.all([
-      supabase
-        .from("seasons")
-        .select("id, name, start_year, start_date, end_date, is_current")
-        .order("start_year", { ascending: false }),
-      supabase
-        .from("competitions")
-        .select("id, name, competition_date, status")
-        .eq("status", "closed")
-        .order("competition_date", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-
-    const season =
-      seasonsRes.data?.find((s) => s.is_current) || seasonsRes.data?.[0];
-    const latestComp = compRes.data;
-
-    // Round 2: Fetch Summary AND Dashboard in parallel
-    if (latestComp?.id && season?.id) {
-      const [summaryRes, dashRes] = await Promise.all([
-        supabase
-          .from("results_summary")
-          .select("*")
-          .eq("competition_id", latestComp.id)
-          .maybeSingle(),
-        supabase.rpc("get_dashboard_overview", {
-          p_season_id: season.id,
-          p_competition_id: latestComp.id,
-        }),
-      ]);
-
-      globalMetadata.value.summary = summaryRes.data;
-      globalMetadata.value.dashboard = dashRes.data;
-    }
-
-    globalMetadata.value = {
-      ...globalMetadata.value,
-      season,
-      latestComp,
-      loading: false,
-    };
-  } catch (err) {
-    console.error("Failed to load global metadata:", err);
-    globalMetadata.value.loading = false;
-  }
-}
 
 const handleScroll = () => {
   const currentY = window.scrollY || 0;
@@ -134,7 +155,14 @@ onBeforeUnmount(() => {
     :class="{ 'chrome-hidden': chromeHidden }"
   >
     <main class="app-main">
-      <div class="view-frame">
+      <div v-if="globalMetadata.loading" class="app-boot-loader">
+        <div class="loader-content">
+          <div class="spinner"></div>
+          <p class="loader-text">WAGS</p>
+        </div>
+      </div>
+
+      <div class="view-frame" v-if="!globalMetadata.loading">
         <transition name="page-fade" mode="out-in">
           <component
             :is="currentSectionComponent"
