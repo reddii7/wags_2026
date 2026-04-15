@@ -1,20 +1,35 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import QuietList from "../components/QuietList.vue";
-import { supabase } from "../lib/supabase";
+import { useCompetitions } from "../composables/useCompetitions";
+import { useResults } from "../composables/useResults";
+import { useResultsSummary } from "../composables/useResultsSummary";
 
 const props = defineProps({
   season: { type: Object, required: true },
   metadata: { type: Object, required: true },
 });
 
-const competitions = ref([]);
+const {
+  competitions,
+  loading: competitionsLoading,
+  error: competitionsError,
+  fetchCompetitions,
+} = useCompetitions();
+const {
+  results,
+  loading: resultsLoading,
+  error: resultsError,
+  fetchResults,
+} = useResults();
+const {
+  summaries,
+  loading: summariesLoading,
+  error: summariesError,
+  fetchSummaries,
+} = useResultsSummary();
+
 const selectedCompetitionId = ref(null);
-const rows = ref([]);
-const competitionMeta = ref(null);
-const loading = ref(true);
-const detailsLoading = ref(false);
-const error = ref("");
 const summary = ref({
   amount: 0,
   num_players: 0,
@@ -25,6 +40,13 @@ const summary = ref({
   winner_names: [],
   second_names: [],
 });
+const error = ref("");
+const loading = computed(
+  () =>
+    competitionsLoading.value || resultsLoading.value || summariesLoading.value,
+);
+const detailsLoading = resultsLoading;
+const rows = results;
 
 const columns = [
   {
@@ -51,10 +73,8 @@ const selectedCompetition = computed(
 
 const competitionsForSeason = computed(() => {
   if (!props.season) return [];
-
   return competitions.value.filter((competition) => {
     if (!competition.competition_date) return false;
-
     return (
       competition.competition_date >= props.season.start_date &&
       competition.competition_date <= props.season.end_date
@@ -139,12 +159,10 @@ const winnerValue = computed(() => {
 
 const syncSelectedCompetition = () => {
   const seasonCompetitions = competitionsForSeason.value;
-
   if (!seasonCompetitions.length) {
     selectedCompetitionId.value = null;
     return;
   }
-
   if (
     seasonCompetitions.some(
       (competition) => competition.id === selectedCompetitionId.value,
@@ -152,7 +170,6 @@ const syncSelectedCompetition = () => {
   ) {
     return;
   }
-
   selectedCompetitionId.value =
     seasonCompetitions.find((competition) => competition.status === "closed")
       ?.id ||
@@ -160,105 +177,55 @@ const syncSelectedCompetition = () => {
     null;
 };
 
-const loadCompetitions = async () => {
-  const { data, error: compError } = await supabase
-    .from("competitions")
-    .select("id, name, competition_date, status")
-    .order("competition_date", { ascending: false });
-
-  if (compError) throw compError;
-  competitions.value = data || [];
+const loadData = async () => {
+  error.value = "";
+  await fetchCompetitions({ season: props.season });
   syncSelectedCompetition();
+  if (selectedCompetitionId.value) {
+    await fetchResults({ competitionId: selectedCompetitionId.value });
+    await fetchSummaries({ competitionIds: [selectedCompetitionId.value] });
+    // Set summary from summaries composable
+    const found = summaries.value.find(
+      (s) => s.competition_id === selectedCompetitionId.value,
+    );
+    summary.value = found || {
+      amount: 0,
+      num_players: 0,
+      snakes: 0,
+      camels: 0,
+      week_number: null,
+      week_date: null,
+      winner_names: [],
+      second_names: [],
+    };
+  } else {
+    summary.value = {
+      amount: 0,
+      num_players: 0,
+      snakes: 0,
+      camels: 0,
+      week_number: null,
+      week_date: null,
+      winner_names: [],
+      second_names: [],
+    };
+  }
 };
 
-const loadResults = async () => {
-  if (!selectedCompetitionId.value) {
-    rows.value = [];
-    competitionMeta.value = null;
-    summary.value = {
-      amount: 0,
-      num_players: 0,
-      snakes: 0,
-      camels: 0,
-      week_number: null,
-      week_date: null,
-    };
-    return;
+onMounted(async () => {
+  try {
+    await loadData();
+  } catch (loadError) {
+    error.value = loadError.message;
   }
+});
 
-  detailsLoading.value = true;
-  error.value = "";
-
-  // PRO OPTIMIZATION: Check if we already have this data in metadata
-  if (
-    props.metadata.dashboard &&
-    props.metadata.latestComp?.id === selectedCompetitionId.value
-  ) {
-    const dash = props.metadata.dashboard;
-    rows.value = (dash.results || []).map((row) => ({
-      ...row,
-      score: row.score ?? row.stableford_score ?? "—",
-      position: row.position ?? row.pos ?? row.rank_no ?? "",
-    }));
-    summary.value = props.metadata.summary || {
-      amount: 0,
-      num_players: 0,
-      snakes: 0,
-      camels: 0,
-      week_number: dash.week_count,
-      winner_names: [],
-      second_names: [],
-    };
-    detailsLoading.value = false;
-    return; // Skip the network call entirely
-  }
-
-  // Fetch results from backend view/function with all fields precomputed
-  const [
-    { data: results, error: resultsError },
-    { data: summaryData, error: summaryError },
-  ] = await Promise.all([
-    supabase
-      .from("public_results_view") // Replace with your actual view/function name
-      .select("*")
-      .eq("competition_id", selectedCompetitionId.value)
-      .order("position"),
-    supabase
-      .from("results_summary") // This should be a view or table with the summary fields
-      .select(
-        "amount, num_players, snakes, camels, week_number, week_date, winner_type, winner_names, second_names",
-      )
-      .eq("competition_id", selectedCompetitionId.value)
-      .maybeSingle(),
-  ]);
-
-  if (resultsError || summaryError) {
-    error.value =
-      (resultsError && resultsError.message) ||
-      (summaryError && summaryError.message) ||
-      "Unable to load results.";
-    rows.value = [];
-    competitionMeta.value = null;
-    summary.value = {
-      amount: 0,
-      num_players: 0,
-      snakes: 0,
-      camels: 0,
-      week_number: null,
-      week_date: null,
-      winner_names: [],
-      second_names: [],
-    };
-    detailsLoading.value = false;
-    return;
-  }
-
-  rows.value = (results || []).map((row) => ({
-    ...row,
-      score: row.score ?? row.stableford_score ?? "—",
-    position: row.position ?? row.pos ?? row.rank_no ?? "",
-  }));
-  summary.value = summaryData || {
+watch(selectedCompetitionId, async (competitionId, previous) => {
+  if (!competitionId || competitionId === previous) return;
+  await fetchResults({ competitionId });
+  await fetchSummaries({ competitionIds: [competitionId] });
+  const found = summaries.value.find((s) => s.competition_id === competitionId);
+  summary.value = found || {
     amount: 0,
     num_players: 0,
     snakes: 0,
@@ -268,30 +235,12 @@ const loadResults = async () => {
     winner_names: [],
     second_names: [],
   };
-  detailsLoading.value = false;
-};
-
-onMounted(async () => {
-  try {
-    await loadCompetitions();
-    await loadResults();
-  } catch (loadError) {
-    error.value = loadError.message;
-  } finally {
-    loading.value = false;
-    detailsLoading.value = false;
-  }
-});
-
-watch(selectedCompetitionId, async (competitionId, previous) => {
-  if (!competitionId || competitionId === previous) return;
-  await loadResults();
 });
 
 watch(
   () => props.season?.id,
-  () => {
-    syncSelectedCompetition();
+  async () => {
+    await loadData();
   },
 );
 </script>

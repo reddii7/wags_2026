@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
 import QuietSparkline from "../components/QuietSparkline.vue";
+import { useProfiles } from "../composables/useProfiles";
 import { supabase } from "../lib/supabase";
 import { triggerHapticFeedback } from "../utils/haptics";
 
@@ -90,12 +91,24 @@ const getLatestCompetitionChangeMap = (history, competitions) => {
   return latestChangeByUser;
 };
 
+const {
+  profile,
+  loading: profilesLoading,
+  error: profilesError,
+  fetchProfile,
+} = useProfiles();
+
 const loadPlayers = async () => {
+  // For now, keep the original logic, but fetch profiles using the composable in the future for DRYness
+  // ...existing code...
   const [
-    { data: profiles, error: profilesError },
+    { data: profiles, error: profilesErr },
     { data: history, error: historyError },
     { data: competitions, error: competitionsError },
   ] = await Promise.all([
+    // This can be replaced with a composable fetch in the future
+    // ...existing code...
+    // ...original supabase call...
     supabase
       .from("profiles")
       .select("id, full_name, current_handicap")
@@ -111,8 +124,8 @@ const loadPlayers = async () => {
       .order("competition_date", { ascending: false }),
   ]);
 
-  if (profilesError || historyError || competitionsError) {
-    throw profilesError || historyError || competitionsError;
+  if (profilesErr || historyError || competitionsError) {
+    throw profilesErr || historyError || competitionsError;
   }
 
   const latestChangeByUser = getLatestCompetitionChangeMap(

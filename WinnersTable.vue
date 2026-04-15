@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
-import { supabase } from "./src/lib/supabase";
+import { useCompetitions } from "./src/composables/useCompetitions";
+import { useResultsSummary } from "./src/composables/useResultsSummary";
 import QuietList from "./src/components/QuietList.vue";
 
 const props = defineProps({
@@ -23,35 +24,41 @@ const columns = [
   { key: "amount", label: "TOTAL", className: "numeric", width: "6.5rem" },
 ];
 
+const {
+  summaries,
+  loading: summariesLoading,
+  error: summariesError,
+  fetchSummaries,
+} = useResultsSummary();
+
+const {
+  competitions,
+  loading: competitionsLoading,
+  error: competitionsError,
+  fetchCompetitions,
+} = useCompetitions();
+
 async function loadWinners() {
   loading.value = true;
   error.value = "";
   winners.value = [];
   try {
-    // Fetch all competitions for the season
-    const { data: competitions, error: compErr } = await supabase
-      .from("competitions")
-      .select("id, name, competition_date, status")
-      .gte("competition_date", props.season.start_date)
-      .lte("competition_date", props.season.end_date);
-    if (compErr)
-      throw new Error(`Competitions error: ${compErr.message || compErr}`);
-    if (!competitions || !competitions.length) {
+    // Fetch all competitions for the season using composable
+    await fetchCompetitions({ season: props.season });
+    if (competitionsError.value) throw new Error(competitionsError.value);
+    if (!competitions.value || !competitions.value.length) {
       loading.value = false;
       return;
     }
 
-    // For each competition, fetch the summary (winner_names, amount)
-    const compIds = competitions.map((c) => c.id);
-    const { data: summaries, error: sumErr } = await supabase
-      .from("results_summary")
-      .select("competition_id, winner_names, amount, winner_type")
-      .in("competition_id", compIds);
-    if (sumErr) throw new Error(`Summary error: ${sumErr.message || sumErr}`);
+    // Use composable to fetch summaries
+    const compIds = competitions.value.map((c) => c.id);
+    await fetchSummaries({ competitionIds: compIds });
+    if (summariesError.value) throw new Error(summariesError.value);
 
     // Only count outright winner weeks (exclude rollovers)
     const winnerMap = new Map();
-    for (const summary of summaries) {
+    for (const summary of summaries.value) {
       if (summary.winner_type !== "winner") continue;
       if (!summary.winner_names || !Array.isArray(summary.winner_names))
         continue;
@@ -68,7 +75,6 @@ async function loadWinners() {
       (a, b) => b.amount - a.amount,
     );
   } catch (e) {
-    // Show the error message and any details if available
     if (e && typeof e === "object") {
       error.value = e.message || JSON.stringify(e);
       if (e.cause) error.value += `\nCause: ${e.cause}`;

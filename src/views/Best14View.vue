@@ -2,8 +2,9 @@
 import { onMounted, ref, watch } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
-import { supabase } from "../lib/supabase";
 import { triggerHapticFeedback } from "../utils/haptics";
+import { supabase } from "../lib/supabase";
+// TODO: Extract Supabase logic to a composable for DRYness
 
 const props = defineProps({
   season: { type: Object, required: true },
