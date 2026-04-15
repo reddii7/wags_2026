@@ -5,6 +5,7 @@ import Best14View from '../views/Best14View.vue';
 import LeaguesView from '../views/LeaguesView.vue';
 import ResultsView from '../views/ResultsView.vue';
 import HandicapsView from '../views/HandicapsView.vue';
+import RSCupView from '../views/RSCupView.vue';
 import LoginView from '../views/LoginView.vue';
 import AdminCompetitionsView from '../views/admin/AdminCompetitionsView.vue';
 import AdminScoresView from '../views/admin/AdminScoresView.vue';
@@ -20,6 +21,7 @@ const router = createRouter({
         { path: '/leagues', name: 'leagues', component: LeaguesView },
         { path: '/results', name: 'results', component: ResultsView },
         { path: '/handicaps', name: 'handicaps', component: HandicapsView },
+        { path: '/rscup', name: 'rscup', component: RSCupView },
         { path: '/login', redirect: '/admin/login' },
         {
             path: '/admin',

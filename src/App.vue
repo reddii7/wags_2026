@@ -7,6 +7,7 @@ import { supabase } from "./lib/supabase";
 import HomeView from "./views/HomeView.vue";
 import HandicapsView from "./views/HandicapsView.vue";
 import StatsHubView from "./views/StatsHubView.vue";
+import RSCupView from "./views/RSCupView.vue";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -105,8 +106,14 @@ const sections = [
   {
     name: "handicaps",
     label: "Handicaps",
-    icon: "results",
+    icon: "users",
     component: markRaw(HandicapsView),
+  },
+  {
+    name: "rscup",
+    label: "RS CUP",
+    icon: "trophy",
+    component: markRaw(RSCupView),
   },
 ];
 
