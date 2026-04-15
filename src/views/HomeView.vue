@@ -119,11 +119,13 @@ const loadHomeData = async () => {
 
   latestCompetition.value = latestComp;
   latestCompetitionDetails.value = latestComp;
-  if (metaSummary) summary.value = metaSummary;
-  if (!dash) {
+
+  if (!dash || !latestComp) {
     loading.value = false;
     return;
   }
+
+  if (metaSummary) summary.value = metaSummary;
 
   // loading.value is already true by default
   error.value = "";
@@ -145,7 +147,7 @@ const loadHomeData = async () => {
 
     best14Leaders.value = (dash.best14 || []).map((player) => ({
       ...player,
-      position: player.position ?? player.pos ?? "1",
+      position: player.position ?? player.pos ?? player.rank_no ?? "1",
       total_score: player.best_total,
       id: `${season?.id}-${player.user_id}`,
     }));

@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 
 const props = defineProps({
   season: { type: Object, required: true },
+  metadata: { type: Object, required: true },
 });
 
 const competitions = ref([]);
@@ -188,6 +189,30 @@ const loadResults = async () => {
   detailsLoading.value = true;
   error.value = "";
 
+  // PRO OPTIMIZATION: Check if we already have this data in metadata
+  if (
+    props.metadata.dashboard &&
+    props.metadata.latestComp?.id === selectedCompetitionId.value
+  ) {
+    const dash = props.metadata.dashboard;
+    rows.value = (dash.results || []).map((row) => ({
+      ...row,
+      score: row.score ?? row.stableford_score ?? "—",
+      position: row.position ?? row.pos ?? row.rank_no ?? "",
+    }));
+    summary.value = props.metadata.summary || {
+      amount: 0,
+      num_players: 0,
+      snakes: 0,
+      camels: 0,
+      week_number: dash.week_count,
+      winner_names: [],
+      second_names: [],
+    };
+    detailsLoading.value = false;
+    return; // Skip the network call entirely
+  }
+
   // Fetch results from backend view/function with all fields precomputed
   const [
     { data: results, error: resultsError },
@@ -230,6 +255,7 @@ const loadResults = async () => {
 
   rows.value = (results || []).map((row) => ({
     ...row,
+      score: row.score ?? row.stableford_score ?? "—",
     position: row.position ?? row.pos ?? row.rank_no ?? "",
   }));
   summary.value = summaryData || {
@@ -373,7 +399,7 @@ watch(
     </nav>
 
     <section class="results-shell">
-      <div class="results-shell__body">
+      <div class="results-shell__body" style="min-height: 400px">
         <div v-if="loading || detailsLoading" class="page-stack">
           <div
             v-for="i in 5"

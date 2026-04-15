@@ -12,6 +12,7 @@ const { theme } = useTheme();
 const chromeHidden = ref(false);
 const globalMetadata = ref({
   season: null,
+  seasons: [],
   latestComp: null,
   summary: null,
   dashboard: null,
@@ -84,6 +85,7 @@ async function loadGlobalMetadata() {
     }
 
     globalMetadata.value.season = season;
+    globalMetadata.value.seasons = seasonsRes.data || [];
     globalMetadata.value.latestComp = latestComp;
   } catch (err) {
     console.error("Failed to load global metadata:", err);
@@ -199,8 +201,8 @@ onBeforeUnmount(() => {
 .page-fade-enter-active,
 .page-fade-leave-active {
   transition:
-    opacity 400ms cubic-bezier(0.32, 0.72, 0, 1),
-    transform 400ms cubic-bezier(0.32, 0.72, 0, 1);
+    opacity 320ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 320ms cubic-bezier(0.23, 1, 0.32, 1);
   will-change: opacity, transform;
 }
 .page-fade-enter-from,

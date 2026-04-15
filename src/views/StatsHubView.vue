@@ -6,8 +6,12 @@ import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
 import ResultsView from "./ResultsView.vue";
 
+const props = defineProps({
+  metadata: { type: Object, required: true },
+});
+
 const seasons = ref([]);
-const selectedSeasonId = ref(null);
+const selectedSeasonId = ref(props.metadata?.season?.id || null);
 const loading = ref(true);
 
 const tabs = [
@@ -27,14 +31,21 @@ async function loadSeasons() {
     .select("id, name, start_year, start_date, end_date, is_current")
     .order("start_year", { ascending: false });
 
-  seasons.value = data || [];
-  const current = seasons.value.find((s) => s.is_current) || seasons.value[0];
-  selectedSeasonId.value = current?.id;
+  const fetchedSeasons = data || props.metadata.seasons || [];
+  seasons.value = fetchedSeasons;
+
+  if (!selectedSeasonId.value) {
+    const current =
+      fetchedSeasons.find((s) => s.is_current) || fetchedSeasons[0];
+    selectedSeasonId.value = current?.id;
+  }
   loading.value = false;
 }
 
-const selectedSeason = computed(() =>
-  seasons.value.find((s) => s.id === selectedSeasonId.value),
+const selectedSeason = computed(
+  () =>
+    seasons.value.find((s) => s.id === selectedSeasonId.value) ||
+    props.metadata?.season,
 );
 
 function setTab(id) {
@@ -98,6 +109,7 @@ onMounted(loadSeasons);
         :is="activeComponent"
         v-if="selectedSeason"
         :season="selectedSeason"
+        :metadata="metadata"
       />
     </main>
   </div>
