@@ -183,9 +183,13 @@ watch(
     <section class="hero-block home-hero">
       <div class="home-hero__intro">
         <div class="wags-headline">
-          <span class="home-hero-sublabel wags-body">
+          <span class="home-hero-sublabel2 wags-body">
+            LATEST UPDATES FOR
             <template v-if="summary.week_number && latestCompetitionDate">
-              WEEK {{ summary.week_number }}, {{ latestCompetitionDate }}
+              <span
+                >WEEK {{ summary.week_number }},
+                {{ latestCompetitionDate }}</span
+              >
             </template>
             <template v-else>
               <span style="opacity: 0.5">WEEK &mdash; , &mdash;</span>

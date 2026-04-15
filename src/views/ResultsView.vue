@@ -134,7 +134,7 @@ const weekNumberMap = computed(() => {
 const formatWeekLabel = (competition) => {
   if (!competition) return "Week";
   const num = weekNumberMap.value.get(competition.id);
-  return num ? `W${num}` : formatDate(competition.competition_date);
+  return num ? `WK${num}` : formatDate(competition.competition_date);
 };
 
 const leadingRows = computed(() => {
@@ -385,7 +385,7 @@ watch(
 </template>
 <style scoped>
 .f1-round-nav {
-  background: var(--bg-strong);
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
   padding: 0.25rem 0;
 }
@@ -405,7 +405,7 @@ watch(
 
 .f1-round-item {
   position: relative;
-  background: none;
+  background: var(--bg);
   border: none;
   color: var(--muted);
   font-size: 0.85rem;
@@ -418,15 +418,6 @@ watch(
 
 .f1-round-item.active {
   color: var(--text);
-}
-
-.f1-round-line {
-  position: absolute;
-  bottom: 0;
-  left: 20%;
-  right: 20%;
-  height: 3px;
-  background: var(--accent);
-  border-radius: 2px 2px 0 0;
+  background: var(--bg);
 }
 </style>

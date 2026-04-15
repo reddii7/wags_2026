@@ -46,6 +46,16 @@
     margin-bottom: 0.7em;
 }
 
+.home-hero-sublabel2 {
+    display: block;
+    text-transform: uppercase;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #858585;
+    margin-bottom: 0.5em;
+    font-family: inherit;
+}
 
 .home-hero-sublabel {
     display: block;
@@ -1257,6 +1267,11 @@ letter-spacing: -0.02em;
     gap: 0.55rem;
     align-items: center;
     padding: 0.5rem 0;
+    border-top: 0.5px solid var(--line);
+}
+
+.home-compact-list .home-compact-row:first-child {
+    border-top: 0;
 }
 
 .home-compact-row:first-child {
