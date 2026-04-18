@@ -29,7 +29,7 @@ const columns = [
   },
   {
     key: "change",
-    label: "CHG",
+    label: "LAST CHG",
     className: "results-change",
     width: "6.5rem",
   },
@@ -73,17 +73,15 @@ const getLatestCompetitionChangeMap = (history, competitions) => {
     if (item.competition_id !== latestCompetitionId) return;
     if (latestChangeByUser.has(item.user_id)) return;
 
-    const oldHandicap =
-      item.old_handicap !== null ? Math.round(item.old_handicap) : null;
-    const newHandicap =
-      item.new_handicap !== null ? Math.round(item.new_handicap) : null;
+    const oldHandicap = item.old_handicap;
+    const newHandicap = item.new_handicap;
     const hasChange =
       oldHandicap !== null &&
       newHandicap !== null &&
       oldHandicap !== newHandicap;
 
     latestChangeByUser.set(item.user_id, {
-      text: hasChange ? `${oldHandicap}→${newHandicap}` : "",
+      text: hasChange ? `${oldHandicap}→${newHandicap}` : "-",
       improved: hasChange ? newHandicap < oldHandicap : false,
     });
   });
@@ -135,10 +133,18 @@ const loadPlayers = async () => {
 
   players.value = (profiles || []).map((player) => {
     const latestChange = latestChangeByUser.get(player.id);
+    let change, improved;
+    if (!latestChange) {
+      change = "-";
+      improved = false;
+    } else {
+      change = latestChange.text;
+      improved = latestChange.improved;
+    }
     return {
       ...player,
-      change: latestChange?.text || "",
-      improved: Boolean(latestChange?.improved),
+      change,
+      improved: Boolean(improved),
     };
   });
 };
