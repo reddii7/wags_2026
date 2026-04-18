@@ -170,11 +170,11 @@ const syncSelectedCompetition = () => {
   ) {
     return;
   }
-  selectedCompetitionId.value =
-    seasonCompetitions.find((competition) => competition.status === "closed")
-      ?.id ||
-    seasonCompetitions[0]?.id ||
-    null;
+  // Sort competitions by date ascending and select the last (most recent)
+  const sorted = [...seasonCompetitions].sort(
+    (a, b) => new Date(a.competition_date) - new Date(b.competition_date),
+  );
+  selectedCompetitionId.value = sorted[sorted.length - 1]?.id || null;
 };
 
 const loadData = async () => {
@@ -331,7 +331,12 @@ watch(
     <nav v-if="competitionsForSeason.length > 1" class="f1-round-nav">
       <div class="f1-round-scroll">
         <button
-          v-for="comp in competitionsForSeason"
+          v-for="comp in competitionsForSeason
+            .slice()
+            .sort(
+              (a, b) =>
+                new Date(b.competition_date) - new Date(a.competition_date),
+            )"
           :key="comp.id"
           type="button"
           class="f1-round-item"
