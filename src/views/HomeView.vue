@@ -184,7 +184,7 @@ watch(
       <div class="home-hero__intro">
         <div class="wags-headline">
           <span class="home-hero-sublabel2 wags-body">
-            LATEST UPDATES FOR
+            LATEST UPDATES -
             <template v-if="summary.week_number && latestCompetitionDate">
               <span
                 >WEEK {{ summary.week_number }},
