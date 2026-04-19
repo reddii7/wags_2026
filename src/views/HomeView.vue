@@ -104,40 +104,49 @@ const latestSideGames = computed(() => {
 });
 
 const loadHomeData = async () => {
-  // If root metadata isn't ready or dashboard is missing, don't try to map
   if (props.metadata.loading) {
     loading.value = true;
     return;
   }
-
-  const {
-    season,
-    latestComp,
-    summary: metaSummary,
-    dashboard: dash,
-  } = props.metadata;
-
-  latestCompetition.value = latestComp;
-  latestCompetitionDetails.value = latestComp;
-
-  if (!dash || !latestComp) {
-    loading.value = false;
-    return;
-  }
-
-  if (metaSummary) summary.value = metaSummary;
-
-  // loading.value is already true by default
   error.value = "";
-
   try {
-    // Update week number from the fresh season count
+    // Find the latest closed competition from all competitions
+    const competitions = props.metadata.competitions || [];
+    const latestComp =
+      competitions.find((c) => c.status === "closed") ||
+      competitions[0] ||
+      null;
+    latestCompetition.value = latestComp;
+    latestCompetitionDetails.value = latestComp;
+    if (!latestComp) {
+      loading.value = false;
+      return;
+    }
+    // Get dashboard for this competition's season
+    const dash =
+      props.metadata.dashboard?.[latestComp.season] ||
+      props.metadata.dashboard?.[latestComp.season?.id] ||
+      null;
+    if (!dash) {
+      loading.value = false;
+      return;
+    }
+    // Use summary for this comp if available
+    summary.value = dash.summary || {
+      winner_type: "",
+      winner_names: [],
+      amount: 0,
+      num_players: 0,
+      snakes: 0,
+      camels: 0,
+    };
     summary.value.week_number = dash.week_count || summary.value.week_number;
-    if (dash.summary) summary.value = { ...summary.value, ...dash.summary };
 
-    // Map Results so computed winners are available immediately
+    // Map Results for latest comp only
     latestResults.value = (dash.results || []).map((row) => ({
       id: `${row.competition_id}-${row.user_id}`,
+      competition_id: row.competition_id,
+      user_id: row.user_id,
       player: row.player || row.full_name || "Unknown player",
       score: row.score ?? row.stableford_score ?? row.total_score ?? "—",
       snake: Boolean(row.snake ?? row.has_snake),
@@ -145,24 +154,59 @@ const loadHomeData = async () => {
       position: row.position ?? row.pos ?? row.rank_no ?? "1",
     }));
 
-    best14Leaders.value = (dash.best14 || []).map((player) => ({
+    // Best 14 and Leagues for this season (try both id and start_year as keys)
+    const seasonKey = latestComp.season;
+    const altSeasonKey =
+      props.metadata.seasons?.find(
+        (s) => String(s.start_year) === String(seasonKey),
+      )?.id ||
+      props.metadata.seasons?.find((s) => s.id === seasonKey)?.start_year;
+
+    const best14 =
+      props.metadata.best14?.[seasonKey] ||
+      (altSeasonKey ? props.metadata.best14?.[altSeasonKey] : []) ||
+      [];
+    best14Leaders.value = best14.map((player) => ({
       ...player,
       position: player.position ?? player.pos ?? player.rank_no ?? "1",
       total_score: player.best_total,
-      id: `${season?.id}-${player.user_id}`,
+      id: `${seasonKey}-${player.user_id}`,
     }));
 
-    leagueLeaders.value = (dash.leagues || []).map((row) => ({
-      ...row,
-      position: "1", // Force 1 as these are division leaders
-    }));
+    const leagues =
+      props.metadata.leagues?.[seasonKey] ||
+      (altSeasonKey ? props.metadata.leagues?.[altSeasonKey] : []) ||
+      [];
+    // Group by division (league_name), pick top position in each
+    const divisionMap = new Map();
+    for (const row of leagues) {
+      const key = row.league_name || row.division || "Division";
+      const current = divisionMap.get(key);
+      // Use numeric position if available, else default to 1
+      const rowPos = Number(row.position ?? row.pos ?? row.rank_no ?? 1);
+      const currentPos = current
+        ? Number(current.position ?? current.pos ?? current.rank_no ?? 1)
+        : Infinity;
+      if (!current || rowPos < currentPos) {
+        divisionMap.set(key, row);
+      }
+    }
+    leagueLeaders.value = Array.from(divisionMap.values())
+      .sort((a, b) =>
+        String(a.league_name || a.division).localeCompare(
+          String(b.league_name || b.division),
+        ),
+      )
+      .slice(0, 4)
+      .map((row) => ({
+        ...row,
+        position: "1",
+      }));
 
-    // Data is now pre-filtered for actual changes in the SQL function
     handicapMovements.value = dash.handicaps || [];
   } catch (err) {
     console.error("Dashboard mapping error:", err);
   } finally {
-    // Give Vue one tick to calculate latestTopRows before showing the hero
     nextTick(() => {
       loading.value = false;
     });

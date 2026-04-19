@@ -22,72 +22,20 @@ const globalMetadata = ref({
 const hasScrolled = ref(false);
 let lastScrollY = 0;
 
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwdWxnbmh0bmd2cWRpa2Jka2d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMzcwNTAsImV4cCI6MjA2NzgxMzA1MH0.0e8Cs9bDKTdI9RLa8o3UNBh_ARGh6AlYO9dm16TYPdw";
+const PROJECT_URL =
+  "https://fpulgnhtngvqdikbdkgv.functions.supabase.co/fetch-all-data";
+
 async function loadGlobalMetadata() {
+  globalMetadata.value.loading = true;
   try {
-    // Round 1: Fetch Seasons and the Latest Closed Competition metadata
-    const [seasonsRes, compRes] = await Promise.all([
-      supabase
-        .from("seasons")
-        .select("id, name, start_year, start_date, end_date, is_current")
-        .order("start_year", { ascending: false }),
-      supabase
-        .from("competitions")
-        .select(
-          "id, name, competition_date, status, winner_id, prize_pot, rollover_amount",
-        )
-        .eq("status", "closed")
-        .order("competition_date", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-
-    const season =
-      seasonsRes.data?.find((s) => s.is_current) || seasonsRes.data?.[0];
-    const latestComp = compRes.data;
-
-    // Defensive check: only call Round 2 if we have actual IDs
-    if (season?.id && latestComp?.id) {
-      try {
-        const [summaryRes, dashRes] = await Promise.all([
-          supabase
-            .from("results_summary")
-            .select("*")
-            .eq("competition_id", latestComp.id)
-            .maybeSingle(),
-          supabase.rpc("get_dashboard_overview", {
-            p_season_id: season.id,
-            p_competition_id: latestComp.id,
-          }),
-        ]);
-
-        if (dashRes.error) throw dashRes.error;
-
-        globalMetadata.value.summary = summaryRes.data;
-        globalMetadata.value.dashboard = dashRes.data;
-      } catch (rpcErr) {
-        console.error("Dashboard RPC Error:", rpcErr);
-        // Ensure dashboard is at least an empty object to prevent child crashes
-        globalMetadata.value.dashboard = {
-          results: [],
-          best14: [],
-          leagues: [],
-          handicaps: [],
-          week_count: 0,
-        };
-      }
-    } else {
-      globalMetadata.value.dashboard = {
-        results: [],
-        best14: [],
-        leagues: [],
-        handicaps: [],
-        week_count: 0,
-      };
-    }
-
-    globalMetadata.value.season = season;
-    globalMetadata.value.seasons = seasonsRes.data || [];
-    globalMetadata.value.latestComp = latestComp;
+    // Fetch all-seasons data in one call
+    const response = await fetch(PROJECT_URL, {
+      headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    });
+    const data = await response.json();
+    Object.assign(globalMetadata.value, data);
   } catch (err) {
     console.error("Failed to load global metadata:", err);
   } finally {
@@ -146,13 +94,34 @@ const handleScroll = () => {
   lastScrollY = currentY;
 };
 
+let supabaseChannels = [];
 onMounted(() => {
   lastScrollY = window.scrollY || 0;
   window.addEventListener("scroll", handleScroll, { passive: true });
   handleScroll();
   loadGlobalMetadata();
+
+  // Subscribe to relevant tables for realtime updates
+  const tables = [
+    "competitions",
+    "public_results_view",
+    "results_summary",
+    "handicap_history",
+    "profiles",
+    // add more if needed
+  ];
+  supabaseChannels = tables.map((table) =>
+    supabase
+      .channel(`realtime:${table}`)
+      .on("postgres_changes", { event: "*", schema: "public", table }, () => {
+        // Refetch all data when anything changes
+        loadGlobalMetadata();
+      })
+      .subscribe(),
+  );
 });
 onBeforeUnmount(() => {
+  supabaseChannels.forEach((ch) => supabase.removeChannel(ch));
   window.removeEventListener("scroll", handleScroll);
 });
 </script>

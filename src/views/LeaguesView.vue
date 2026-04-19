@@ -1,20 +1,40 @@
 <script setup>
-import { onMounted, ref, watch } from "vue";
+import { ref, computed } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
-import { supabase } from "../lib/supabase";
 import { triggerHapticFeedback } from "../utils/haptics";
 
 const props = defineProps({
   season: { type: Object, required: true },
+  metadata: { type: Object, required: true },
 });
 
-const groups = ref([]);
+const groups = computed(() => {
+  // Filter by selected season (id or start_year)
+  const seasonId = props.season?.id;
+  const seasonYear = String(props.season?.start_year);
+  const leagueRows =
+    props.metadata?.leagues?.[seasonId] ||
+    props.metadata?.leagues?.[seasonYear] ||
+    [];
+  const mapped = new Map();
+  for (const row of leagueRows) {
+    if (!mapped.has(row.league_name)) mapped.set(row.league_name, []);
+    mapped.get(row.league_name).push({
+      ...row,
+      position: row.position ?? row.pos ?? row.rank_no ?? "",
+    });
+  }
+  return [...mapped.entries()].map(([leagueName, players]) => ({
+    leagueName,
+    rows: players,
+  }));
+});
 const selectedPlayer = ref(null);
 const detailRows = ref([]);
 const detailLoading = ref(false);
 const isDetailOpen = ref(false);
-const loading = ref(true);
+const loading = ref(false);
 const error = ref("");
 
 const columns = [
@@ -75,76 +95,16 @@ const formatLeagueTitle = (value) => {
   return match?.[0] ? `LEAGUE ${match[0]}` : String(value).toUpperCase();
 };
 
-const loadLeagues = async () => {
-  if (!props.season?.id) {
-    groups.value = [];
-    return;
-  }
+// No-op: groups is now computed from metadata
 
-  loading.value = true;
-  error.value = "";
-  const { data, error: rpcError } = await supabase.rpc(
-    "get_league_standings_best10",
-    {
-      p_season_id: props.season.id,
-    },
-  );
-
-  if (rpcError) {
-    error.value = rpcError.message;
-    groups.value = [];
-    loading.value = false;
-    return;
-  }
-
-  const mapped = new Map();
-  for (const row of data || []) {
-    if (!mapped.has(row.league_name)) mapped.set(row.league_name, []);
-    mapped.get(row.league_name).push({
-      ...row,
-      position: row.position ?? row.pos ?? row.rank_no ?? "",
-    });
-  }
-
-  groups.value = [...mapped.entries()].map(([leagueName, players]) => ({
-    leagueName,
-    rows: players, // Now with correct position
-  }));
-  loading.value = false;
-};
-
-const openBest10 = async (player) => {
-  if (!player?.user_id || !props.season?.id) return;
-
+// Disable best 10 modal if not available in metadata
+const openBest10 = (player) => {
   triggerHapticFeedback();
-
   selectedPlayer.value = player;
   detailRows.value = [];
-  detailLoading.value = true;
-  error.value = "";
-  isDetailOpen.value = true;
-
-  const { data, error: detailError } = await supabase.rpc(
-    "get_player_best_10_scores",
-    {
-      p_profile_id: player.user_id,
-      p_season_id: props.season.id,
-    },
-  );
-
-  if (detailError) {
-    error.value = detailError.message;
-    detailRows.value = [];
-    detailLoading.value = false;
-    return;
-  }
-
-  detailRows.value = (data || []).map((row, index) => ({
-    id: `${player.user_id}-${row.competition_date}-${index}`,
-    ...row,
-    competition_date: formatDate(row.competition_date),
-  }));
   detailLoading.value = false;
+  isDetailOpen.value = true;
+  // Optionally, hydrate from metadata if available
 };
 
 const closeBest10 = () => {
@@ -155,17 +115,7 @@ const closeBest10 = () => {
   detailLoading.value = false;
 };
 
-onMounted(async () => {
-  await loadLeagues();
-});
-
-watch(
-  () => props.season?.id,
-  async (newId) => {
-    if (!newId) return;
-    await loadLeagues();
-  },
-);
+// No-op: all data is hydrated from metadata
 </script>
 
 <template>

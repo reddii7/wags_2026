@@ -1,6 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, markRaw } from "vue";
-import { supabase } from "../lib/supabase";
+import { ref, computed, markRaw, watch } from "vue";
 import { triggerHapticFeedback } from "../utils/haptics";
 import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
@@ -11,9 +10,11 @@ const props = defineProps({
   metadata: { type: Object, required: true },
 });
 
-const seasons = ref([]);
-const selectedSeasonId = ref(props.metadata?.season?.id || null);
-const loading = ref(true);
+const seasons = ref(
+  Array.isArray(props.metadata?.seasons) ? props.metadata.seasons : [],
+);
+const selectedSeasonId = ref(null);
+const loading = ref(false);
 
 const tabs = [
   { id: "results", label: "RESULTS", component: markRaw(ResultsView) },
@@ -27,35 +28,50 @@ const activeComponent = computed(
   () => tabs.find((t) => t.id === activeTabId.value)?.component,
 );
 
-async function loadSeasons() {
-  const { data } = await supabase
-    .from("seasons")
-    .select("id, name, start_year, start_date, end_date, is_current")
-    .order("start_year", { ascending: false });
-
-  const fetchedSeasons = data || props.metadata.seasons || [];
-  seasons.value = fetchedSeasons;
-
-  if (!selectedSeasonId.value) {
-    const current =
-      fetchedSeasons.find((s) => s.is_current) || fetchedSeasons[0];
-    selectedSeasonId.value = current?.id;
-  }
-  loading.value = false;
-}
-
-const selectedSeason = computed(
-  () =>
-    seasons.value.find((s) => s.id === selectedSeasonId.value) ||
-    props.metadata?.season,
+// Hydrate seasons from metadata and set default selected season robustly
+watch(
+  () => props.metadata,
+  (meta) => {
+    if (meta && Array.isArray(meta.seasons)) {
+      seasons.value = meta.seasons;
+      // Always set default season to current or first if not set or if id is missing
+      const current = meta.seasons.find((s) => s.is_current) || meta.seasons[0];
+      if (
+        !selectedSeasonId.value ||
+        !meta.seasons.some((s) => s.id === selectedSeasonId.value)
+      ) {
+        selectedSeasonId.value = current?.id;
+      }
+    }
+  },
+  { immediate: true },
 );
+
+const selectedSeason = computed(() => {
+  // Always find by id, fallback to first season
+  return (
+    seasons.value.find((s) => s.id === selectedSeasonId.value) ||
+    seasons.value[0] ||
+    null
+  );
+});
+
+// Watch for season change: reset tab if needed, ensure nav works
+watch(selectedSeasonId, (newVal, oldVal) => {
+  // Defensive: if new season is not found, fallback to first
+  if (!seasons.value.some((s) => s.id === newVal)) {
+    selectedSeasonId.value = seasons.value[0]?.id || null;
+  }
+  // Optionally reset tab to default if needed
+  if (activeTabId.value && !tabs.some((t) => t.id === activeTabId.value)) {
+    activeTabId.value = tabs[0].id;
+  }
+});
 
 function setTab(id) {
   triggerHapticFeedback();
   activeTabId.value = id;
 }
-
-onMounted(loadSeasons);
 </script>
 
 <template>

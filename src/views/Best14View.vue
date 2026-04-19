@@ -1,22 +1,36 @@
 <script setup>
-import { onMounted, ref, watch } from "vue";
+import { ref, computed } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
 import { triggerHapticFeedback } from "../utils/haptics";
-import { supabase } from "../lib/supabase";
-// TODO: Extract Supabase logic to a composable for DRYness
 
 const props = defineProps({
   season: { type: Object, required: true },
+  metadata: { type: Object, required: true },
 });
 
 const onlyPaid = ref(true); // Default to true, can be made reactive in UI
-const rows = ref([]);
+// Hydrate from metadata.best14, using both id and start_year as keys
+const rows = computed(() => {
+  if (!props.season) return [];
+  const seasonId = props.season.id;
+  const seasonYear = String(props.season.start_year);
+  const best14Arr =
+    props.metadata?.best14?.[seasonId] ||
+    props.metadata?.best14?.[seasonYear] ||
+    [];
+  return best14Arr.map((player) => ({
+    ...player,
+    position: player.position ?? player.pos ?? player.rank_no ?? "",
+    total_score: player.best_total,
+    id: `${seasonId || seasonYear}-${player.full_name}`,
+  }));
+});
 const selectedPlayer = ref(null);
 const detailRows = ref([]);
 const detailLoading = ref(false);
 const isDetailOpen = ref(false);
-const loading = ref(true);
+const loading = ref(false);
 const error = ref("");
 
 const columns = [
@@ -71,70 +85,16 @@ const formatDate = (value) => {
   }).format(date);
 };
 
-const loadLeaderboard = async () => {
-  if (!props.season?.start_year) {
-    rows.value = [];
-    return;
-  }
+// No-op: rows is now computed from metadata
 
-  loading.value = true;
-  error.value = "";
-
-  const { data, error: rpcError } = await supabase.rpc(
-    "get_best_14_scores_by_season",
-    {
-      p_season: String(props.season.start_year),
-    },
-  );
-
-  if (rpcError) {
-    error.value = rpcError.message;
-    rows.value = [];
-    loading.value = false;
-    return;
-  }
-
-  rows.value = (data || []).map((player) => ({
-    ...player,
-    position: player.position ?? player.pos ?? player.rank_no ?? "",
-    total_score: player.best_total,
-    id: `${props.season.start_year}-${player.full_name}`,
-  }));
-  loading.value = false;
-};
-
-const openBest14 = async (player) => {
-  if (!player?.user_id || !props.season?.id) return;
-
+// Disable best 14 modal if not available in metadata
+const openBest14 = (player) => {
   triggerHapticFeedback();
-
   selectedPlayer.value = player;
   detailRows.value = [];
-  detailLoading.value = true;
-  error.value = "";
-  isDetailOpen.value = true;
-
-  const { data, error: detailError } = await supabase.rpc(
-    "get_player_best_14_scores",
-    {
-      p_profile_id: player.user_id,
-      p_season_id: props.season.id,
-    },
-  );
-
-  if (detailError) {
-    error.value = detailError.message;
-    detailRows.value = [];
-    detailLoading.value = false;
-    return;
-  }
-
-  detailRows.value = (data || []).map((row, index) => ({
-    id: `${player.user_id}-${row.competition_date}-${index}`,
-    ...row,
-    competition_date: formatDate(row.competition_date),
-  }));
   detailLoading.value = false;
+  isDetailOpen.value = true;
+  // Optionally, hydrate from metadata if available
 };
 
 const closeBest14 = () => {
@@ -145,17 +105,7 @@ const closeBest14 = () => {
   detailLoading.value = false;
 };
 
-onMounted(async () => {
-  await loadLeaderboard();
-});
-
-watch(
-  () => props.season?.id,
-  async (newId) => {
-    if (!newId) return;
-    await loadLeaderboard();
-  },
-);
+// No-op: all data is hydrated from metadata
 </script>
 
 <template>

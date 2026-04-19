@@ -1,11 +1,17 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
+// Removed unused composable
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
 import QuietSparkline from "../components/QuietSparkline.vue";
-import { useProfiles } from "../composables/useProfiles";
-import { supabase } from "../lib/supabase";
 import { triggerHapticFeedback } from "../utils/haptics";
+
+const props = defineProps({
+  metadata: {
+    type: Object,
+    required: true,
+  },
+});
 
 const players = ref([]);
 const selectedPlayerId = ref(null);
@@ -89,64 +95,41 @@ const getLatestCompetitionChangeMap = (history, competitions) => {
   return latestChangeByUser;
 };
 
-const {
-  profile,
-  loading: profilesLoading,
-  error: profilesError,
-  fetchProfile,
-} = useProfiles();
+// Removed unused composable
 
 const loadPlayers = async () => {
-  // For now, keep the original logic, but fetch profiles using the composable in the future for DRYness
-  // ...existing code...
-  const [
-    { data: profiles, error: profilesErr },
-    { data: history, error: historyError },
-    { data: competitions, error: competitionsError },
-  ] = await Promise.all([
-    // This can be replaced with a composable fetch in the future
-    // ...existing code...
-    // ...original supabase call...
-    supabase
-      .from("profiles")
-      .select("id, full_name, current_handicap")
-      .not("current_handicap", "is", null)
-      .order("full_name"),
-    supabase
-      .from("handicap_history")
-      .select("user_id, old_handicap, new_handicap, competition_id, created_at")
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("competitions")
-      .select("id, competition_date")
-      .order("competition_date", { ascending: false }),
-  ]);
-
-  if (profilesErr || historyError || competitionsError) {
-    throw profilesErr || historyError || competitionsError;
+  loading.value = true;
+  try {
+    const profiles = props.metadata?.profiles || [];
+    const history = props.metadata?.handicap_history || [];
+    const competitions = props.metadata?.competitions || [];
+    const latestChangeByUser = getLatestCompetitionChangeMap(
+      history,
+      competitions,
+    );
+    players.value = (profiles || [])
+      .map((player) => {
+        const latestChange = latestChangeByUser.get(player.id);
+        let change, improved;
+        if (!latestChange) {
+          change = "-";
+          improved = false;
+        } else {
+          change = latestChange.text;
+          improved = latestChange.improved;
+        }
+        return {
+          ...player,
+          change,
+          improved: Boolean(improved),
+        };
+      })
+      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+  } catch (err) {
+    error.value = err.message || "Failed to load players.";
+  } finally {
+    loading.value = false;
   }
-
-  const latestChangeByUser = getLatestCompetitionChangeMap(
-    history,
-    competitions,
-  );
-
-  players.value = (profiles || []).map((player) => {
-    const latestChange = latestChangeByUser.get(player.id);
-    let change, improved;
-    if (!latestChange) {
-      change = "-";
-      improved = false;
-    } else {
-      change = latestChange.text;
-      improved = latestChange.improved;
-    }
-    return {
-      ...player,
-      change,
-      improved: Boolean(improved),
-    };
-  });
 };
 
 const openHistory = async (playerId) => {
@@ -172,85 +155,51 @@ const loadHistory = async () => {
     historyRows.value = [];
     return;
   }
-
   detailLoading.value = true;
-  const { data, error: historyError } = await supabase
-    .from("handicap_history")
-    .select(
-      "created_at, old_handicap, adjustment, new_handicap, competition_id",
-    )
-    .eq("user_id", selectedPlayerId.value)
-    .order("created_at", { ascending: false });
-
-  if (historyError) {
-    error.value = historyError.message;
+  try {
+    const allHistory = props.metadata?.handicap_history || [];
+    const competitions = props.metadata?.competitions || [];
+    const rounds = props.metadata?.rounds || [];
+    const playerHistory = allHistory.filter(
+      (item) => item.user_id === selectedPlayerId.value,
+    );
+    const competitionMap = new Map(
+      (competitions || []).map((competition) => [
+        competition.id,
+        competition.name,
+      ]),
+    );
+    const scoreMap = new Map(
+      (rounds || [])
+        .filter((r) => r.user_id === selectedPlayerId.value)
+        .map((score) => [score.competition_id, score.stableford_score]),
+    );
+    historyRows.value = (playerHistory || []).map((item, index) => ({
+      id: `${selectedPlayerId.value}-${item.created_at}-${index}`,
+      competition:
+        competitionMap.get(item.competition_id) || "Manual adjustment",
+      score: scoreMap.get(item.competition_id) ?? "—",
+      new_handicap: item.new_handicap,
+      old_handicap: item.old_handicap,
+      adjustment: item.adjustment,
+    }));
+  } catch (err) {
+    error.value = err.message || "Unable to load handicap history.";
     historyRows.value = [];
+  } finally {
     detailLoading.value = false;
-    return;
   }
-
-  const competitionIds = (data || [])
-    .map((item) => item.competition_id)
-    .filter(Boolean);
-  const { data: competitions, error: competitionsError } = competitionIds.length
-    ? await supabase
-        .from("competitions")
-        .select("id, name")
-        .in("id", competitionIds)
-    : { data: [], error: null };
-
-  const { data: scores, error: scoresError } = competitionIds.length
-    ? await supabase
-        .from("rounds")
-        .select("competition_id, stableford_score")
-        .eq("user_id", selectedPlayerId.value)
-        .in("competition_id", competitionIds)
-    : { data: [], error: null };
-
-  if (competitionsError || scoresError) {
-    error.value =
-      competitionsError?.message ||
-      scoresError?.message ||
-      "Unable to load handicap history.";
-    historyRows.value = [];
-    detailLoading.value = false;
-    return;
-  }
-
-  const competitionMap = new Map(
-    (competitions || []).map((competition) => [
-      competition.id,
-      competition.name,
-    ]),
-  );
-  const scoreMap = new Map(
-    (scores || []).map((score) => [
-      score.competition_id,
-      score.stableford_score,
-    ]),
-  );
-
-  historyRows.value = (data || []).map((item, index) => ({
-    id: `${selectedPlayerId.value}-${item.created_at}-${index}`,
-    competition: competitionMap.get(item.competition_id) || "Manual adjustment",
-    score: scoreMap.get(item.competition_id) ?? "—",
-    new_handicap: item.new_handicap,
-    old_handicap: item.old_handicap,
-    adjustment: item.adjustment,
-  }));
-  detailLoading.value = false;
 };
 
-onMounted(async () => {
-  try {
-    await loadPlayers();
-  } catch (loadError) {
-    error.value = loadError.message;
-  } finally {
-    loading.value = false;
-    detailLoading.value = false;
-  }
-});
+watch(
+  () => props.metadata,
+  (meta) => {
+    if (meta && !meta.loading) {
+      loadPlayers();
+    }
+  },
+  { immediate: true },
+);
 
 watch(selectedPlayerId, async (playerId, previous) => {
   if (!playerId || playerId === previous) return;

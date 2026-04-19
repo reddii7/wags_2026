@@ -1,33 +1,11 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import QuietList from "../components/QuietList.vue";
-import { useCompetitions } from "../composables/useCompetitions";
-import { useResults } from "../composables/useResults";
-import { useResultsSummary } from "../composables/useResultsSummary";
 
 const props = defineProps({
   season: { type: Object, required: true },
   metadata: { type: Object, required: true },
 });
-
-const {
-  competitions,
-  loading: competitionsLoading,
-  error: competitionsError,
-  fetchCompetitions,
-} = useCompetitions();
-const {
-  results,
-  loading: resultsLoading,
-  error: resultsError,
-  fetchResults,
-} = useResults();
-const {
-  summaries,
-  loading: summariesLoading,
-  error: summariesError,
-  fetchSummaries,
-} = useResultsSummary();
 
 const selectedCompetitionId = ref(null);
 const summary = ref({
@@ -41,12 +19,14 @@ const summary = ref({
   second_names: [],
 });
 const error = ref("");
-const loading = computed(
-  () =>
-    competitionsLoading.value || resultsLoading.value || summariesLoading.value,
+const loading = ref(false);
+const detailsLoading = ref(false);
+const competitions = computed(() => props.metadata?.competitions || []);
+const results = computed(() => props.metadata?.results || []);
+const summaries = computed(() => props.metadata?.summaries || []);
+const rows = computed(() =>
+  results.value.filter((r) => r.competition_id === selectedCompetitionId.value),
 );
-const detailsLoading = resultsLoading;
-const rows = results;
 
 const columns = [
   {
@@ -71,13 +51,15 @@ const selectedCompetition = computed(
     ) || null,
 );
 
+// Robustly filter competitions for the selected season (by id or start_year)
 const competitionsForSeason = computed(() => {
   if (!props.season) return [];
+  const seasonId = props.season.id;
+  const seasonYear = String(props.season.start_year);
   return competitions.value.filter((competition) => {
-    if (!competition.competition_date) return false;
     return (
-      competition.competition_date >= props.season.start_date &&
-      competition.competition_date <= props.season.end_date
+      competition.season === seasonId ||
+      String(competition.season) === seasonYear
     );
   });
 });
@@ -177,71 +159,41 @@ const syncSelectedCompetition = () => {
   selectedCompetitionId.value = sorted[sorted.length - 1]?.id || null;
 };
 
-const loadData = async () => {
-  error.value = "";
-  await fetchCompetitions({ season: props.season });
-  syncSelectedCompetition();
-  if (selectedCompetitionId.value) {
-    await fetchResults({ competitionId: selectedCompetitionId.value });
-    await fetchSummaries({ competitionIds: [selectedCompetitionId.value] });
-    // Set summary from summaries composable
-    const found = summaries.value.find(
-      (s) => s.competition_id === selectedCompetitionId.value,
-    );
-    summary.value = found || {
-      amount: 0,
-      num_players: 0,
-      snakes: 0,
-      camels: 0,
-      week_number: null,
-      week_date: null,
-      winner_names: [],
-      second_names: [],
-    };
-  } else {
-    summary.value = {
-      amount: 0,
-      num_players: 0,
-      snakes: 0,
-      camels: 0,
-      week_number: null,
-      week_date: null,
-      winner_names: [],
-      second_names: [],
-    };
-  }
-};
-
-onMounted(async () => {
-  try {
-    await loadData();
-  } catch (loadError) {
-    error.value = loadError.message;
-  }
-});
-
-watch(selectedCompetitionId, async (competitionId, previous) => {
-  if (!competitionId || competitionId === previous) return;
-  await fetchResults({ competitionId });
-  await fetchSummaries({ competitionIds: [competitionId] });
-  const found = summaries.value.find((s) => s.competition_id === competitionId);
-  summary.value = found || {
-    amount: 0,
-    num_players: 0,
-    snakes: 0,
-    camels: 0,
-    week_number: null,
-    week_date: null,
-    winner_names: [],
-    second_names: [],
-  };
-});
-
+// Watch for changes in season, metadata, or selectedCompetitionId
 watch(
-  () => props.season?.id,
-  async () => {
-    await loadData();
+  () => [props.season?.id, props.metadata, selectedCompetitionId.value],
+  () => {
+    syncSelectedCompetition();
+    if (selectedCompetitionId.value) {
+      const found = summaries.value.find(
+        (s) => s.competition_id === selectedCompetitionId.value,
+      );
+      summary.value = found || {
+        amount: 0,
+        num_players: 0,
+        snakes: 0,
+        camels: 0,
+        week_number: null,
+        week_date: null,
+        winner_names: [],
+        second_names: [],
+      };
+      // Removed debug logging
+    } else {
+      summary.value = {
+        amount: 0,
+        num_players: 0,
+        snakes: 0,
+        camels: 0,
+        week_number: null,
+        week_date: null,
+        winner_names: [],
+        second_names: [],
+      };
+      // Removed debug logging
+    }
   },
+  { immediate: true },
 );
 </script>
 
