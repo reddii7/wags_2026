@@ -105,6 +105,7 @@ const openBest10 = (player) => {
 
   const allRounds = props.metadata?.rounds || [];
   const allComps = props.metadata?.competitions || [];
+  const allResults = props.metadata?.results || [];
   const seasonId = props.season?.id;
   const seasonYear = String(props.season?.start_year);
 
@@ -115,12 +116,26 @@ const openBest10 = (player) => {
       .map((c) => c.id),
   );
 
+  const targetPlayerId = player.user_id || player.player_id || player.id;
+
   // Map player rounds with competition details
-  detailRows.value = allRounds
-    .filter(
-      (r) =>
-        r.user_id === player.user_id && seasonCompIds.has(r.competition_id),
-    )
+  const roundMap = new Map();
+  [...allRounds, ...allResults].forEach((r) => {
+    const rowUid = r.user_id || r.player_id;
+    if (rowUid === targetPlayerId && seasonCompIds.has(r.competition_id)) {
+      // Use Map to deduplicate by competition_id
+      const existing = roundMap.get(r.competition_id);
+      const score = r.stableford_score ?? r.score;
+      if (!existing || score !== undefined) {
+        roundMap.set(r.competition_id, {
+          ...r,
+          stableford_score: score,
+        });
+      }
+    }
+  });
+
+  detailRows.value = Array.from(roundMap.values())
     .map((r) => {
       const comp = allComps.find((c) => c.id === r.competition_id);
       return {

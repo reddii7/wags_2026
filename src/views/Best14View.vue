@@ -95,6 +95,7 @@ const openBest14 = (player) => {
 
   const allRounds = props.metadata?.rounds || [];
   const allComps = props.metadata?.competitions || [];
+  const allResults = props.metadata?.results || [];
   const seasonId = props.season?.id;
   const seasonYear = String(props.season?.start_year);
 
@@ -105,12 +106,32 @@ const openBest14 = (player) => {
       .map((c) => c.id),
   );
 
+  const targetPlayerId = player.user_id || player.player_id || player.id;
+
   // Map player rounds with competition details
-  detailRows.value = allRounds
-    .filter(
-      (r) =>
-        r.user_id === player.user_id && seasonCompIds.has(r.competition_id),
-    )
+  const roundMap = new Map();
+  [...allRounds, ...allResults].forEach((r) => {
+    const rowUid = r.user_id || r.player_id;
+    if (rowUid === targetPlayerId && seasonCompIds.has(r.competition_id)) {
+      // Professional Deduplication: Prefer records that have a valid numeric score
+      // Deduplicate by competition_id, preferring records with valid score data
+      const existing = roundMap.get(r.competition_id);
+      const currentScore = r.stableford_score ?? r.score;
+
+      // If we don't have this comp yet, or if this new record has a score and the old one didn't
+      if (
+        !existing ||
+        (currentScore != null && existing.stableford_score == null)
+      ) {
+        roundMap.set(r.competition_id, {
+          ...r,
+          stableford_score: currentScore,
+        });
+      }
+    }
+  });
+
+  detailRows.value = Array.from(roundMap.values())
     .map((r) => {
       const comp = allComps.find((c) => c.id === r.competition_id);
       return {

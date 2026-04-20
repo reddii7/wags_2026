@@ -166,13 +166,48 @@ const loadHistory = async () => {
     const allHistory = props.metadata?.handicap_history || [];
     const competitions = props.metadata?.competitions || [];
     const rounds = props.metadata?.rounds || [];
+    const results = props.metadata?.results || [];
 
     const compDateMap = new Map(
       (competitions || []).map((c) => [c.id, c.competition_date]),
     );
 
+    const scoreMap = new Map();
+    [...rounds, ...results].forEach((r) => {
+      const uid = r.user_id || r.player_id;
+      if (uid === selectedPlayerId.value) {
+        const s = r.stableford_score ?? r.score;
+        if (s !== undefined && s !== null) {
+          scoreMap.set(r.competition_id, s);
+        }
+      }
+    });
+
     const playerHistory = [...allHistory]
-      .filter((item) => item.user_id === selectedPlayerId.value)
+      .filter((item) => {
+        if (item.user_id !== selectedPlayerId.value) return false;
+
+        const hOld =
+          item.old_handicap != null ? Number(item.old_handicap) : null;
+        const hNew =
+          item.new_handicap != null ? Number(item.new_handicap) : null;
+
+        const compId = item.competition_id;
+        const isRoundId = compId && String(compId).length > 30;
+
+        // Professional Filter: Strictly require numeric delta between TWO valid numbers.
+        // This automatically hides "Initial Handicap" noise (hOld is null) and profile-save noise.
+        const hasHandicapChange =
+          hOld !== null && hNew !== null && Math.abs(hNew - hOld) > 0.01;
+
+        const hasScore = isRoundId && scoreMap.has(compId);
+
+        // If it's a competition round, show it if they played OR the handicap moved.
+        if (isRoundId) return hasHandicapChange || hasScore;
+
+        // If it's manual, strictly only show if there was a genuine numeric change.
+        return hasHandicapChange;
+      })
       .sort((a, b) => {
         const dateA = compDateMap.get(a.competition_id) || a.created_at;
         const dateB = compDateMap.get(b.competition_id) || b.created_at;
@@ -184,11 +219,6 @@ const loadHistory = async () => {
         competition.id,
         competition.name,
       ]),
-    );
-    const scoreMap = new Map(
-      (rounds || [])
-        .filter((r) => r.user_id === selectedPlayerId.value)
-        .map((score) => [score.competition_id, score.stableford_score]),
     );
     historyRows.value = playerHistory.map((item, index) => {
       // Calculate adjustment if missing or zero but handicaps actually changed
@@ -204,10 +234,18 @@ const loadHistory = async () => {
         }
       }
 
+      // True manual adjustment: no competition_id or not found in competitions
+      const compName = competitionMap.get(item.competition_id);
+      let competitionLabel;
+      if (!item.competition_id || !compName) {
+        // If there's no competition_id or it's not found, only then call it manual
+        competitionLabel = "Manual adjustment";
+      } else {
+        competitionLabel = compName;
+      }
       return {
         id: `${selectedPlayerId.value}-${item.created_at}-${index}`,
-        competition:
-          competitionMap.get(item.competition_id) || "Manual adjustment",
+        competition: competitionLabel,
         score: scoreMap.get(item.competition_id) ?? "—",
         new_handicap: item.new_handicap,
         old_handicap: item.old_handicap,

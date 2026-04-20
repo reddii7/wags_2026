@@ -31,23 +31,14 @@ serve(async (req) => {
     });
   }
   const seasons = seasonsRes.data;
-  const seasonIds = seasons.map((s) => s.id);
-  const seasonYearMap = Object.fromEntries(
-    seasons.map((s) => [s.id, String(s.start_year)]),
-  );
 
-  // 2. Fetch all competitions (all seasons)
-  const seasonFilters = [
-    ...seasons.map((s) => s.id),
-    ...seasons.map((s) => String(s.start_year)),
-  ];
-
+  // 2. Fetch all competitions (all time)
+  // This ensures handicap history always finds its competition name
   const competitionsRes = await supabase
     .from("competitions")
     .select(
       "id, name, competition_date, status, winner_id, prize_pot, rollover_amount, season",
     )
-    .in("season", seasonFilters)
     .order("competition_date", { ascending: false });
   if (competitionsRes.error) {
     return new Response(
@@ -79,7 +70,8 @@ serve(async (req) => {
         : { data: [], error: null },
       supabase
         .from("handicap_history")
-        .select("*")
+        .select("*, competitions!inner(name, competition_date)")
+        .order("competitions.competition_date", { ascending: false })
         .order("created_at", { ascending: false }),
       supabase.from("rounds").select("*"),
       supabase.from("profiles").select("*"),
@@ -91,22 +83,40 @@ serve(async (req) => {
   const rounds = roundsRes.data || [];
   const profiles = profilesRes.data || [];
 
-  // 4. Fetch Best 14 and Leagues for each season (object keyed by season.id)
+  // Deduplicate handicap_history: keep only the latest entry per competition_id and user_id
+  // (If competition_id is null, treat as manual adjustment and keep all)
+  const dedupedHandicapHistory = [];
+  const seen = new Map();
+  for (const entry of handicap_history) {
+    if (!entry.competition_id) {
+      dedupedHandicapHistory.push(entry);
+      continue;
+    }
+    const key = `${entry.user_id}__${entry.competition_id}`;
+    if (!seen.has(key)) {
+      seen.set(key, entry);
+      dedupedHandicapHistory.push(entry);
+    }
+    // If already seen, skip (older duplicate)
+  }
+
+  // 4. Parallel fetch of Season-specific data (Professional optimization)
   const best14 = {};
   const leagues = {};
-  for (const season of seasons) {
-    try {
-      const best14Res = await supabase.rpc("get_best_14_scores_by_season", {
-        p_season: String(season.start_year),
-      });
+  const dashboard = {};
+  const winners = {};
+
+  await Promise.all(
+    seasons.map(async (season) => {
+      const seasonYear = String(season.start_year);
+
+      // Parallelize RPC calls for this season
+      const [best14Res, leaguesRes] = await Promise.all([
+        supabase.rpc("get_best_14_scores_by_season", { p_season: seasonYear }),
+        supabase.rpc("get_league_standings_best10", { p_season_id: season.id }),
+      ]);
+
       best14[season.id] = !best14Res.error ? best14Res.data || [] : [];
-    } catch {
-      best14[season.id] = [];
-    }
-    try {
-      const leaguesRes = await supabase.rpc("get_league_standings_best10", {
-        p_season_id: season.id,
-      });
       leagues[season.id] = !leaguesRes.error
         ? Array.isArray(leaguesRes.data)
           ? leaguesRes.data
@@ -114,58 +124,89 @@ serve(async (req) => {
             ? [leaguesRes.data]
             : []
         : [];
-    } catch {
-      leagues[season.id] = [];
-    }
-  }
 
-  // 5. Dashboard object keyed by season.id and start_year
-  const dashboard = {};
-  for (const season of seasons) {
-    const seasonYear = String(season.start_year);
-    // Find latest closed competition for this season
-    const comps = competitions.filter(
-      (c) => c.season === season.id || String(c.season) === seasonYear,
-    );
-    const latestComp =
-      comps.find((c) => c.status === "closed") || comps[0] || null;
-    let dash = null;
-    if (latestComp) {
-      try {
-        const dashRes = await supabase.rpc("get_dashboard_overview", {
-          p_season_id: season.id,
-          p_competition_id: latestComp.id,
-        });
-        if (!dashRes.error) dash = dashRes.data;
-      } catch {}
-    }
-    // Attach results and summary for latestComp
-    if (dash && latestComp) {
-      dash.results = results.filter((r) => r.competition_id === latestComp.id);
-      const compSummary = summaries.find(
-        (s) => s.competition_id === latestComp.id,
+      // 5. Dashboard Logic (Optimized for precision)
+      const seasonComps = competitions.filter(
+        (c) =>
+          c.season === season.id ||
+          (typeof c.season === "string" && c.season.includes(seasonYear)),
       );
-      dash.summary = compSummary || {
-        competition_id: latestComp.id,
-        winner_type: "",
-        winner_names: [],
-        amount: 0,
-        num_players: dash.results.length,
-        snakes: dash.results.filter((r) => r.has_snake).length,
-        camels: dash.results.filter((r) => r.has_camel).length,
-        week_number: null,
-        week_date: latestComp.competition_date,
-        second_names: [],
-      };
-    }
-    dashboard[season.id] = dash;
-    dashboard[season.start_year] = dash;
-  }
+      const latestComp =
+        seasonComps.find((c) => c.status === "closed") ||
+        seasonComps[0] ||
+        null;
+
+      let dash = null;
+      if (latestComp) {
+        try {
+          const dashRes = await supabase.rpc("get_dashboard_overview", {
+            p_season_id: season.id,
+            p_competition_id: latestComp.id,
+          });
+          if (!dashRes.error) dash = dashRes.data;
+        } catch {}
+      }
+      // Attach results and summary for latestComp
+      if (dash && latestComp) {
+        dash.results = results.filter(
+          (r) => r.competition_id === latestComp.id,
+        );
+        const compSummary = summaries.find(
+          (s) => s.competition_id === latestComp.id,
+        );
+        dash.summary = compSummary || {
+          competition_id: latestComp.id,
+          winner_type: "",
+          winner_names: [],
+          amount: 0,
+          num_players: dash.results.length,
+          snakes: dash.results.filter((r) => r.has_snake).length,
+          camels: dash.results.filter((r) => r.has_camel).length,
+          week_number: null,
+          week_date: latestComp.competition_date,
+          second_names: [],
+        };
+      }
+      dashboard[season.id] = dash;
+      dashboard[season.start_year] = dash;
+
+      // 7. Compute Winners Logic
+      const seasonCompIds = seasonComps.map((c) => c.id);
+      const summariesMap = new Map(summaries.map((s) => [s.competition_id, s]));
+      const seasonSummaries = seasonCompIds
+        .map((id) => summariesMap.get(id))
+        .filter(Boolean);
+
+      const winnerMap = new Map();
+      for (const summary of seasonSummaries) {
+        if (
+          summary.winner_type !== "winner" ||
+          !Array.isArray(summary.winner_names)
+        )
+          continue;
+        for (const name of summary.winner_names) {
+          if (!winnerMap.has(name)) {
+            winnerMap.set(name, { player: name, weeks: 0, amount: 0 });
+          }
+          const entry = winnerMap.get(name);
+          entry.weeks += 1;
+          entry.amount += Number(summary.amount) || 0;
+        }
+      }
+      const seasonWinners = Array.from(winnerMap.values()).sort(
+        (a, b) => b.amount - a.amount,
+      );
+      winners[season.id] = seasonWinners;
+      winners[seasonYear] = seasonWinners;
+    }),
+  );
 
   // 6. Ensure every competition has a summary in the summaries array
-  const summariesMap = new Map(summaries.map((s) => [s.competition_id, s]));
+  const summariesMapGlobal = new Map(
+    summaries.map((s) => [s.competition_id, s]),
+  );
   const allSummaries = competitions.map((comp) => {
-    if (summariesMap.has(comp.id)) return summariesMap.get(comp.id);
+    if (summariesMapGlobal.has(comp.id)) return summariesMapGlobal.get(comp.id);
     const compResults = results.filter((r) => r.competition_id === comp.id);
     return {
       competition_id: comp.id,
@@ -181,38 +222,6 @@ serve(async (req) => {
     };
   });
 
-  // 7. Compute winners object keyed by season id and start_year
-  const winners = {};
-  for (const season of seasons) {
-    const seasonId = season.id;
-    const seasonYear = String(season.start_year);
-    const seasonCompIds = competitions
-      .filter((c) => c.season === seasonId || String(c.season) === seasonYear)
-      .map((c) => c.id);
-    const seasonSummaries = allSummaries.filter((s) =>
-      seasonCompIds.includes(s.competition_id),
-    );
-    const winnerMap = new Map();
-    for (const summary of seasonSummaries) {
-      if (summary.winner_type !== "winner") continue;
-      if (!summary.winner_names || !Array.isArray(summary.winner_names))
-        continue;
-      for (const name of summary.winner_names) {
-        if (!winnerMap.has(name)) {
-          winnerMap.set(name, { player: name, weeks: 0, amount: 0 });
-        }
-        const entry = winnerMap.get(name);
-        entry.weeks += 1;
-        entry.amount += Number(summary.amount) || 0;
-      }
-    }
-    const seasonWinners = Array.from(winnerMap.values()).sort(
-      (a, b) => b.amount - a.amount,
-    );
-    winners[seasonId] = seasonWinners;
-    winners[seasonYear] = seasonWinners;
-  }
-
   // 8. Return all data as flat arrays, plus dashboard object keyed by season.id and start_year, and winners object
   return new Response(
     JSON.stringify({
@@ -220,7 +229,7 @@ serve(async (req) => {
       competitions,
       results,
       summaries: allSummaries,
-      handicap_history,
+      dedupedHandicapHistory,
       rounds,
       profiles,
       best14,
