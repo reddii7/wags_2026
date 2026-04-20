@@ -110,23 +110,64 @@ const loadHomeData = async () => {
   }
   error.value = "";
   try {
-    // Find the latest closed competition from all competitions
+    // Debug: Log metadata and dashboard for troubleshooting
+    if (typeof window !== "undefined") {
+      try {
+        console.log(
+          "DEBUG: HomeView metadata:",
+          JSON.parse(JSON.stringify(props.metadata)),
+        );
+        console.log(
+          "DEBUG: HomeView dashboard:",
+          JSON.parse(JSON.stringify(props.metadata.dashboard)),
+        );
+        console.log(
+          "DEBUG: HomeView competitions:",
+          JSON.parse(JSON.stringify(props.metadata.competitions)),
+        );
+      } catch (e) {
+        console.log("DEBUG: HomeView debug log error", e);
+      }
+    }
+    // Find the most recent closed competition by date
     const competitions = props.metadata.competitions || [];
-    const latestComp =
-      competitions.find((c) => c.status === "closed") ||
-      competitions[0] ||
-      null;
+    const sortedComps = [...competitions]
+      .filter((c) => c.status === "closed" && c.competition_date)
+      .sort(
+        (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
+      );
+    const latestComp = sortedComps[0] || competitions[0] || null;
     latestCompetition.value = latestComp;
     latestCompetitionDetails.value = latestComp;
     if (!latestComp) {
       loading.value = false;
       return;
     }
-    // Get dashboard for this competition's season
-    const dash =
-      props.metadata.dashboard?.[latestComp.season] ||
-      props.metadata.dashboard?.[latestComp.season?.id] ||
-      null;
+    // Robust dashboard lookup for this competition's season
+    let dash = null;
+    const dashboardObj = props.metadata.dashboard || {};
+    let seasonKey = latestComp.season;
+    // If seasonKey is a year, map to season UUID
+    const seasonsArr = props.metadata.seasons || [];
+    let foundSeason = seasonsArr.find(
+      (s) =>
+        String(s.start_year) === String(seasonKey) ||
+        s.id === seasonKey ||
+        String(s.id) === String(seasonKey),
+    );
+    if (foundSeason) {
+      seasonKey = foundSeason.id;
+    }
+    if (dashboardObj[seasonKey]) {
+      dash = dashboardObj[seasonKey];
+    }
+    if (typeof window !== "undefined") {
+      console.log("DEBUG: HomeView dashboard lookup", {
+        seasonKey,
+        dash,
+        dashboardKeys: Object.keys(dashboardObj),
+      });
+    }
     if (!dash) {
       loading.value = false;
       return;
@@ -155,7 +196,7 @@ const loadHomeData = async () => {
     }));
 
     // Best 14 and Leagues for this season (try both id and start_year as keys)
-    const seasonKey = latestComp.season;
+    // Use the same seasonKey as above
     const altSeasonKey =
       props.metadata.seasons?.find(
         (s) => String(s.start_year) === String(seasonKey),

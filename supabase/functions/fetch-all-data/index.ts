@@ -5,10 +5,31 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey",
 };
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
+import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-serve(async (req) => {
+interface Season {
+  id: string;
+  start_year: number;
+}
+
+interface Competition {
+  id: string;
+  name: string;
+  competition_date: string;
+  status: string;
+  winner_id: string | null;
+  season: string;
+  prize_pot: number;
+}
+
+// Helper to safely parse dates
+const toTime = (d: unknown) => {
+  if (!d) return null;
+  const t = new Date(String(d)).getTime();
+  return Number.isFinite(t) ? t : null;
+};
+
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
@@ -21,34 +42,30 @@ serve(async (req) => {
   );
 
   // 1. Fetch all seasons (for selector and data grouping)
-  const seasonsRes = await supabase
+  const { data: seasons, error: seasonsError } = await supabase
     .from("seasons")
     .select("*")
     .order("start_year", { ascending: false });
-  if (seasonsRes.error) {
-    return new Response(JSON.stringify({ error: seasonsRes.error.message }), {
-      status: 500,
-    });
+  if (seasonsError || !seasons) {
+    return new Response(
+      JSON.stringify({ error: seasonsError?.message ?? "No seasons found" }),
+      { status: 500 },
+    );
   }
-  const seasons = seasonsRes.data;
 
   // 2. Fetch all competitions (all time)
-  // This ensures handicap history always finds its competition name
-  const competitionsRes = await supabase
+  const { data: competitions, error: compsError } = await supabase
     .from("competitions")
     .select(
       "id, name, competition_date, status, winner_id, prize_pot, rollover_amount, season",
     )
     .order("competition_date", { ascending: false });
-  if (competitionsRes.error) {
+  if (compsError || !competitions) {
     return new Response(
-      JSON.stringify({ error: competitionsRes.error.message }),
-      {
-        status: 500,
-      },
+      JSON.stringify({ error: compsError?.message ?? "No competitions found" }),
+      { status: 500 },
     );
   }
-  const competitions = competitionsRes.data;
   const competitionIds = competitions.map((c) => c.id);
 
   // 3. Fetch all related data (flat arrays)
@@ -68,10 +85,11 @@ serve(async (req) => {
             )
             .in("competition_id", competitionIds)
         : { data: [], error: null },
+      // IMPORTANT: do NOT order by joined table columns in PostgREST builder
+      // Order locally instead (competition_date desc, then created_at desc)
       supabase
         .from("handicap_history")
-        .select("*, competitions!inner(name, competition_date)")
-        .order("competitions.competition_date", { ascending: false })
+        .select("*, competitions(name, competition_date)")
         .order("created_at", { ascending: false }),
       supabase.from("rounds").select("*"),
       supabase.from("profiles").select("*"),
@@ -79,14 +97,29 @@ serve(async (req) => {
 
   const results = resultsRes.data || [];
   const summaries = summariesRes.data || [];
-  const handicap_history = historyRes.data || [];
   const rounds = roundsRes.data || [];
   const profiles = profilesRes.data || [];
 
-  // Deduplicate handicap_history: keep only the latest entry per competition_id and user_id
-  // (If competition_id is null, treat as manual adjustment and keep all)
-  const dedupedHandicapHistory = [];
-  const seen = new Map();
+  // Sort + dedupe handicap_history
+  const handicap_history_raw = historyRes.data || [];
+  const handicap_history = handicap_history_raw.slice().sort((a: any, b: any) => {
+    const tA = toTime(a?.competitions?.competition_date);
+    const tB = toTime(b?.competitions?.competition_date);
+
+    // Prefer competition_date; fallback to created_at
+    const cA = tA ?? toTime(a?.created_at);
+    const cB = tB ?? toTime(b?.created_at);
+
+    // If both null, keep stable-ish by comparing created_at
+    const kA = cA ?? 0;
+    const kB = cB ?? 0;
+    return kB - kA;
+  });
+
+  // Deduplicate handicap_history: keep only the latest entry per (user_id, competition_id)
+  // If competition_id is null, treat as manual adjustment and keep all
+  const dedupedHandicapHistory: any[] = [];
+  const seen = new Map<string, boolean>();
   for (const entry of handicap_history) {
     if (!entry.competition_id) {
       dedupedHandicapHistory.push(entry);
@@ -94,20 +127,33 @@ serve(async (req) => {
     }
     const key = `${entry.user_id}__${entry.competition_id}`;
     if (!seen.has(key)) {
-      seen.set(key, entry);
+      seen.set(key, true);
       dedupedHandicapHistory.push(entry);
     }
-    // If already seen, skip (older duplicate)
   }
 
+  // Optimization: Group results and summaries by competition_id for O(1) lookup
+  const resultsByComp = results.reduce(
+    (acc: Record<string, any[]>, r: any) => {
+      if (!acc[r.competition_id]) acc[r.competition_id] = [];
+      acc[r.competition_id].push(r);
+      return acc;
+    },
+    {} as Record<string, any[]>,
+  );
+
+  const summariesMapGlobal = new Map(
+    summaries.map((s: any) => [s.competition_id, s]),
+  );
+
   // 4. Parallel fetch of Season-specific data (Professional optimization)
-  const best14 = {};
-  const leagues = {};
-  const dashboard = {};
-  const winners = {};
+  const best14: Record<string, any[]> = {};
+  const leagues: Record<string, any[]> = {};
+  const dashboard: Record<string, any> = {};
+  const winners: Record<string, any[]> = {};
 
   await Promise.all(
-    seasons.map(async (season) => {
+    seasons.map(async (season: Season) => {
       const seasonYear = String(season.start_year);
 
       // Parallelize RPC calls for this season
@@ -127,12 +173,12 @@ serve(async (req) => {
 
       // 5. Dashboard Logic (Optimized for precision)
       const seasonComps = competitions.filter(
-        (c) =>
+        (c: any) =>
           c.season === season.id ||
           (typeof c.season === "string" && c.season.includes(seasonYear)),
       );
       const latestComp =
-        seasonComps.find((c) => c.status === "closed") ||
+        seasonComps.find((c: any) => c.status === "closed") ||
         seasonComps[0] ||
         null;
 
@@ -146,45 +192,42 @@ serve(async (req) => {
           if (!dashRes.error) dash = dashRes.data;
         } catch {}
       }
+
       // Attach results and summary for latestComp
       if (dash && latestComp) {
-        dash.results = results.filter(
-          (r) => r.competition_id === latestComp.id,
-        );
-        const compSummary = summaries.find(
-          (s) => s.competition_id === latestComp.id,
-        );
+        dash.results = resultsByComp[latestComp.id] || [];
+
+        const compSummary = summariesMapGlobal.get(latestComp.id);
+
         dash.summary = compSummary || {
           competition_id: latestComp.id,
           winner_type: "",
           winner_names: [],
           amount: 0,
           num_players: dash.results.length,
-          snakes: dash.results.filter((r) => r.has_snake).length,
-          camels: dash.results.filter((r) => r.has_camel).length,
+          snakes: dash.results.filter((r: any) => r.has_snake).length,
+          camels: dash.results.filter((r: any) => r.has_camel).length,
           week_number: null,
           week_date: latestComp.competition_date,
           second_names: [],
         };
       }
       dashboard[season.id] = dash;
-      dashboard[season.start_year] = dash;
 
       // 7. Compute Winners Logic
-      const seasonCompIds = seasonComps.map((c) => c.id);
-      const summariesMap = new Map(summaries.map((s) => [s.competition_id, s]));
+      const seasonCompIds = seasonComps.map((c: any) => c.id);
       const seasonSummaries = seasonCompIds
-        .map((id) => summariesMap.get(id))
+        .map((id: string) => summariesMapGlobal.get(id))
         .filter(Boolean);
 
-      const winnerMap = new Map();
-      for (const summary of seasonSummaries) {
+      const winnerMap = new Map<string, any>();
+      for (const summary of seasonSummaries as any[]) {
         if (
           summary.winner_type !== "winner" ||
           !Array.isArray(summary.winner_names)
         )
           continue;
-        for (const name of summary.winner_names) {
+        for (const name of summary.winner_names as any[]) {
           if (!winnerMap.has(name)) {
             winnerMap.set(name, { player: name, weeks: 0, amount: 0 });
           }
@@ -197,39 +240,35 @@ serve(async (req) => {
         (a, b) => b.amount - a.amount,
       );
       winners[season.id] = seasonWinners;
-      winners[seasonYear] = seasonWinners;
     }),
   );
 
   // 6. Ensure every competition has a summary in the summaries array
-  const summariesMapGlobal = new Map(
-    summaries.map((s) => [s.competition_id, s]),
-  );
-  const allSummaries = competitions.map((comp) => {
+  const allSummaries = competitions.map((comp: any) => {
     if (summariesMapGlobal.has(comp.id)) return summariesMapGlobal.get(comp.id);
-    const compResults = results.filter((r) => r.competition_id === comp.id);
+    const compResults = resultsByComp[comp.id] || [];
     return {
       competition_id: comp.id,
       winner_type: "",
       winner_names: [],
       amount: 0,
       num_players: compResults.length,
-      snakes: compResults.filter((r) => r.has_snake).length,
-      camels: compResults.filter((r) => r.has_camel).length,
+      snakes: compResults.filter((r: any) => r.has_snake).length,
+      camels: compResults.filter((r: any) => r.has_camel).length,
       week_number: null,
       week_date: comp.competition_date,
       second_names: [],
     };
   });
 
-  // 8. Return all data as flat arrays, plus dashboard object keyed by season.id and start_year, and winners object
+  // 8. Return all data
   return new Response(
     JSON.stringify({
       seasons,
       competitions,
       results,
       summaries: allSummaries,
-      dedupedHandicapHistory,
+      handicap_history: dedupedHandicapHistory,
       rounds,
       profiles,
       best14,
