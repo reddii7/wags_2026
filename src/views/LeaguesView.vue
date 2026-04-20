@@ -101,10 +101,40 @@ const formatLeagueTitle = (value) => {
 const openBest10 = (player) => {
   triggerHapticFeedback();
   selectedPlayer.value = player;
-  detailRows.value = [];
+  detailLoading.value = true;
+
+  const allRounds = props.metadata?.rounds || [];
+  const allComps = props.metadata?.competitions || [];
+  const seasonId = props.season?.id;
+  const seasonYear = String(props.season?.start_year);
+
+  // Filter competitions for this season
+  const seasonCompIds = new Set(
+    allComps
+      .filter((c) => c.season === seasonId || String(c.season) === seasonYear)
+      .map((c) => c.id),
+  );
+
+  // Map player rounds with competition details
+  detailRows.value = allRounds
+    .filter(
+      (r) =>
+        r.user_id === player.user_id && seasonCompIds.has(r.competition_id),
+    )
+    .map((r) => {
+      const comp = allComps.find((c) => c.id === r.competition_id);
+      return {
+        ...r,
+        competition_name: comp?.name || "Unknown Round",
+        competition_date: comp?.competition_date,
+      };
+    })
+    .sort(
+      (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
+    );
+
   detailLoading.value = false;
   isDetailOpen.value = true;
-  // Optionally, hydrate from metadata if available
 };
 
 const closeBest10 = () => {

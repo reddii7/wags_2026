@@ -68,7 +68,13 @@ const trendValues = computed(() =>
 );
 
 const getLatestCompetitionChangeMap = (history, competitions) => {
-  const latestCompetitionId = (competitions || [])[0]?.id;
+  // Find the latest competition by date to ensure the comparison is correct
+  const latestCompetitionId = (competitions || [])
+    .slice()
+    .sort(
+      (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
+    )[0]?.id;
+
   if (!latestCompetitionId) {
     return new Map();
   }
@@ -160,9 +166,19 @@ const loadHistory = async () => {
     const allHistory = props.metadata?.handicap_history || [];
     const competitions = props.metadata?.competitions || [];
     const rounds = props.metadata?.rounds || [];
-    const playerHistory = allHistory.filter(
-      (item) => item.user_id === selectedPlayerId.value,
+
+    const compDateMap = new Map(
+      (competitions || []).map((c) => [c.id, c.competition_date]),
     );
+
+    const playerHistory = [...allHistory]
+      .filter((item) => item.user_id === selectedPlayerId.value)
+      .sort((a, b) => {
+        const dateA = compDateMap.get(a.competition_id) || a.created_at;
+        const dateB = compDateMap.get(b.competition_id) || b.created_at;
+        return new Date(dateB) - new Date(dateA);
+      });
+
     const competitionMap = new Map(
       (competitions || []).map((competition) => [
         competition.id,
@@ -174,15 +190,30 @@ const loadHistory = async () => {
         .filter((r) => r.user_id === selectedPlayerId.value)
         .map((score) => [score.competition_id, score.stableford_score]),
     );
-    historyRows.value = (playerHistory || []).map((item, index) => ({
-      id: `${selectedPlayerId.value}-${item.created_at}-${index}`,
-      competition:
-        competitionMap.get(item.competition_id) || "Manual adjustment",
-      score: scoreMap.get(item.competition_id) ?? "—",
-      new_handicap: item.new_handicap,
-      old_handicap: item.old_handicap,
-      adjustment: item.adjustment,
-    }));
+    historyRows.value = playerHistory.map((item, index) => {
+      // Calculate adjustment if missing or zero but handicaps actually changed
+      let adj = item.adjustment;
+      if (
+        (adj === null || adj === undefined || Number(adj) === 0) &&
+        item.old_handicap !== null &&
+        item.new_handicap !== null
+      ) {
+        const diff = Number((item.new_handicap - item.old_handicap).toFixed(1));
+        if (Math.abs(diff) > 0) {
+          adj = diff > 0 ? `+${diff.toFixed(1)}` : `${diff.toFixed(1)}`;
+        }
+      }
+
+      return {
+        id: `${selectedPlayerId.value}-${item.created_at}-${index}`,
+        competition:
+          competitionMap.get(item.competition_id) || "Manual adjustment",
+        score: scoreMap.get(item.competition_id) ?? "—",
+        new_handicap: item.new_handicap,
+        old_handicap: item.old_handicap,
+        adjustment: adj ?? 0,
+      };
+    });
   } catch (err) {
     error.value = err.message || "Unable to load handicap history.";
     historyRows.value = [];

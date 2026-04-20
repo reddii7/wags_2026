@@ -37,15 +37,17 @@ serve(async (req) => {
   );
 
   // 2. Fetch all competitions (all seasons)
+  const seasonFilters = [
+    ...seasons.map((s) => s.id),
+    ...seasons.map((s) => String(s.start_year)),
+  ];
+
   const competitionsRes = await supabase
     .from("competitions")
     .select(
       "id, name, competition_date, status, winner_id, prize_pot, rollover_amount, season",
     )
-    .in(
-      "season",
-      seasons.map((s) => String(s.start_year)),
-    )
+    .in("season", seasonFilters)
     .order("competition_date", { ascending: false });
   if (competitionsRes.error) {
     return new Response(
@@ -59,7 +61,7 @@ serve(async (req) => {
   const competitionIds = competitions.map((c) => c.id);
 
   // 3. Fetch all related data (flat arrays)
-  const [results, summaries, handicap_history, rounds, profiles] =
+  const [resultsRes, summariesRes, historyRes, roundsRes, profilesRes] =
     await Promise.all([
       competitionIds.length
         ? supabase
@@ -75,20 +77,19 @@ serve(async (req) => {
             )
             .in("competition_id", competitionIds)
         : { data: [], error: null },
-      competitionIds.length
-        ? supabase
-            .from("handicap_history")
-            .select("*")
-            .in("competition_id", competitionIds)
-        : { data: [], error: null },
-      competitionIds.length
-        ? supabase
-            .from("rounds")
-            .select("*")
-            .in("competition_id", competitionIds)
-        : { data: [], error: null },
+      supabase
+        .from("handicap_history")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      supabase.from("rounds").select("*"),
       supabase.from("profiles").select("*"),
     ]);
+
+  const results = resultsRes.data || [];
+  const summaries = summariesRes.data || [];
+  const handicap_history = historyRes.data || [];
+  const rounds = roundsRes.data || [];
+  const profiles = profilesRes.data || [];
 
   // 4. Fetch Best 14 and Leagues for each season (object keyed by season.id)
   const best14 = {};
@@ -121,9 +122,10 @@ serve(async (req) => {
   // 5. Dashboard object keyed by season.id and start_year
   const dashboard = {};
   for (const season of seasons) {
+    const seasonYear = String(season.start_year);
     // Find latest closed competition for this season
     const comps = competitions.filter(
-      (c) => c.season === String(season.start_year),
+      (c) => c.season === season.id || String(c.season) === seasonYear,
     );
     const latestComp =
       comps.find((c) => c.status === "closed") || comps[0] || null;
@@ -139,10 +141,8 @@ serve(async (req) => {
     }
     // Attach results and summary for latestComp
     if (dash && latestComp) {
-      dash.results = (results.data || []).filter(
-        (r) => r.competition_id === latestComp.id,
-      );
-      const compSummary = (summaries.data || []).find(
+      dash.results = results.filter((r) => r.competition_id === latestComp.id);
+      const compSummary = summaries.find(
         (s) => s.competition_id === latestComp.id,
       );
       dash.summary = compSummary || {
@@ -163,14 +163,10 @@ serve(async (req) => {
   }
 
   // 6. Ensure every competition has a summary in the summaries array
-  const summariesMap = new Map(
-    (summaries.data || []).map((s) => [s.competition_id, s]),
-  );
+  const summariesMap = new Map(summaries.map((s) => [s.competition_id, s]));
   const allSummaries = competitions.map((comp) => {
     if (summariesMap.has(comp.id)) return summariesMap.get(comp.id);
-    const compResults = (results.data || []).filter(
-      (r) => r.competition_id === comp.id,
-    );
+    const compResults = results.filter((r) => r.competition_id === comp.id);
     return {
       competition_id: comp.id,
       winner_type: "",
@@ -222,11 +218,11 @@ serve(async (req) => {
     JSON.stringify({
       seasons,
       competitions,
-      results: results.data,
+      results,
       summaries: allSummaries,
-      handicap_history: handicap_history.data,
-      rounds: rounds.data,
-      profiles: profiles.data,
+      handicap_history,
+      rounds,
+      profiles,
       best14,
       leagues,
       dashboard,
