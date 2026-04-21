@@ -107,22 +107,7 @@ const loadPlayers = async () => {
   loading.value = true;
   try {
     const profiles = props.metadata?.profiles || [];
-    const history =
-      props.metadata?.handicap_history ||
-      props.metadata?.dedupedHandicapHistory ||
-      [];
-    // Debug: Log the handicap_history data received
-    if (typeof window !== "undefined") {
-      try {
-        const rawHistory = JSON.parse(JSON.stringify(history));
-        console.log("DEBUG: handicap_history received (raw):", rawHistory);
-      } catch (e) {
-        console.log(
-          "DEBUG: handicap_history received (raw): [unserializable]",
-          e,
-        );
-      }
-    }
+    const history = props.metadata?.handicap_history || [];
     const competitions = props.metadata?.competitions || [];
     const latestChangeByUser = getLatestCompetitionChangeMap(
       history,
@@ -178,10 +163,7 @@ const loadHistory = async () => {
   }
   detailLoading.value = true;
   try {
-    const allHistory =
-      props.metadata?.handicap_history ||
-      props.metadata?.dedupedHandicapHistory ||
-      [];
+    const allHistory = props.metadata?.handicap_history || [];
     const competitions = props.metadata?.competitions || [];
     const rounds = props.metadata?.rounds || [];
     const results = props.metadata?.results || [];
@@ -202,25 +184,35 @@ const loadHistory = async () => {
     });
 
     const playerHistory = [...allHistory]
-      .filter((item) => item.user_id === selectedPlayerId.value)
+      .filter((item) => {
+        if (item.user_id !== selectedPlayerId.value) return false;
+
+        const hOld =
+          item.old_handicap != null ? Number(item.old_handicap) : null;
+        const hNew =
+          item.new_handicap != null ? Number(item.new_handicap) : null;
+
+        const compId = item.competition_id;
+        const isRoundId = compId && String(compId).length > 30;
+
+        // Professional Filter: Strictly require numeric delta between TWO valid numbers.
+        // This automatically hides "Initial Handicap" noise (hOld is null) and profile-save noise.
+        const hasHandicapChange =
+          hOld !== null && hNew !== null && Math.abs(hNew - hOld) > 0.01;
+
+        const hasScore = isRoundId && scoreMap.has(compId);
+
+        // If it's a competition round, show it if they played OR the handicap moved.
+        if (isRoundId) return hasHandicapChange || hasScore;
+
+        // If it's manual, strictly only show if there was a genuine numeric change.
+        return hasHandicapChange;
+      })
       .sort((a, b) => {
         const dateA = compDateMap.get(a.competition_id) || a.created_at;
         const dateB = compDateMap.get(b.competition_id) || b.created_at;
         return new Date(dateB) - new Date(dateA);
       });
-    // Debug: Log the filtered playerHistory for the selected player
-    if (typeof window !== "undefined") {
-      try {
-        const rawPlayerHistory = JSON.parse(JSON.stringify(playerHistory));
-        console.log(
-          "DEBUG: playerHistory for selectedPlayerId",
-          selectedPlayerId.value,
-          rawPlayerHistory,
-        );
-      } catch (e) {
-        console.log("DEBUG: playerHistory [unserializable]", e);
-      }
-    }
 
     const competitionMap = new Map(
       (competitions || []).map((competition) => [

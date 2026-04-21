@@ -25,7 +25,30 @@ const competitions = computed(() => props.metadata?.competitions || []);
 const results = computed(() => props.metadata?.results || []);
 const summaries = computed(() => props.metadata?.summaries || []);
 const rows = computed(() =>
-  results.value.filter((r) => r.competition_id === selectedCompetitionId.value),
+  results.value.filter((r) => r.competition_id === selectedCompetitionId.value)
+    .map((row) => {
+      // Calculate games played for each player
+      const allRounds = props.metadata?.rounds || [];
+      const allResults = props.metadata?.results || [];
+      const targetPlayerId = row.user_id || row.player_id || row.id;
+      const seasonId = props.season?.id;
+      const seasonYear = String(props.season?.start_year);
+      const seasonCompIds = new Set(
+        (props.metadata?.competitions || [])
+          .filter((c) => c.season === seasonId || String(c.season) === seasonYear)
+          .map((c) => c.id),
+      );
+      const gamesPlayed = [...allRounds, ...allResults].filter(
+        (r2) => {
+          const rowUid = r2.user_id || r2.player_id;
+          return rowUid === targetPlayerId && seasonCompIds.has(r2.competition_id);
+        }
+      ).length;
+      return {
+        ...row,
+        games_played: gamesPlayed,
+      };
+    }),
 );
 
 const columns = [

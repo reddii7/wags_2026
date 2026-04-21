@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.52.0",
+    "@supabase/supabase-js": "^2.104.0",
     "@vueuse/core": "^14.2.1",
+    "entities": "^8.0.0",
+    "json2csv": "^6.0.0-alpha.2",
     "picomatch": "2.3.1",
     "vue": "^3.5.32",
     "vue-router": "^4.5.1"
