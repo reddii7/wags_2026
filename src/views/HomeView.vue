@@ -60,10 +60,12 @@ const latestMovementLabel = computed(
 );
 
 const latestTopRows = computed(() => {
-  const topScore = latestResults.value[0]?.score;
-  if (topScore === undefined || topScore === null || topScore === "—")
-    return [];
-  return latestResults.value.filter((row) => row.score === topScore);
+  const numericScores = latestResults.value
+    .map((row) => Number(row.score))
+    .filter((score) => Number.isFinite(score));
+  if (!numericScores.length) return [];
+  const topScore = Math.max(...numericScores);
+  return latestResults.value.filter((row) => Number(row.score) === topScore);
 });
 
 const latestWinnerLabel = computed(() =>
@@ -103,6 +105,22 @@ const latestSideGames = computed(() => {
   return `${snakes} snake${snakes === 1 ? "" : "s"} · ${camels} camel${camels === 1 ? "" : "s"}`;
 });
 
+const latestStats = computed(() => {
+  const players =
+    Number(summary.value?.num_players) > 0
+      ? Number(summary.value.num_players)
+      : latestResults.value.length;
+  const snakes =
+    Number(summary.value?.snakes) > 0
+      ? Number(summary.value.snakes)
+      : latestResults.value.filter((row) => row.snake).length;
+  const camels =
+    Number(summary.value?.camels) > 0
+      ? Number(summary.value.camels)
+      : latestResults.value.filter((row) => row.camel).length;
+  return { players, snakes, camels };
+});
+
 const loadHomeData = async () => {
   if (props.metadata.loading) {
     loading.value = true;
@@ -110,33 +128,31 @@ const loadHomeData = async () => {
   }
   error.value = "";
   try {
-    // Debug: Log metadata and dashboard for troubleshooting
-    if (typeof window !== "undefined") {
-      try {
-        console.log(
-          "DEBUG: HomeView metadata:",
-          JSON.parse(JSON.stringify(props.metadata)),
-        );
-        console.log(
-          "DEBUG: HomeView dashboard:",
-          JSON.parse(JSON.stringify(props.metadata.dashboard)),
-        );
-        console.log(
-          "DEBUG: HomeView competitions:",
-          JSON.parse(JSON.stringify(props.metadata.competitions)),
-        );
-      } catch (e) {
-        console.log("DEBUG: HomeView debug log error", e);
-      }
-    }
-    // Find the most recent closed competition by date
+    // Prefer the latest completed competition that has result/summary data.
     const competitions = props.metadata.competitions || [];
-    const sortedComps = [...competitions]
-      .filter((c) => c.status === "closed" && c.competition_date)
-      .sort(
-        (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
+    const allResults = props.metadata.results || [];
+    const allSummaries = props.metadata.summaries || [];
+    const sortedComps = [...competitions].sort(
+      (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
+    );
+    const latestCompWithData = sortedComps.find((comp) => {
+      if (!comp?.id || comp.status === "open") return false;
+      const hasResults = allResults.some(
+        (row) =>
+          row.competition_id === comp.id &&
+          row.score !== null &&
+          row.score !== undefined,
       );
-    const latestComp = sortedComps[0] || competitions[0] || null;
+      const hasSummary = allSummaries.some(
+        (row) => row.competition_id === comp.id,
+      );
+      return hasResults || hasSummary;
+    });
+    const latestClosedComp = sortedComps.find(
+      (comp) => comp?.status === "closed" && comp.competition_date,
+    );
+    const latestComp =
+      latestCompWithData || latestClosedComp || sortedComps[0] || null;
     latestCompetition.value = latestComp;
     latestCompetitionDetails.value = latestComp;
     if (!latestComp) {
@@ -161,19 +177,12 @@ const loadHomeData = async () => {
     if (dashboardObj[seasonKey]) {
       dash = dashboardObj[seasonKey];
     }
-    if (typeof window !== "undefined") {
-      console.log("DEBUG: HomeView dashboard lookup", {
-        seasonKey,
-        dash,
-        dashboardKeys: Object.keys(dashboardObj),
-      });
-    }
-    if (!dash) {
-      loading.value = false;
-      return;
-    }
-    // Use summary for this comp if available
-    summary.value = dash.summary || {
+
+    const summaryForComp = allSummaries.find(
+      (row) => row.competition_id === latestComp.id,
+    );
+    const dashSummary = dash?.summary || null;
+    summary.value = dashSummary || summaryForComp || {
       winner_type: "",
       winner_names: [],
       amount: 0,
@@ -181,19 +190,41 @@ const loadHomeData = async () => {
       snakes: 0,
       camels: 0,
     };
-    summary.value.week_number = dash.week_count || summary.value.week_number;
+    summary.value.week_number =
+      dash?.week_count || summary.value.week_number || null;
 
-    // Map Results for latest comp only
-    latestResults.value = (dash.results || []).map((row) => ({
-      id: `${row.competition_id}-${row.user_id}`,
-      competition_id: row.competition_id,
-      user_id: row.user_id,
-      player: row.player || row.full_name || "Unknown player",
-      score: row.score ?? row.stableford_score ?? row.total_score ?? "—",
-      snake: Boolean(row.snake ?? row.has_snake),
-      camel: Boolean(row.camel ?? row.has_camel),
-      position: row.position ?? row.pos ?? row.rank_no ?? "1",
-    }));
+    // Prefer dashboard results when available, else raw metadata results.
+    const fallbackResults = allResults.filter(
+      (row) => row.competition_id === latestComp.id,
+    );
+    const sourceResults =
+      dash?.results && Array.isArray(dash.results) && dash.results.length
+        ? dash.results
+        : fallbackResults;
+    latestResults.value = sourceResults
+      .map((row) => ({
+        id: `${row.competition_id}-${row.user_id}`,
+        competition_id: row.competition_id,
+        user_id: row.user_id,
+        player: row.player || row.full_name || "Unknown player",
+        score: row.score ?? row.stableford_score ?? row.total_score ?? "—",
+        snake: Boolean(row.snake ?? row.has_snake),
+        camel: Boolean(row.camel ?? row.has_camel),
+        position: row.position ?? row.pos ?? row.rank_no ?? "999",
+      }))
+      .sort((a, b) => {
+        const posA = Number(a.position);
+        const posB = Number(b.position);
+        if (Number.isFinite(posA) && Number.isFinite(posB) && posA !== posB) {
+          return posA - posB;
+        }
+        const scoreA = Number(a.score);
+        const scoreB = Number(b.score);
+        if (Number.isFinite(scoreA) && Number.isFinite(scoreB)) {
+          return scoreB - scoreA;
+        }
+        return String(a.player).localeCompare(String(b.player));
+      });
 
     // Best 14 and Leagues for this season (try both id and start_year as keys)
     // Use the same seasonKey as above
@@ -244,7 +275,13 @@ const loadHomeData = async () => {
         position: "1",
       }));
 
-    handicapMovements.value = dash.handicaps || [];
+    handicapMovements.value =
+      (dash?.handicaps && Array.isArray(dash.handicaps) ? dash.handicaps : [])
+        .length
+        ? dash.handicaps
+        : (props.metadata.handicap_history || [])
+            .filter((item) => item.competition_id === latestComp.id)
+            .slice(0, 8);
   } catch (err) {
     console.error("Dashboard mapping error:", err);
   } finally {
@@ -327,10 +364,12 @@ watch(
                 winnings.
               </span>
             </template>
-            <template v-else-if="!loading"> No results yet. </template>
+            <template v-else-if="!loading">
+              <span>{{ latestSummary }}</span>
+            </template>
             <p class="home-hero-sublabel home-hero-subtext">
-              {{ summary.num_players }} played, {{ summary.snakes }} snakes,
-              {{ summary.camels }} camels.
+              {{ latestStats.players }} played, {{ latestStats.snakes }} snakes,
+              {{ latestStats.camels }} camels.
             </p>
           </template>
           <template v-else-if="!loading && !metadata.loading">

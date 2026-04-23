@@ -32,8 +32,12 @@ async function loadGlobalMetadata() {
   try {
     // Fetch all-seasons data in one call
     const response = await fetch(PROJECT_URL, {
+      cache: "no-store",
       headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
     });
+    if (!response.ok) {
+      throw new Error(`fetch-all-data failed: ${response.status}`);
+    }
     const data = await response.json();
     Object.assign(globalMetadata.value, data);
   } catch (err) {
@@ -127,45 +131,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    class="app-shell"
-    :data-theme="theme"
-    :class="{ 'chrome-hidden': chromeHidden }"
-  >
-    <main class="app-main">
-      <div v-if="globalMetadata.loading" class="app-boot-loader">
-        <div class="loader-content">
-          <div class="spinner"></div>
-          <p class="loader-text">WAGS</p>
-        </div>
-      </div>
-
-      <div class="view-frame" v-if="!globalMetadata.loading">
-        <transition name="page-fade" mode="out-in">
-          <component
-            :is="currentSectionComponent"
-            :key="currentSectionName"
-            :metadata="globalMetadata"
-            @navigate="
-              (target) => switchSection(sections.find((s) => s.name === target))
-            "
-          />
-        </transition>
-      </div>
-    </main>
-
-    <nav class="bottom-nav" aria-label="Primary">
-      <button
-        v-for="section in sections"
-        :key="section.name"
-        class="bottom-nav-link"
-        :class="{ active: currentSectionName === section.name }"
-        @click="switchSection(section)"
-      >
-        <NavIcon :name="section.icon" />
-        <span class="bottom-nav-label">{{ section.label }}</span>
-      </button>
-    </nav>
+  <div class="app-shell" :data-theme="theme" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #181818; color: #fff;">
+    <div style="text-align: center;">
+      <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">Site Under Maintenance</h1>
+      <p style="font-size: 1.25rem;">We're currently performing essential maintenance.<br />Please check back soon.</p>
+    </div>
   </div>
 </template>
 
