@@ -1,0 +1,322 @@
+[
+  {
+    "id": "57ee77dc-4ec0-4c40-8955-ad221078fce8",
+    "name": "Week 12",
+    "competition_date": "2025-06-18",
+    "status": "closed",
+    "prize_pot": 49.5,
+    "winner_id": "b3bb69ab-b1e9-43a8-ae8c-18a872150411",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "d72ad25e-63ef-43e7-a260-aa120aa52f6c",
+    "name": "Week 29",
+    "competition_date": "2025-10-15",
+    "status": "closed",
+    "prize_pot": 45,
+    "winner_id": "d4705a1b-ddce-47da-b0a6-2a0428db5ff8",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "45b72f82-cb78-4c29-aaf9-372a47240355",
+    "name": "Week 13",
+    "competition_date": "2025-06-25",
+    "status": "closed",
+    "prize_pot": 52.5,
+    "winner_id": "b6f2ce70-b0a1-480f-9e31-20b8359c3ad3",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "2a85098f-5998-4143-99fb-d101f60a3899",
+    "name": "Week 28",
+    "competition_date": "2025-10-09",
+    "status": "closed",
+    "prize_pot": 51,
+    "winner_id": "b62fda01-c3e2-408f-ae10-3777da27f1a4",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "204b1370-4e9e-48fc-8a01-d78f8f3b345a",
+    "name": "Week 14",
+    "competition_date": "2025-07-02",
+    "status": "closed",
+    "prize_pot": 60,
+    "winner_id": null,
+    "rollover_amount": null,
+    "season": "2025"
+  },
+  {
+    "id": "fbcdc3c6-c6e4-435a-b7c7-8aa9b96938fa",
+    "name": "Week 27",
+    "competition_date": "2025-10-01",
+    "status": "closed",
+    "prize_pot": 48,
+    "winner_id": "62894c50-8139-4e22-a8c5-53518b69ccd9",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "08119f15-8a22-4c7b-8328-d20effe05f40",
+    "name": "Week 15",
+    "competition_date": "2025-07-09",
+    "status": "closed",
+    "prize_pot": 97.5,
+    "winner_id": null,
+    "rollover_amount": 60,
+    "season": "2025"
+  },
+  {
+    "id": "7b903d76-fe01-4bd1-bbb4-efd148a77f90",
+    "name": "Week 26",
+    "competition_date": "2025-09-24",
+    "status": "closed",
+    "prize_pot": 48,
+    "winner_id": "b9477000-cf1d-4395-bb5e-59cc972d8430",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "af247205-7b05-4334-91e4-1384df43a83e",
+    "name": "2026 Week 01",
+    "competition_date": "2026-04-01",
+    "status": "closed",
+    "prize_pot": 51,
+    "winner_id": "b6f2ce70-b0a1-480f-9e31-20b8359c3ad3",
+    "rollover_amount": 0,
+    "season": "2026"
+  },
+  {
+    "id": "a3e67b21-7f7f-438a-89aa-e815115924d7",
+    "name": "Week 16",
+    "competition_date": "2025-07-16",
+    "status": "closed",
+    "prize_pot": 150,
+    "winner_id": null,
+    "rollover_amount": 97.5,
+    "season": "2025"
+  },
+  {
+    "id": "40cdf8b6-e5eb-4121-a3ec-7fa6233538dc",
+    "name": "Week 17",
+    "competition_date": "2025-07-23",
+    "status": "closed",
+    "prize_pot": 196.5,
+    "winner_id": null,
+    "rollover_amount": 150,
+    "season": "2025"
+  },
+  {
+    "id": "539b6070-2e5d-4452-901a-6806de1c7b56",
+    "name": "Week 18",
+    "competition_date": "2025-07-30",
+    "status": "closed",
+    "prize_pot": 249,
+    "winner_id": null,
+    "rollover_amount": 196.5,
+    "season": "2025"
+  },
+  {
+    "id": "0fc77e42-b8e2-4173-9dba-f16900f09947",
+    "name": "Week 19",
+    "competition_date": "2025-08-06",
+    "status": "closed",
+    "prize_pot": 306,
+    "winner_id": "3e4f8715-38d2-4163-aa94-173c73b8f656",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "af0a4b9c-4b25-4bb6-822c-cc640dcad53b",
+    "name": "2026 Week 02",
+    "competition_date": "2026-04-08",
+    "status": "closed",
+    "prize_pot": 55.5,
+    "winner_id": null,
+    "rollover_amount": null,
+    "season": "2026"
+  },
+  {
+    "id": "0b5efc41-9b87-425a-b1f5-660259953701",
+    "name": "Week 25",
+    "competition_date": "2025-09-17",
+    "status": "closed",
+    "prize_pot": 39,
+    "winner_id": "7f5a3d7b-412d-4d5f-95a4-fecf12971f60",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "e32e7789-45ce-485c-994e-94497198d99b",
+    "name": "Week 20",
+    "competition_date": "2025-08-13",
+    "status": "closed",
+    "prize_pot": 51,
+    "winner_id": "0a4877b4-6b71-4ece-b851-77a277c609ea",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "e8b3b455-78f7-4757-b9a5-2590ed303eb8",
+    "name": "Week 21",
+    "competition_date": "2025-08-20",
+    "status": "closed",
+    "prize_pot": 58.5,
+    "winner_id": "59f9a833-9d6b-406e-90e0-da128337d73e",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "7f786661-35ea-4cd9-afb4-0bb763080f5b",
+    "name": "Week 22",
+    "competition_date": "2025-08-27",
+    "status": "closed",
+    "prize_pot": 30,
+    "winner_id": "b62fda01-c3e2-408f-ae10-3777da27f1a4",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "25f3bc69-65c7-4747-b7b9-d8ddffcbf097",
+    "name": "Week 23",
+    "competition_date": "2025-09-03",
+    "status": "closed",
+    "prize_pot": 48,
+    "winner_id": null,
+    "rollover_amount": null,
+    "season": "2025"
+  },
+  {
+    "id": "873883ee-0e9e-400e-ad7b-0f5f33846eab",
+    "name": "Week 24",
+    "competition_date": "2025-09-10",
+    "status": "closed",
+    "prize_pot": 88.5,
+    "winner_id": "dfcf2814-1e8c-467f-868a-b35834d97b8e",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "01d0665e-953f-43d7-8937-873c44181c7e",
+    "name": "Week 01",
+    "competition_date": "2025-04-02",
+    "status": "closed",
+    "prize_pot": 55.5,
+    "winner_id": "8532ae37-4d5e-4c2f-a80a-729d51ad2e9e",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "5357ff2f-bdd8-42b0-9158-edfca088d403",
+    "name": "Week 02",
+    "competition_date": "2025-04-09",
+    "status": "closed",
+    "prize_pot": 61.5,
+    "winner_id": "49c15c48-b352-4a26-9da5-4bfa5a46d835",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "026fc8fa-bdb6-483f-8b68-78f4e8f8f59e",
+    "name": "Week 03",
+    "competition_date": "2025-04-16",
+    "status": "closed",
+    "prize_pot": 49.5,
+    "winner_id": "62894c50-8139-4e22-a8c5-53518b69ccd9",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "332964fe-7ae1-4518-95a9-79fe0a14a48a",
+    "name": "Week 04",
+    "competition_date": "2025-04-23",
+    "status": "closed",
+    "prize_pot": 54,
+    "winner_id": "b6f2ce70-b0a1-480f-9e31-20b8359c3ad3",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "d446a9bf-ad79-4828-ba93-6292b100ada1",
+    "name": "Week 05",
+    "competition_date": "2025-04-30",
+    "status": "closed",
+    "prize_pot": 45,
+    "winner_id": "9f74607a-b13a-492b-8ec7-a65d031f2a7d",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "40489dbc-24e3-4c35-8d4c-a60211a9f85a",
+    "name": "Week 06",
+    "competition_date": "2025-05-07",
+    "status": "closed",
+    "prize_pot": 49.5,
+    "winner_id": "95c236e4-720c-4579-9ee6-2c4c71da5ccf",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "1a4aad77-8ed1-4761-8262-59722def4503",
+    "name": "Week 07",
+    "competition_date": "2025-05-14",
+    "status": "closed",
+    "prize_pot": 51,
+    "winner_id": "309894c8-c0da-4039-9516-7cefb12c9776",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "08d0c251-aa3c-4f25-a13b-8be92c17e1d7",
+    "name": "Week 08",
+    "competition_date": "2025-05-21",
+    "status": "closed",
+    "prize_pot": 43.5,
+    "winner_id": "56a49bee-b1d4-420f-8f71-176684ec9ff3",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "053043f7-2f9f-4038-a8b6-95078ed9cbd7",
+    "name": "Week 09",
+    "competition_date": "2025-05-28",
+    "status": "closed",
+    "prize_pot": 58.5,
+    "winner_id": "695e55f0-9ec8-428c-a7fc-204a71ebc2be",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "84ef2554-93ce-4d2f-9b83-223f1c72de7e",
+    "name": "Week 10",
+    "competition_date": "2025-06-04",
+    "status": "closed",
+    "prize_pot": 31.5,
+    "winner_id": "9b6c5cfd-85a6-4737-abbe-adf13b4b5fa4",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "2944f90b-fe01-46c4-a0f4-2a4678dd39ed",
+    "name": "Week 11",
+    "competition_date": "2025-06-11",
+    "status": "closed",
+    "prize_pot": 48,
+    "winner_id": "8b5d4777-6854-4f91-9b00-872e22d3b85a",
+    "rollover_amount": 0,
+    "season": "2025"
+  },
+  {
+    "id": "af0d5cb9-0514-4cc7-a20a-c169e34918f0",
+    "name": "2026 Week 03",
+    "competition_date": "2026-04-15",
+    "status": "closed",
+    "prize_pot": 88.5,
+    "winner_id": "7e323e7b-88c6-4775-8e13-4824573c1c43",
+    "rollover_amount": 55.5,
+    "season": "2026"
+  }
+]

@@ -1,13 +1,19 @@
 <script setup>
 import { ref, computed, onBeforeUnmount, onMounted, markRaw } from "vue";
 import { useTheme } from "./composables/useTheme";
+import { useSession } from "./composables/useSession";
 import NavIcon from "./components/NavIcon.vue";
+import AppDialog from "./components/AppDialog.vue";
+import SignInForm from "./components/SignInForm.vue";
 import { triggerHapticFeedback } from "./utils/haptics";
 import { supabase } from "./lib/supabase";
+import { FETCH_ALL_DATA_URL, SUPABASE_ANON_KEY } from "./lib/supabaseConfig.js";
 import HomeView from "./views/HomeView.vue";
 import HandicapsView from "./views/HandicapsView.vue";
 import StatsHubView from "./views/StatsHubView.vue";
 import RSCupView from "./views/RSCupView.vue";
+const { user, loading: sessionLoading, signOut } = useSession();
+const showSignIn = ref(false);
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -18,34 +24,59 @@ const globalMetadata = ref({
   summary: null,
   dashboard: null,
   loading: true,
+  loadError: "",
 });
 const hasScrolled = ref(false);
 let lastScrollY = 0;
 
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwdWxnbmh0bmd2cWRpa2Jka2d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyMzcwNTAsImV4cCI6MjA2NzgxMzA1MH0.0e8Cs9bDKTdI9RLa8o3UNBh_ARGh6AlYO9dm16TYPdw";
-const PROJECT_URL =
-  "https://fpulgnhtngvqdikbdkgv.functions.supabase.co/fetch-all-data";
+let reloadDebounceTimer = null;
+function scheduleGlobalMetadataReload() {
+  if (reloadDebounceTimer) clearTimeout(reloadDebounceTimer);
+  reloadDebounceTimer = setTimeout(() => {
+    reloadDebounceTimer = null;
+    loadGlobalMetadata();
+  }, 450);
+}
 
 async function loadGlobalMetadata() {
   globalMetadata.value.loading = true;
+  globalMetadata.value.loadError = "";
   try {
-    // Fetch all-seasons data in one call
-    const response = await fetch(PROJECT_URL, {
+    const response = await fetch(FETCH_ALL_DATA_URL, {
       cache: "no-store",
-      headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      headers: {
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_ANON_KEY,
+      },
     });
-    if (!response.ok) {
-      throw new Error(`fetch-all-data failed: ${response.status}`);
+    const text = await response.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error("Server returned invalid data.");
     }
-    const data = await response.json();
+    if (data?.error) {
+      const msg =
+        typeof data.error === "string"
+          ? data.error
+          : data.error?.message || "Server error";
+      throw new Error(msg);
+    }
+    if (!response.ok) {
+      throw new Error(`Could not load data (${response.status}).`);
+    }
     Object.assign(globalMetadata.value, data);
   } catch (err) {
+    globalMetadata.value.loadError =
+      err?.message || "Could not load data. Try again.";
     console.error("Failed to load global metadata:", err);
   } finally {
     globalMetadata.value.loading = false;
   }
 }
+
+import AdminCompetitionsView from "./views/admin/AdminCompetitionsView.vue";
 
 const sections = [
   { name: "home", label: "Home", icon: "home", component: markRaw(HomeView) },
@@ -66,6 +97,12 @@ const sections = [
     label: "RS CUP",
     icon: "trophy",
     component: markRaw(RSCupView),
+  },
+  {
+    name: "admin",
+    label: "Admin",
+    icon: "admin",
+    component: markRaw(AdminCompetitionsView),
   },
 ];
 
@@ -118,24 +155,101 @@ onMounted(() => {
     supabase
       .channel(`realtime:${table}`)
       .on("postgres_changes", { event: "*", schema: "public", table }, () => {
-        // Refetch all data when anything changes
-        loadGlobalMetadata();
+        scheduleGlobalMetadataReload();
       })
       .subscribe(),
   );
 });
 onBeforeUnmount(() => {
+  if (reloadDebounceTimer) {
+    clearTimeout(reloadDebounceTimer);
+    reloadDebounceTimer = null;
+  }
   supabaseChannels.forEach((ch) => supabase.removeChannel(ch));
   window.removeEventListener("scroll", handleScroll);
 });
 </script>
 
 <template>
-  <div class="app-shell" :data-theme="theme" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #181818; color: #fff;">
-    <div style="text-align: center;">
-      <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">Site Under Maintenance</h1>
-      <p style="font-size: 1.25rem;">We're currently performing essential maintenance.<br />Please check back soon.</p>
+  <div
+    class="app-shell"
+    :data-theme="theme"
+    :class="{ 'chrome-hidden': chromeHidden }"
+  >
+    <div
+      v-if="globalMetadata.loadError && !globalMetadata.loading"
+      class="app-load-error"
+      role="alert"
+    >
+      <span>{{ globalMetadata.loadError }}</span>
+      <button
+        type="button"
+        class="app-load-error__retry"
+        @click="loadGlobalMetadata"
+      >
+        Retry
+      </button>
     </div>
+    <main class="app-main">
+      <div v-if="globalMetadata.loading" class="app-boot-loader">
+        <div class="loader-content">
+          <div class="spinner"></div>
+          <p class="loader-text">WAGS</p>
+        </div>
+      </div>
+
+      <div class="view-frame" v-if="!globalMetadata.loading">
+        <transition name="page-fade" mode="out-in">
+          <component
+            :is="currentSectionComponent"
+            :key="currentSectionName"
+            :metadata="globalMetadata"
+            :selected-competition-id="selectedCompetitionId"
+            @navigate="handleNavigate"
+          ></component>
+        </transition>
+      </div>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary">
+      <button
+        v-for="section in sections"
+        :key="section.name"
+        class="bottom-nav-link"
+        :class="{ active: currentSectionName === section.name }"
+        @click="switchSection(section)"
+      >
+        <NavIcon :name="section.icon" />
+        <span class="bottom-nav-label">{{ section.label }}</span>
+      </button>
+      <button
+        v-if="!user && !sessionLoading"
+        class="bottom-nav-link"
+        style="margin-left: auto"
+        @click="showSignIn = true"
+        aria-label="Sign in"
+      >
+        <NavIcon name="users" />
+        <span class="bottom-nav-label">Sign in</span>
+      </button>
+      <button
+        v-if="user && !sessionLoading"
+        class="bottom-nav-link"
+        style="margin-left: auto"
+        @click="signOut()"
+        aria-label="Sign out"
+      >
+        <NavIcon name="users" />
+        <span class="bottom-nav-label">Sign out</span>
+      </button>
+    </nav>
+
+    <AppDialog v-model="showSignIn" aria-label="Sign in">
+      <template #header>
+        <h3>Sign in</h3>
+      </template>
+      <SignInForm @submit="showSignIn = false" @close="showSignIn = false" />
+    </AppDialog>
   </div>
 </template>
 
@@ -155,5 +269,33 @@ onBeforeUnmount(() => {
 .page-fade-leave-to {
   opacity: 0;
   transform: scale(0.98);
+}
+
+.app-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 1rem;
+  background: color-mix(in srgb, var(--danger, #c44) 18%, transparent);
+  color: var(--text, #eee);
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--line, #333);
+}
+
+.app-load-error__retry {
+  flex-shrink: 0;
+  border: 1px solid var(--line, #444);
+  background: var(--bg, #111);
+  color: var(--text, #eee);
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.app-load-error__retry:hover {
+  opacity: 0.9;
 }
 </style>

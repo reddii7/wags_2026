@@ -102,19 +102,21 @@ Deno.serve(async (req) => {
 
   // Sort + dedupe handicap_history
   const handicap_history_raw = historyRes.data || [];
-  const handicap_history = handicap_history_raw.slice().sort((a: any, b: any) => {
-    const tA = toTime(a?.competitions?.competition_date);
-    const tB = toTime(b?.competitions?.competition_date);
+  const handicap_history = handicap_history_raw
+    .slice()
+    .sort((a: any, b: any) => {
+      const tA = toTime(a?.competitions?.competition_date);
+      const tB = toTime(b?.competitions?.competition_date);
 
-    // Prefer competition_date; fallback to created_at
-    const cA = tA ?? toTime(a?.created_at);
-    const cB = tB ?? toTime(b?.created_at);
+      // Prefer competition_date; fallback to created_at
+      const cA = tA ?? toTime(a?.created_at);
+      const cB = tB ?? toTime(b?.created_at);
 
-    // If both null, keep stable-ish by comparing created_at
-    const kA = cA ?? 0;
-    const kB = cB ?? 0;
-    return kB - kA;
-  });
+      // If both null, keep stable-ish by comparing created_at
+      const kA = cA ?? 0;
+      const kB = cB ?? 0;
+      return kB - kA;
+    });
 
   // Deduplicate handicap_history: keep only the latest entry per (user_id, competition_id)
   // If competition_id is null, treat as manual adjustment and keep all
@@ -182,35 +184,44 @@ Deno.serve(async (req) => {
         seasonComps[0] ||
         null;
 
-      let dash = null;
+      let dash: Record<string, unknown> | null = null;
       if (latestComp) {
         try {
           const dashRes = await supabase.rpc("get_dashboard_overview", {
             p_season_id: season.id,
             p_competition_id: latestComp.id,
           });
-          if (!dashRes.error) dash = dashRes.data;
-        } catch {}
-      }
+          if (!dashRes.error && dashRes.data != null) {
+            dash =
+              typeof dashRes.data === "object" && !Array.isArray(dashRes.data)
+                ? (dashRes.data as Record<string, unknown>)
+                : { value: dashRes.data };
+          }
+        } catch {
+          // RPC may fail after policy changes; still attach results below.
+        }
 
-      // Attach results and summary for latestComp
-      if (dash && latestComp) {
-        dash.results = resultsByComp[latestComp.id] || [];
+        if (!dash) dash = {};
+        const rows = resultsByComp[latestComp.id] || [];
+        dash.results = rows;
 
         const compSummary = summariesMapGlobal.get(latestComp.id);
-
         dash.summary = compSummary || {
           competition_id: latestComp.id,
           winner_type: "",
           winner_names: [],
           amount: 0,
-          num_players: dash.results.length,
-          snakes: dash.results.filter((r: any) => r.has_snake).length,
-          camels: dash.results.filter((r: any) => r.has_camel).length,
+          num_players: rows.length,
+          snakes: rows.filter((r: any) => r.has_snake).length,
+          camels: rows.filter((r: any) => r.has_camel).length,
           week_number: null,
           week_date: latestComp.competition_date,
           second_names: [],
         };
+
+        if (!Array.isArray(dash.handicaps)) {
+          dash.handicaps = [];
+        }
       }
       dashboard[season.id] = dash;
 
@@ -221,20 +232,40 @@ Deno.serve(async (req) => {
         .filter(Boolean);
 
       const winnerMap = new Map<string, any>();
+      // Enhanced: Use winner_ids if available, else match names to profiles
       for (const summary of seasonSummaries as any[]) {
         if (
           summary.winner_type !== "winner" ||
           !Array.isArray(summary.winner_names)
         )
           continue;
-        for (const name of summary.winner_names as any[]) {
-          if (!winnerMap.has(name)) {
-            winnerMap.set(name, { player: name, weeks: 0, amount: 0 });
+        const winnerIds = Array.isArray(summary.winner_ids)
+          ? summary.winner_ids
+          : [];
+        summary.winner_names.forEach((name: string, idx: number) => {
+          let userId = winnerIds[idx];
+          if (!userId) {
+            // Fallback: try to match name to profiles.full_name (case-insensitive, trimmed)
+            const match = profiles.find(
+              (p: any) =>
+                String(p.full_name).trim().toLowerCase() ===
+                String(name).trim().toLowerCase(),
+            );
+            userId = match ? match.id : null;
           }
-          const entry = winnerMap.get(name);
+          if (!userId) return; // skip if no match
+          if (!winnerMap.has(userId)) {
+            winnerMap.set(userId, {
+              user_id: userId,
+              player: name,
+              weeks: 0,
+              amount: 0,
+            });
+          }
+          const entry = winnerMap.get(userId);
           entry.weeks += 1;
           entry.amount += Number(summary.amount) || 0;
-        }
+        });
       }
       const seasonWinners = Array.from(winnerMap.values()).sort(
         (a, b) => b.amount - a.amount,

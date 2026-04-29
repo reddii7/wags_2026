@@ -69,11 +69,18 @@ const trendValues = computed(() =>
 
 const getLatestCompetitionChangeMap = (history, competitions) => {
   // Find the latest competition by date to ensure the comparison is correct
-  const latestCompetitionId = (competitions || [])
-    .slice()
-    .sort(
-      (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
-    )[0]?.id;
+  const nonOpen = (competitions || []).filter((c) => c.status !== "open");
+  const latestCompetitionId =
+    nonOpen
+      .slice()
+      .sort(
+        (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
+      )[0]?.id ||
+    (competitions || [])
+      .slice()
+      .sort(
+        (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
+      )[0]?.id;
 
   if (!latestCompetitionId) {
     return new Map();
@@ -85,16 +92,22 @@ const getLatestCompetitionChangeMap = (history, competitions) => {
     if (item.competition_id !== latestCompetitionId) return;
     if (latestChangeByUser.has(item.user_id)) return;
 
-    const oldHandicap = item.old_handicap;
-    const newHandicap = item.new_handicap;
+    const oldRaw = item.old_handicap;
+    const newRaw = item.new_handicap;
+
+    const oldN = oldRaw === null ? null : Number(oldRaw);
+    const newN = newRaw === null ? null : Number(newRaw);
+
     const hasChange =
-      oldHandicap !== null &&
-      newHandicap !== null &&
-      oldHandicap !== newHandicap;
+      oldN !== null &&
+      newN !== null &&
+      !Number.isNaN(oldN) &&
+      !Number.isNaN(newN) &&
+      oldN !== newN;
 
     latestChangeByUser.set(item.user_id, {
-      text: hasChange ? `${oldHandicap}→${newHandicap}` : "-",
-      improved: hasChange ? newHandicap < oldHandicap : false,
+      text: hasChange ? `${oldN}→${newN}` : "-",
+      improved: hasChange ? newN < oldN : false,
     });
   });
 

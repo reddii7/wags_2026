@@ -1,11 +1,24 @@
+// Sync selectedCompetitionId with route query param
+watch(
+  [selectedCompetitionId, route],
+  ([compId, currentRoute]) => {
+    if (!compId) return;
+    if (currentRoute.query.competition !== compId) {
+      // Update the route query param without reloading
+      router.replace({ name: 'admin-scores', query: { competition: compId } });
+    }
+  },
+  { immediate: false },
+);
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useSession } from "../../composables/useSession";
 import { supabase } from "../../lib/supabase";
 import { triggerHapticFeedback } from "../../utils/haptics";
 
 const route = useRoute();
+const router = useRouter();
 const { loading: sessionLoading, isAdmin, profile } = useSession();
 
 const loading = ref(true);
@@ -16,6 +29,23 @@ const competitions = ref([]);
 const players = ref([]);
 const rounds = ref([]);
 const selectedCompetitionId = ref(null);
+
+// Accept selectedCompetitionId as a prop from parent (App.vue)
+import { defineProps, watch as vwatch } from 'vue';
+const props = defineProps({
+  selectedCompetitionId: { type: String, default: null },
+});
+
+// Watch for prop changes and update local state
+vwatch(
+  () => props.selectedCompetitionId,
+  (newId) => {
+    if (newId && newId !== selectedCompetitionId.value) {
+      selectedCompetitionId.value = newId;
+    }
+  },
+  { immediate: true },
+);
 const editingRoundId = ref(null);
 const form = ref({
   user_id: "",
@@ -84,6 +114,7 @@ const loadCompetitions = async () => {
   if (queryError) throw queryError;
 
   competitions.value = data || [];
+  console.log('[AdminScores] competitions loaded:', competitions.value);
   const requestedCompetitionId =
     typeof route.query.competition === "string"
       ? route.query.competition
@@ -272,12 +303,35 @@ watch(selectedCompetitionId, async (competitionId, previousCompetitionId) => {
 
 <template>
   <section class="admin-page">
+    <nav class="admin-nav-tabs">
+      <button
+        class="admin-nav-tab"
+        :class="{ active: $route.name === 'admin-competitions' }"
+        @click="$router.push({ name: 'admin-competitions' })"
+      >
+        Competitions
+      </button>
+      <button
+        class="admin-nav-tab"
+        :class="{ active: $route.name === 'admin-scores' }"
+        @click="
+          competitions && competitions.length
+            ? $router.push({ name: 'admin-scores', query: { competition: competitions[0].id } })
+            : $router.push({ name: 'admin-scores' })
+        "
+      >
+        Scores
+      </button>
+    </nav>
     <div>
       <h1 class="admin-page-title">Scores</h1>
       <p class="admin-page-copy">
         Enter weekly scores, track payments, and correct mistakes before closing
         a competition.
       </p>
+      <button class="quiet-button quiet-button--ghost" @click="refreshData" style="margin-top: 0.5em;">
+        Refresh competitions
+      </button>
     </div>
 
     <section v-if="sessionLoading" class="content-panel">

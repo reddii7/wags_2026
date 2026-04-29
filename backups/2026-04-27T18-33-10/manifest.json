@@ -1,0 +1,76 @@
+{
+  "timestamp": "2026-04-27T18:33:11.675Z",
+  "backupDir": "backups/2026-04-27T18-33-10",
+  "tables": [
+    {
+      "table": "competitions",
+      "rows": 32,
+      "csvPath": "backups/2026-04-27T18-33-10/competitions.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/competitions.json"
+    },
+    {
+      "table": "financial_transactions",
+      "rows": 145,
+      "csvPath": "backups/2026-04-27T18-33-10/financial_transactions.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/financial_transactions.json"
+    },
+    {
+      "table": "handicap_history",
+      "rows": 1000,
+      "csvPath": "backups/2026-04-27T18-33-10/handicap_history.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/handicap_history.json"
+    },
+    {
+      "table": "matchplay_tournaments",
+      "rows": 1,
+      "csvPath": "backups/2026-04-27T18-33-10/matchplay_tournaments.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/matchplay_tournaments.json"
+    },
+    {
+      "table": "profiles",
+      "rows": 66,
+      "csvPath": "backups/2026-04-27T18-33-10/profiles.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/profiles.json"
+    },
+    {
+      "table": "rounds",
+      "rows": 1000,
+      "csvPath": "backups/2026-04-27T18-33-10/rounds.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/rounds.json"
+    },
+    {
+      "table": "season_league_memberships",
+      "rows": 127,
+      "csvPath": "backups/2026-04-27T18-33-10/season_league_memberships.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/season_league_memberships.json"
+    },
+    {
+      "table": "seasons",
+      "rows": 2,
+      "csvPath": "backups/2026-04-27T18-33-10/seasons.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/seasons.json"
+    },
+    {
+      "table": "winter_competitions",
+      "rows": 17,
+      "csvPath": "backups/2026-04-27T18-33-10/winter_competitions.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/winter_competitions.json"
+    },
+    {
+      "table": "winter_players",
+      "rows": 21,
+      "csvPath": "backups/2026-04-27T18-33-10/winter_players.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/winter_players.json"
+    },
+    {
+      "table": "winter_scores",
+      "rows": 112,
+      "csvPath": "backups/2026-04-27T18-33-10/winter_scores.csv",
+      "jsonPath": "backups/2026-04-27T18-33-10/winter_scores.json"
+    }
+  ],
+  "totalTables": 11,
+  "totalRows": 2523,
+  "supabaseUrl": "https://fpulgnhtngvqdikbdkgv.supabase.co",
+  "version": "1.0"
+}

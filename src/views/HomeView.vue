@@ -1,6 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch, nextTick } from "vue";
-import { supabase } from "../lib/supabase";
+import { computed, ref, watch, nextTick } from "vue";
 
 const emit = defineEmits(["navigate"]);
 const props = defineProps({
@@ -126,6 +125,11 @@ const loadHomeData = async () => {
     loading.value = true;
     return;
   }
+  if (props.metadata.loadError) {
+    error.value = props.metadata.loadError;
+    loading.value = false;
+    return;
+  }
   error.value = "";
   try {
     // Prefer the latest completed competition that has result/summary data.
@@ -182,16 +186,25 @@ const loadHomeData = async () => {
       (row) => row.competition_id === latestComp.id,
     );
     const dashSummary = dash?.summary || null;
-    summary.value = dashSummary || summaryForComp || {
-      winner_type: "",
-      winner_names: [],
-      amount: 0,
-      num_players: 0,
-      snakes: 0,
-      camels: 0,
-    };
+    summary.value = dashSummary ||
+      summaryForComp || {
+        winner_type: "",
+        winner_names: [],
+        amount: 0,
+        num_players: 0,
+        snakes: 0,
+        camels: 0,
+      };
     summary.value.week_number =
       dash?.week_count || summary.value.week_number || null;
+    if (
+      (summary.value.week_number === null ||
+        summary.value.week_number === undefined) &&
+      latestComp?.name
+    ) {
+      const weekMatch = String(latestComp.name).match(/\bweek\s*0*(\d+)\b/i);
+      if (weekMatch) summary.value.week_number = Number(weekMatch[1]);
+    }
 
     // Prefer dashboard results when available, else raw metadata results.
     const fallbackResults = allResults.filter(
@@ -275,13 +288,14 @@ const loadHomeData = async () => {
         position: "1",
       }));
 
-    handicapMovements.value =
-      (dash?.handicaps && Array.isArray(dash.handicaps) ? dash.handicaps : [])
-        .length
-        ? dash.handicaps
-        : (props.metadata.handicap_history || [])
-            .filter((item) => item.competition_id === latestComp.id)
-            .slice(0, 8);
+    handicapMovements.value = (dash?.handicaps && Array.isArray(dash.handicaps)
+      ? dash.handicaps
+      : []
+    ).length
+      ? dash.handicaps
+      : (props.metadata.handicap_history || [])
+          .filter((item) => item.competition_id === latestComp.id)
+          .slice(0, 8);
   } catch (err) {
     console.error("Dashboard mapping error:", err);
   } finally {
@@ -292,11 +306,21 @@ const loadHomeData = async () => {
 };
 
 watch(
-  () => props.metadata.loading,
-  (isLoading) => {
-    if (!isLoading) loadHomeData();
+  () => props.metadata,
+  () => {
+    if (props.metadata.loading) {
+      loading.value = true;
+      return;
+    }
+    if (props.metadata.loadError) {
+      error.value = props.metadata.loadError;
+      loading.value = false;
+      return;
+    }
+    error.value = "";
+    loadHomeData();
   },
-  { immediate: true },
+  { immediate: true, deep: true },
 );
 </script>
 
@@ -320,17 +344,27 @@ watch(
           <template v-if="latestTopRows.length">
             <template v-if="summary.winner_type === 'rollover'">
               <span>
-                {{
-                  summary.winner_names && summary.winner_names.length
-                    ? summary.winner_names.join(", ")
-                    : ""
-                }}
-                all scored
+                A rollover with
+                <template
+                  v-if="summary.winner_names && summary.winner_names.length"
+                >
+                  {{
+                    " " +
+                    (summary.winner_names.length === 1
+                      ? summary.winner_names[0]
+                      : summary.winner_names.length === 2
+                        ? summary.winner_names.join(" and ")
+                        : summary.winner_names.slice(0, -1).join(", ") +
+                          " and " +
+                          summary.winner_names.slice(-1))
+                  }}
+                </template>
+                all scoring
                 <template v-if="latestTopRows.length">
                   {{ " " + latestTopRows[0].score }}
                 </template>
-                , the £{{ Number(summary.amount).toFixed(2) }} pot rolls over to
-                next week.
+                , £{{ Number(summary.amount).toFixed(2) }} rolled over to next
+                week.
               </span>
             </template>
             <template
@@ -341,11 +375,9 @@ watch(
               "
             >
               <span>
-                {{ summary.winner_names[0] }} won
-                <template
-                  v-if="summary.second_names && summary.second_names.length"
-                >
-                  , narrowly beating {{ summary.second_names.join(", ") }}
+                A win for {{ summary.winner_names[0] }}
+                <template v-if="latestTopRows.length">
+                  with {{ latestTopRows[0].score }} points
                 </template>
                 , adding £{{ Number(summary.amount).toFixed(2) }} to his season
                 winnings.
@@ -368,8 +400,8 @@ watch(
               <span>{{ latestSummary }}</span>
             </template>
             <p class="home-hero-sublabel home-hero-subtext">
-              {{ latestStats.players }} played, {{ latestStats.snakes }} snakes,
-              {{ latestStats.camels }} camels.
+              {{ summary.num_players }} played, {{ summary.snakes }} snakes,
+              {{ summary.camels }} camels.
             </p>
           </template>
           <template v-else-if="!loading && !metadata.loading">
@@ -410,7 +442,7 @@ watch(
         <div class="home-compact-list">
           <div
             v-for="(item, idx) in handicapMovements.slice(0, 4)"
-            :key="item.user_id"
+            :key="`${item.user_id}-${idx}`"
             class="home-compact-row"
           >
             <span class="home-rank">{{ idx + 1 }}</span>

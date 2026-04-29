@@ -158,6 +158,7 @@ const createCompetition = async () => {
   const { error: insertError } = await supabase.from("competitions").insert({
     name: form.value.name.trim(),
     competition_date: form.value.competition_date,
+    status: "open",
   });
 
   if (insertError) {
@@ -275,6 +276,26 @@ onMounted(async () => {
 
 <template>
   <section class="admin-page">
+    <nav class="admin-nav-tabs">
+      <button
+        class="admin-nav-tab"
+        :class="{ active: $route.name === 'admin-competitions' }"
+        @click="$router.push({ name: 'admin-competitions' })"
+      >
+        Competitions
+      </button>
+      <button
+        class="admin-nav-tab"
+        :class="{ active: $route.name === 'admin-scores' }"
+        @click="
+          openCompetitions.length
+            ? $router.push({ name: 'admin-scores', query: { competition: openCompetitions[0].id } })
+            : $router.push({ name: 'admin-scores' })
+        "
+      >
+        Scores
+      </button>
+    </nav>
     <div>
       <h1 class="admin-page-title">Competitions</h1>
       <p class="admin-page-copy">
@@ -404,12 +425,12 @@ onMounted(async () => {
               </p>
             </div>
             <div class="admin-actions">
-              <RouterLink
+              <button
                 class="quiet-button quiet-button--ghost"
-                :to="`/admin/scores?competition=${competition.id}`"
+                @click="$emit('navigate', { target: 'admin', competitionId: competition.id })"
               >
                 Scores
-              </RouterLink>
+              </button>
               <button
                 class="quiet-button quiet-button--strong"
                 type="button"

@@ -22,7 +22,8 @@ function hydrateFromMetadata() {
     [];
   if (Array.isArray(winnersArr)) {
     winners.value = winnersArr.map((w, idx) => ({
-      id: `${w.player}-${w.amount}-${idx}`,
+      id: w.user_id || `${w.player}-${w.amount}-${idx}`,
+      user_id: w.user_id || null,
       player: w.player,
       weeks: w.weeks,
       amount: w.amount,

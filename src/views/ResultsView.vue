@@ -25,7 +25,8 @@ const competitions = computed(() => props.metadata?.competitions || []);
 const results = computed(() => props.metadata?.results || []);
 const summaries = computed(() => props.metadata?.summaries || []);
 const rows = computed(() =>
-  results.value.filter((r) => r.competition_id === selectedCompetitionId.value)
+  results.value
+    .filter((r) => r.competition_id === selectedCompetitionId.value)
     .map((row) => {
       // Calculate games played for each player
       const allRounds = props.metadata?.rounds || [];
@@ -35,15 +36,17 @@ const rows = computed(() =>
       const seasonYear = String(props.season?.start_year);
       const seasonCompIds = new Set(
         (props.metadata?.competitions || [])
-          .filter((c) => c.season === seasonId || String(c.season) === seasonYear)
+          .filter(
+            (c) => c.season === seasonId || String(c.season) === seasonYear,
+          )
           .map((c) => c.id),
       );
-      const gamesPlayed = [...allRounds, ...allResults].filter(
-        (r2) => {
-          const rowUid = r2.user_id || r2.player_id;
-          return rowUid === targetPlayerId && seasonCompIds.has(r2.competition_id);
-        }
-      ).length;
+      const gamesPlayed = [...allRounds, ...allResults].filter((r2) => {
+        const rowUid = r2.user_id || r2.player_id;
+        return (
+          rowUid === targetPlayerId && seasonCompIds.has(r2.competition_id)
+        );
+      }).length;
       return {
         ...row,
         games_played: gamesPlayed,
@@ -241,17 +244,27 @@ watch(
           <template v-if="leadingRows.length">
             <template v-if="summary.winner_type === 'rollover'">
               <span>
-                {{
-                  summary.winner_names && summary.winner_names.length
-                    ? summary.winner_names.join(", ")
-                    : ""
-                }}
-                all scored
-                <template v-if="leadingRows.length">
-                  {{ " " + leadingRows[0].score + " points" }}
+                A rollover with
+                <template
+                  v-if="summary.winner_names && summary.winner_names.length"
+                >
+                  {{
+                    " " +
+                    (summary.winner_names.length === 1
+                      ? summary.winner_names[0]
+                      : summary.winner_names.length === 2
+                        ? summary.winner_names.join(" and ")
+                        : summary.winner_names.slice(0, -1).join(", ") +
+                          " and " +
+                          summary.winner_names.slice(-1))
+                  }}
                 </template>
-                , the £{{ Number(summary.amount).toFixed(2) }} pot rolls over to
-                next week.
+                all scoring
+                <template v-if="leadingRows.length">
+                  {{ " " + leadingRows[0].score }}
+                </template>
+                , £{{ Number(summary.amount).toFixed(2) }} rolled over to next
+                week.
               </span>
             </template>
             <template
@@ -262,14 +275,9 @@ watch(
               "
             >
               <span>
-                {{ summary.winner_names[0] }} won
+                A win for {{ summary.winner_names[0] }}
                 <template v-if="leadingRows.length">
                   with {{ leadingRows[0].score }} points
-                </template>
-                <template
-                  v-if="summary.second_names && summary.second_names.length"
-                >
-                  , narrowly beating {{ summary.second_names.join(", ") }}
                 </template>
                 , adding £{{ Number(summary.amount).toFixed(2) }} to his season
                 winnings.
