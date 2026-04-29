@@ -76,7 +76,7 @@ async function loadGlobalMetadata() {
   }
 }
 
-import AdminCompetitionsView from "./views/admin/AdminCompetitionsView.vue";
+// ...existing code...
 
 const sections = [
   { name: "home", label: "Home", icon: "home", component: markRaw(HomeView) },
@@ -98,12 +98,7 @@ const sections = [
     icon: "trophy",
     component: markRaw(RSCupView),
   },
-  {
-    name: "admin",
-    label: "Admin",
-    icon: "admin",
-    component: markRaw(AdminCompetitionsView),
-  },
+  // ...existing code...
 ];
 
 const currentSection = ref(sections[0]);
@@ -222,34 +217,10 @@ onBeforeUnmount(() => {
         <NavIcon :name="section.icon" />
         <span class="bottom-nav-label">{{ section.label }}</span>
       </button>
-      <button
-        v-if="!user && !sessionLoading"
-        class="bottom-nav-link"
-        style="margin-left: auto"
-        @click="showSignIn = true"
-        aria-label="Sign in"
-      >
-        <NavIcon name="users" />
-        <span class="bottom-nav-label">Sign in</span>
-      </button>
-      <button
-        v-if="user && !sessionLoading"
-        class="bottom-nav-link"
-        style="margin-left: auto"
-        @click="signOut()"
-        aria-label="Sign out"
-      >
-        <NavIcon name="users" />
-        <span class="bottom-nav-label">Sign out</span>
-      </button>
+      <!-- ...existing nav code... -->
     </nav>
 
-    <AppDialog v-model="showSignIn" aria-label="Sign in">
-      <template #header>
-        <h3>Sign in</h3>
-      </template>
-      <SignInForm @submit="showSignIn = false" @close="showSignIn = false" />
-    </AppDialog>
+    <!-- ...existing code... -->
   </div>
 </template>
 

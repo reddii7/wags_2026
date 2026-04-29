@@ -4,7 +4,7 @@ import { triggerHapticFeedback } from "../utils/haptics";
 import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
 import ResultsView from "./ResultsView.vue";
-import WinnersTable from "../../WinnersTable.vue";
+import WinnersTable from "./WinnersTable.vue";
 
 const props = defineProps({
   metadata: { type: Object, required: true },

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
 // Removed unused composables
-import QuietList from "./src/components/QuietList.vue";
+import QuietList from "../components/QuietList.vue";
 
 const props = defineProps({
   season: { type: Object, required: true },

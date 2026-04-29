@@ -7,9 +7,7 @@ import ResultsView from '../views/ResultsView.vue';
 import HandicapsView from '../views/HandicapsView.vue';
 import RSCupView from '../views/RSCupView.vue';
 import LoginView from '../views/LoginView.vue';
-import AdminCompetitionsView from '../views/admin/AdminCompetitionsView.vue';
-import AdminScoresView from '../views/admin/AdminScoresView.vue';
-import AdminUsersView from '../views/admin/AdminUsersView.vue';
+// ...existing code...
 import { useSession } from '../composables/useSession';
 
 const router = createRouter({
@@ -22,62 +20,13 @@ const router = createRouter({
         { path: '/results', name: 'results', component: ResultsView },
         { path: '/handicaps', name: 'handicaps', component: HandicapsView },
         { path: '/rscup', name: 'rscup', component: RSCupView },
-        { path: '/login', redirect: '/admin/login' },
-        {
-            path: '/admin',
-            redirect: { name: 'admin-competitions' },
-        },
-        {
-            path: '/admin/login',
-            name: 'admin-login',
-            component: LoginView,
-            meta: { adminShell: true, guestOnly: true },
-        },
-        {
-            path: '/admin/competitions',
-            name: 'admin-competitions',
-            component: AdminCompetitionsView,
-            meta: { requiresAdmin: true, adminShell: true },
-        },
-        {
-            path: '/admin/scores',
-            name: 'admin-scores',
-            component: AdminScoresView,
-            meta: { requiresAdmin: true, adminShell: true },
-        },
-        {
-            path: '/admin/users',
-            name: 'admin-users',
-            component: AdminUsersView,
-            meta: { requiresAdmin: true, adminShell: true },
-        },
+        // ...existing code...
     ],
     scrollBehavior() {
         return { top: 0, behavior: 'smooth' };
     },
 });
 
-router.beforeEach((to) => {
-    const { user, isAdmin } = useSession();
-
-    if (to.meta.requiresAdmin) {
-        if (!user.value) {
-            return {
-                name: 'admin-login',
-                query: { redirect: to.fullPath },
-            };
-        }
-
-        if (!isAdmin.value) {
-            return { name: 'home' };
-        }
-    }
-
-    if (to.meta.guestOnly && user.value && isAdmin.value) {
-        return { name: 'admin-competitions' };
-    }
-
-    return true;
-});
+// ...existing code...
 
 export default router;
