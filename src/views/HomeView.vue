@@ -11,7 +11,35 @@ const latestCompetitionDate = computed(() => {
     year: "2-digit",
   });
 });
-import { computed, ref, watch, nextTick } from "vue";
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from "vue";
+// --- Periodic and Visibility-triggered Data Refresh ---
+const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
+let refreshTimer = null;
+
+function setupPeriodicAndVisibilityRefresh() {
+  // Periodic refresh
+  refreshTimer = setInterval(() => {
+    loadHomeData();
+  }, REFRESH_INTERVAL_MS);
+
+  // Visibility API refresh
+  const handleVisibility = () => {
+    if (document.visibilityState === "visible") {
+      loadHomeData();
+    }
+  };
+  document.addEventListener("visibilitychange", handleVisibility);
+
+  // Cleanup
+  onUnmounted(() => {
+    if (refreshTimer) clearInterval(refreshTimer);
+    document.removeEventListener("visibilitychange", handleVisibility);
+  });
+}
+
+onMounted(() => {
+  setupPeriodicAndVisibilityRefresh();
+});
 
 const emit = defineEmits(["navigate"]);
 const props = defineProps({
@@ -258,11 +286,15 @@ const loadHomeData = async () => {
       .sort((a, b) => Number(b.total_score) - Number(a.total_score));
 
     // Find the top 3 unique scores
-    const uniqueScores = [...new Set(sortedBest14.map((p) => Number(p.total_score)))];
+    const uniqueScores = [
+      ...new Set(sortedBest14.map((p) => Number(p.total_score))),
+    ];
     const top3Scores = uniqueScores.slice(0, 3);
 
     // Filter all players whose score is in the top 3 scores
-    best14Leaders.value = sortedBest14.filter((p) => top3Scores.includes(Number(p.total_score)));
+    best14Leaders.value = sortedBest14.filter((p) =>
+      top3Scores.includes(Number(p.total_score)),
+    );
 
     const leagues =
       props.metadata.leagues?.[seasonKey] ||
