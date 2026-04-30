@@ -246,12 +246,23 @@ const loadHomeData = async () => {
       props.metadata.best14?.[seasonKey] ||
       (altSeasonKey ? props.metadata.best14?.[altSeasonKey] : []) ||
       [];
-    best14Leaders.value = best14.map((player) => ({
-      ...player,
-      position: player.position ?? player.pos ?? player.rank_no ?? "1",
-      total_score: player.best_total,
-      id: `${seasonKey}-${player.user_id}`,
-    }));
+
+    // Sort and compute top 3 ranks (including ties for 3rd)
+    const sortedBest14 = best14
+      .map((player) => ({
+        ...player,
+        position: player.position ?? player.pos ?? player.rank_no ?? "1",
+        total_score: player.best_total,
+        id: `${seasonKey}-${player.user_id}`,
+      }))
+      .sort((a, b) => Number(b.total_score) - Number(a.total_score));
+
+    // Find the top 3 unique scores
+    const uniqueScores = [...new Set(sortedBest14.map((p) => Number(p.total_score)))];
+    const top3Scores = uniqueScores.slice(0, 3);
+
+    // Filter all players whose score is in the top 3 scores
+    best14Leaders.value = sortedBest14.filter((p) => top3Scores.includes(Number(p.total_score)));
 
     const leagues =
       props.metadata.leagues?.[seasonKey] ||
@@ -497,7 +508,7 @@ watch(
         </div>
         <div class="home-compact-list">
           <div
-            v-for="player in best14Leaders.slice(0, 3)"
+            v-for="player in best14Leaders"
             :key="player.id"
             class="home-compact-row"
           >
