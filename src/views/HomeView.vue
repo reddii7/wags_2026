@@ -1,4 +1,16 @@
 <script setup>
+// Computed: latestCompetitionDate for hero section
+const latestCompetitionDate = computed(() => {
+  if (!latestCompetition.value || !latestCompetition.value.competition_date)
+    return null;
+  const date = new Date(latestCompetition.value.competition_date);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+  });
+});
 import { computed, ref, watch, nextTick } from "vue";
 
 const emit = defineEmits(["navigate"]);
@@ -36,29 +48,16 @@ const formatDate = (value) => {
   }).format(date);
 };
 
-const formatLeagueLabel = (value) => {
-  if (!value) return "-";
-  const match = String(value).match(/\d+/);
-  return match?.[0] || value;
-};
-
-const latestCompetitionDate = computed(() =>
-  formatDate(latestCompetition.value?.competition_date),
-);
-
-const latestCompetitionWeekLabel = computed(() => {
-  const name = latestCompetition.value?.name;
-  if (!name) return "";
-
-  const match = String(name).match(/\b(week\s*\d+)\b/i);
-  return match ? match[1].replace(/\s+/g, " ") : "";
-});
-
-const latestMovementLabel = computed(
-  () => latestMovementCompetition.value?.name || "Latest update",
-);
+// Format league label for display (fallback: capitalize, replace underscores)
+function formatLeagueLabel(name) {
+  if (!name) return "Division";
+  return String(name)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const latestTopRows = computed(() => {
+  if (!Array.isArray(latestResults.value)) return [];
   const numericScores = latestResults.value
     .map((row) => Number(row.score))
     .filter((score) => Number.isFinite(score));
@@ -66,10 +65,6 @@ const latestTopRows = computed(() => {
   const topScore = Math.max(...numericScores);
   return latestResults.value.filter((row) => Number(row.score) === topScore);
 });
-
-const latestWinnerLabel = computed(() =>
-  latestTopRows.value.length > 1 ? "Winners" : "Winner",
-);
 
 const latestSummary = computed(() => {
   const winners = latestTopRows.value;
@@ -288,14 +283,49 @@ const loadHomeData = async () => {
         position: "1",
       }));
 
-    handicapMovements.value = (dash?.handicaps && Array.isArray(dash.handicaps)
-      ? dash.handicaps
-      : []
-    ).length
-      ? dash.handicaps
-      : (props.metadata.handicap_history || [])
-          .filter((item) => item.competition_id === latestComp.id)
-          .slice(0, 8);
+    // Use the same logic as HandicapsView to get the latest change for each player
+    const history = props.metadata?.handicap_history || [];
+    const allCompetitions = props.metadata?.competitions || [];
+    // Find the latest competition by date to ensure the comparison is correct
+    const nonOpen = (allCompetitions || []).filter((c) => c.status !== "open");
+    const latestCompetitionId =
+      nonOpen
+        .slice()
+        .sort(
+          (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
+        )[0]?.id ||
+      (allCompetitions || [])
+        .slice()
+        .sort(
+          (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
+        )[0]?.id;
+
+    // Find all players whose rounded handicap changed in the latest competition
+    const latestChanges = (history || [])
+      .filter((item) => item.competition_id === latestCompetitionId)
+      .map((item) => {
+        if (item.old_handicap == null || item.new_handicap == null) return null;
+        const oldRounded = Math.round(item.old_handicap);
+        const newRounded = Math.round(item.new_handicap);
+        if (oldRounded === newRounded) return null;
+        return {
+          user_id: item.user_id,
+          old_handicap: item.old_handicap,
+          new_handicap: item.new_handicap,
+          oldRounded,
+          newRounded,
+        };
+      })
+      .filter(Boolean);
+    // Join with player profiles for display
+    const profiles = props.metadata?.profiles || [];
+    handicapMovements.value = latestChanges.map((change) => {
+      const player = profiles.find((p) => p.id === change.user_id);
+      return {
+        ...change,
+        full_name: player ? player.full_name : "Unknown",
+      };
+    });
   } catch (err) {
     console.error("Dashboard mapping error:", err);
   } finally {
@@ -342,33 +372,11 @@ watch(
             </template>
           </span>
           <template v-if="latestTopRows.length">
-            <template v-if="summary.winner_type === 'rollover'">
-              <span>
-                A rollover with
-                <template
-                  v-if="summary.winner_names && summary.winner_names.length"
-                >
-                  {{
-                    " " +
-                    (summary.winner_names.length === 1
-                      ? summary.winner_names[0]
-                      : summary.winner_names.length === 2
-                        ? summary.winner_names.join(" and ")
-                        : summary.winner_names.slice(0, -1).join(", ") +
-                          " and " +
-                          summary.winner_names.slice(-1))
-                  }}
-                </template>
-                all scoring
-                <template v-if="latestTopRows.length">
-                  {{ " " + latestTopRows[0].score }}
-                </template>
-                , £{{ Number(summary.amount).toFixed(2) }} rolled over to next
-                week.
-              </span>
-            </template>
+            <span v-if="summary.winner_type === 'rollover'">
+              A rollover with
+            </span>
             <template
-              v-else-if="
+              v-if="
                 summary.winner_type === 'winner' &&
                 summary.winner_names &&
                 summary.winner_names.length === 1
@@ -440,32 +448,42 @@ watch(
           <span class="home-hero-sublabel">Handicap changes</span>
         </div>
         <div class="home-compact-list">
-          <div
-            v-for="(item, idx) in handicapMovements.slice(0, 4)"
-            :key="`${item.user_id}-${idx}`"
-            class="home-compact-row"
-          >
-            <span class="home-rank">{{ idx + 1 }}</span>
-            <span class="home-name">{{ item.full_name }}</span>
-            <span class="home-value">
-              <span
-                v-if="
-                  item.old_handicap !== undefined &&
-                  item.new_handicap !== undefined
-                "
-                class="mini-pill mini-pill--delta home-pill-compact"
-                :class="
-                  item.new_handicap < item.old_handicap
-                    ? 'mini-pill--positive'
-                    : 'mini-pill--negative'
-                "
-              >
-                {{ Math.round(item.old_handicap) }}→{{
-                  Math.round(item.new_handicap)
-                }}
+          <template v-if="handicapMovements.length">
+            <div
+              v-for="(item, idx) in handicapMovements"
+              :key="`${item.user_id}-${idx}`"
+              class="home-compact-row"
+            >
+              <span class="home-rank">{{ idx + 1 }}</span>
+              <span class="home-name">{{ item.full_name }}</span>
+              <span class="home-value">
+                <span
+                  class="mini-pill mini-pill--delta home-pill-compact"
+                  :class="
+                    item.newRounded < item.oldRounded
+                      ? 'mini-pill--positive'
+                      : 'mini-pill--negative'
+                  "
+                >
+                  {{ item.old_handicap }}→{{ item.new_handicap }}
+                  <span style="font-size: 0.9em; opacity: 0.7">
+                    ({{ item.oldRounded }}→{{ item.newRounded }})</span
+                  >
+                </span>
               </span>
-            </span>
-          </div>
+            </div>
+          </template>
+          <template v-else>
+            <div
+              style="
+                font-size: 0.95em;
+                opacity: 0.7;
+                padding: 0.35em 0 0.15em 0;
+              "
+            >
+              No Playing Handicap changes
+            </div>
+          </template>
         </div>
       </button>
 
@@ -500,13 +518,11 @@ watch(
         </div>
         <div class="home-compact-list">
           <div
-            v-for="leader in leagueLeaders.slice(0, 4)"
-            :key="leader.league_name"
+            v-for="(leader, idx) in leagueLeaders.slice(0, 4)"
+            :key="leader.league_name || idx"
             class="home-compact-row"
           >
-            <span class="home-rank home-rank--league">{{
-              formatLeagueLabel(leader.league_name)
-            }}</span>
+            <span class="home-rank home-rank--league">{{ idx + 1 }}</span>
             <span class="home-name">{{ leader.full_name }}</span>
             <span class="home-value">{{ leader.total_score }}</span>
           </div>
