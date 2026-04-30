@@ -30,6 +30,10 @@ const groups = computed(() => {
     rows: players,
   }));
 });
+
+const leagueNavIdx = ref(0);
+const leagueNavList = computed(() => groups.value.map((g) => g.leagueName));
+const selectedGroup = computed(() => groups.value[leagueNavIdx.value] || null);
 const selectedPlayer = ref(null);
 const detailRows = ref([]);
 const detailLoading = ref(false);
@@ -91,8 +95,22 @@ const formatDate = (value) => {
 
 const formatLeagueTitle = (value) => {
   if (!value) return "LEAGUE";
+  // Map league names to new names
+  const leagueMap = ["PREMIERSHIP", "CHAMPIONSHIP", "LEAGUE 1", "LEAGUE 2"];
+  // Try to match by number or order
   const match = String(value).match(/\d+/);
-  return match?.[0] ? `LEAGUE ${match[0]}` : String(value).toUpperCase();
+  if (match && leagueMap[Number(match[0]) - 1]) {
+    return leagueMap[Number(match[0]) - 1];
+  }
+  // Try to match by order if value is 0-based or 1-based index
+  const idx = ["premiership", "championship", "league 1", "league 2"].findIndex(
+    (n) => String(value).toLowerCase().includes(n.toLowerCase()),
+  );
+  if (idx !== -1) return leagueMap[idx];
+  // Fallback: assign by order if possible
+  const fallbackIdx = ["A", "B", "C", "D"].indexOf(String(value).toUpperCase());
+  if (fallbackIdx !== -1) return leagueMap[fallbackIdx];
+  return String(value).toUpperCase();
 };
 
 // No-op: groups is now computed from metadata
@@ -175,26 +193,38 @@ const closeBest10 = () => {
         </p>
       </div>
     </section>
+
     <p v-if="loading" class="empty-state">Loading standings…</p>
     <p v-else-if="error" class="empty-state">{{ error }}</p>
     <p v-else-if="!groups.length" class="empty-state">
       No league data found for this season.
     </p>
 
+    <nav v-if="groups.length" class="league-nav-scroll">
+      <button
+        v-for="(name, idx) in leagueNavList"
+        :key="name"
+        class="league-nav-btn"
+        :class="{ active: idx === leagueNavIdx }"
+        @click="leagueNavIdx = idx"
+      >
+        {{ formatLeagueTitle(name) }}
+      </button>
+    </nav>
+
     <section
-      v-for="group in groups"
-      :key="group.leagueName"
+      v-if="selectedGroup"
       class="content-panel content-panel--minimal content-panel--flush-top"
     >
       <div class="panel-heading">
         <h3 class="league-heading">
-          {{ formatLeagueTitle(group.leagueName) }}
+          {{ formatLeagueTitle(selectedGroup.leagueName) }}
         </h3>
       </div>
       <QuietList
         :columns="columns"
         :hide-head="false"
-        :rows="group.rows"
+        :rows="selectedGroup.rows"
         empty-text="No players in this league."
       >
         <template #full_name="{ row }">
