@@ -8,16 +8,35 @@
 }
 
 .league-nav-btn {
-    background: var(--surface-1);
-    color: var(--muted);
-    border: none;
-    border-radius: 1.2em;
-    padding: 0.18em 1.1em;
-    font-size: 0.98em;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.18s, color 0.18s;
-    white-space: nowrap;
+        background: var(--surface-1);
+        color: var(--muted);
+        border: none;
+        border-radius: 1.1em;
+        padding: 0.11em 0.7em;
+        font-size: 0.87em;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.18s, color 0.18s;
+        white-space: nowrap;
+        min-width: 0;
+        line-height: 1.7;
+}
+
+@media (max-width: 600px) {
+    .league-nav-scroll {
+        gap: 0.08em;
+        padding-bottom: 0.1em;
+    }
+    .league-nav-btn {
+        padding: 0.09em 0.48em;
+        font-size: 0.81em;
+        border-radius: 1em;
+        min-width: 0;
+        line-height: 1.6;
+        margin-right: 0.04em;
+        margin-left: 0.04em;
+    }
+}
 }
 
 .league-nav-btn.active {
