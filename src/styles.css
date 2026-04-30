@@ -1,48 +1,83 @@
+    position: relative;
+    z-index: 1;
+}
+
+.league-nav-select:focus {
+    outline: 2px solid var(--focus-ring);
+}
 /* League horizontal nav */
+
+/* League nav styled like section nav (week nav / stats nav) */
 .league-nav-scroll {
     display: flex;
-    gap: 0.2em;
+    gap: 0.5rem;
     margin: 0.7em 0 1.1em 0;
+    padding: 0 0 0.2rem 0;
+    border-bottom: 1px solid var(--line);
     overflow-x: auto;
-    padding-bottom: 0.2em;
+    justify-content: space-evenly;
 }
 
 .league-nav-btn {
-        background: var(--surface-1);
-        color: var(--muted);
-        border: none;
-        border-radius: 1.1em;
-        padding: 0.11em 0.7em;
-        font-size: 0.87em;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background 0.18s, color 0.18s;
-        white-space: nowrap;
-        min-width: 0;
-        line-height: 1.7;
-}
-
-@media (max-width: 600px) {
-    .league-nav-scroll {
-        gap: 0.08em;
-        padding-bottom: 0.1em;
-    }
-    .league-nav-btn {
-        padding: 0.09em 0.48em;
-        font-size: 0.81em;
-        border-radius: 1em;
-        min-width: 0;
-        line-height: 1.6;
-        margin-right: 0.04em;
-        margin-left: 0.04em;
-    }
-}
+    display: inline-block;
+    padding: 0.38em 1.3em 0.38em 1.3em;
+    border-radius: 2em;
+    background: var(--surface-1);
+    color: var(--text);
+    font-weight: 500;
+    font-size: 1.01em;
+    text-decoration: none;
+    transition: background 0.18s, color 0.18s;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
 }
 
 .league-nav-btn.active {
     background: var(--accent);
     color: var(--accent-text, #fff);
     font-weight: 600;
+    box-shadow: 0 2px 8px 0 var(--surface-glow);
+}
+
+.league-nav-btn:focus {
+    outline: 2px solid var(--focus-ring);
+}
+
+@media (max-width: 600px) {
+    .league-nav-scroll {
+        display: flex;
+        gap: 0.2rem;
+        font-size: 0.97em;
+        margin: 0.7em 0 1.1em 0;
+        padding: 0 0.2rem 0.2rem 0.2rem;
+        border-bottom: 1px solid var(--line);
+        width: 100%;
+        max-width: 100vw;
+        box-sizing: border-box;
+        justify-content: stretch;
+        overflow-x: visible;
+        white-space: normal;
+    }
+    .league-nav-btn {
+        padding: 0.32em 0.5em;
+        font-size: 0.97em;
+        flex: 1 1 0;
+        text-align: center;
+        margin: 0;
+        white-space: normal;
+        overflow: visible;
+        min-width: 0;
+        max-width: 100%;
+        word-break: break-word;
+        line-height: 1.15;
+        height: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 }
 
 /* Home hero block */
@@ -381,6 +416,7 @@ html {
     font-size: clamp(15px, 14.2px + 0.22vw, 17px);
     -webkit-user-select: none;
     user-select: none;
+    overflow-x: hidden;
 }
 
 body {
@@ -394,6 +430,7 @@ body {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
 }
 
 input,
@@ -1464,7 +1501,7 @@ button,
 }
 
 .season-pill.active {
-    font-style: italic;
+    /* No italic for active pill */
 }
 
 .topbar-season-nav .season-pill {

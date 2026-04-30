@@ -200,27 +200,23 @@ const closeBest10 = () => {
       No league data found for this season.
     </p>
 
-    <nav v-if="groups.length" class="league-nav-scroll">
+    <div v-if="groups.length" class="season-selector" role="tablist" aria-label="League selector">
       <button
         v-for="(name, idx) in leagueNavList"
         :key="name"
-        class="league-nav-btn"
-        :class="{ active: idx === leagueNavIdx }"
+        type="button"
+        class="season-pill"
+        :class="{ active: leagueNavIdx === idx }"
         @click="leagueNavIdx = idx"
       >
         {{ formatLeagueTitle(name) }}
       </button>
-    </nav>
+    </div>
 
     <section
       v-if="selectedGroup"
       class="content-panel content-panel--minimal content-panel--flush-top"
     >
-      <div class="panel-heading">
-        <h3 class="league-heading">
-          {{ formatLeagueTitle(selectedGroup.leagueName) }}
-        </h3>
-      </div>
       <QuietList
         :columns="columns"
         :hide-head="false"
