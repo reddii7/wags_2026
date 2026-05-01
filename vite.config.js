@@ -47,6 +47,12 @@ export default defineConfig({
                 clientsClaim: true,
                 navigateFallback: '/index.html',
                 navigateFallbackDenylist: [/^\/api\//],
+                additionalManifestEntries: [
+                    {
+                        url: '/',
+                        revision: process.env.COMMIT_REF || String(Date.now()),
+                    },
+                ],
             },
             devOptions: {
                 enabled: false,
