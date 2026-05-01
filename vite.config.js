@@ -4,9 +4,11 @@ import vue from '@vitejs/plugin-vue'
 import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const buildVersion = process.env.COMMIT_REF || String(Date.now());
+
 export default defineConfig({
     define: {
-        __APP_VERSION__: JSON.stringify(process.env.COMMIT_REF || String(Date.now())),
+        __APP_VERSION__: JSON.stringify(buildVersion),
     },
     server: {
         host: true,
@@ -18,6 +20,12 @@ export default defineConfig({
     },
     plugins: [
         vue(),
+        {
+            name: 'inject-build-version',
+            transformIndexHtml(html) {
+                return html.replace('__APP_VERSION__', buildVersion);
+            },
+        },
         VitePWA({
             registerType: 'autoUpdate',
             injectRegister: 'auto',
