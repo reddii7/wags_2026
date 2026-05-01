@@ -4,13 +4,13 @@ import path from 'path';
 
 // Configuration for NEW Supabase project
 const NEW_SUPABASE_URL = process.env.NEW_SUPABASE_URL;
-const NEW_SUPABASE_KEY = process.env.NEW_SUPABASE_ANON_KEY;
+const NEW_SUPABASE_KEY = process.env.NEW_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!NEW_SUPABASE_URL || !NEW_SUPABASE_KEY) {
   console.error('❌ Missing new Supabase configuration');
   console.log('Set environment variables:');
   console.log('  NEW_SUPABASE_URL=your-new-project.supabase.co');
-  console.log('  NEW_SUPABASE_ANON_KEY=your-new-anon-key');
+  console.log('  NEW_SUPABASE_SERVICE_ROLE_KEY=your-new-service-role-key');
   process.exit(1);
 }
 
@@ -156,7 +156,7 @@ if (!backupDir) {
   console.log('');
   console.log('Required environment variables:');
   console.log('  NEW_SUPABASE_URL=your-new-project.supabase.co');
-  console.log('  NEW_SUPABASE_ANON_KEY=your-new-anon-key');
+  console.log('  NEW_SUPABASE_SERVICE_ROLE_KEY=your-new-service-role-key');
   console.log('  CONFIRM_MIGRATION=YES_I_UNDERSTAND_THIS_IS_IRREVERSIBLE');
   process.exit(1);
 }

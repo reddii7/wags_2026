@@ -50,16 +50,6 @@ function loadWinners() {
   loading.value = true;
   error.value = "";
   winners.value = [];
-  // Debug output
-  // eslint-disable-next-line no-console
-  console.log(
-    "WinnersTable: season.id",
-    props.season?.id,
-    "season.start_year",
-    props.season?.start_year,
-    "metadata.winners keys",
-    Object.keys(props.metadata?.winners || {}),
-  );
   if (!hydrateFromMetadata()) {
     error.value = "No winners data found in metadata.";
   }

@@ -31,6 +31,8 @@ export default defineConfig({
             },
             workbox: {
                 cleanupOutdatedCaches: true,
+                navigateFallback: '/index.html',
+                navigateFallbackDenylist: [/^\/api\//],
             },
             devOptions: {
                 enabled: true,

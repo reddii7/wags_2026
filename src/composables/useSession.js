@@ -48,7 +48,6 @@ export const initializeSession = async () => {
 
 export const useSession = () => {
     const role = computed(() => profile.value?.role || 'public');
-    const isAdmin = computed(() => ['admin', 'committee'].includes(role.value));
 
     const signIn = async ({ email, password }) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -64,7 +63,6 @@ export const useSession = () => {
         user: computed(() => user.value),
         profile: computed(() => profile.value),
         role,
-        isAdmin,
         loading: computed(() => loading.value),
         signIn,
         signOut,

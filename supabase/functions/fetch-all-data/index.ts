@@ -1,11 +1,29 @@
-// CORS headers for all responses
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey",
+import { createClient } from "npm:@supabase/supabase-js@2.39.7";
+
+const parseAllowedOrigins = () => {
+  const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 };
 
-import { createClient } from "npm:@supabase/supabase-js@2.39.7";
+const getCorsHeaders = (origin: string | null) => {
+  const allowedOrigins = parseAllowedOrigins();
+  const allowOrigin =
+    allowedOrigins.length === 0
+      ? "*"
+      : origin && allowedOrigins.includes(origin)
+        ? origin
+        : "null";
+
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey",
+    Vary: "Origin",
+  };
+};
 
 interface Season {
   id: string;
@@ -30,9 +48,45 @@ const toTime = (d: unknown) => {
 };
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+  const allowedOrigins = parseAllowedOrigins();
+
+  if (allowedOrigins.length > 0 && origin && !allowedOrigins.includes(origin)) {
+    return new Response(JSON.stringify({ error: "Origin not allowed" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: CORS_HEADERS });
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const requireJwt = Deno.env.get("FETCH_ALL_DATA_REQUIRE_JWT") === "true";
+  if (requireJwt) {
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length).trim()
+      : "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+
+    if (!token || !anonKey) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const authClient = createClient(Deno.env.get("SUPABASE_URL")!, anonKey);
+    const { error: authError } = await authClient.auth.getUser(token);
+    if (authError) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }
 
   // Supabase client (service role key for Edge Functions)
@@ -40,6 +94,60 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
+  const url = new URL(req.url);
+  const view = url.searchParams.get("view");
+
+  // ── SHELL VIEW ────────────────────────────────────────────────────────────────
+  // Fast boot payload: seasons, competitions, profiles, handicap_history only.
+  // No RPC calls, no per-row processing. Returned in ~100-200 ms.
+  if (view === "shell") {
+    const [seasonsRes, compsRes, profilesRes, historyRes] = await Promise.all([
+      supabase.from("seasons").select("*").order("start_year", { ascending: false }),
+      supabase
+        .from("competitions")
+        .select("id, name, competition_date, status, winner_id, prize_pot, rollover_amount, season")
+        .order("competition_date", { ascending: false }),
+      supabase
+        .from("profiles")
+        .select("id, full_name, role, league_name, current_handicap"),
+      supabase
+        .from("handicap_history")
+        .select("*, competitions(name, competition_date)")
+        .order("created_at", { ascending: false }),
+    ]);
+
+    const shellHistory = (historyRes.data || []).slice().sort((a: any, b: any) => {
+      const tA = toTime(a?.competitions?.competition_date) ?? toTime(a?.created_at) ?? 0;
+      const tB = toTime(b?.competitions?.competition_date) ?? toTime(b?.created_at) ?? 0;
+      return tB - tA;
+    });
+
+    return new Response(
+      JSON.stringify({
+        seasons: seasonsRes.data || [],
+        competitions: compsRes.data || [],
+        profiles: profilesRes.data || [],
+        handicap_history: shellHistory,
+        // empty placeholders so consumers don't need null-checks
+        results: [],
+        summaries: [],
+        rounds: [],
+        best14: {},
+        leagues: {},
+        dashboard: {},
+        winners: {},
+      }),
+      {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+  // ── END SHELL VIEW ─────────────────────────────────────────────────────────────
 
   // 1. Fetch all seasons (for selector and data grouping)
   const { data: seasons, error: seasonsError } = await supabase
@@ -92,7 +200,9 @@ Deno.serve(async (req) => {
         .select("*, competitions(name, competition_date)")
         .order("created_at", { ascending: false }),
       supabase.from("rounds").select("*"),
-      supabase.from("profiles").select("*"),
+      supabase
+        .from("profiles")
+        .select("id, full_name, role, league_name, current_handicap"),
     ]);
 
   const results = resultsRes.data || [];
@@ -307,6 +417,12 @@ Deno.serve(async (req) => {
       dashboard,
       winners,
     }),
-    { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+    {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
+    },
   );
 });

@@ -1,45 +1,5 @@
 <script setup>
-// Computed: latestCompetitionDate for hero section
-const latestCompetitionDate = computed(() => {
-  if (!latestCompetition.value || !latestCompetition.value.competition_date)
-    return null;
-  const date = new Date(latestCompetition.value.competition_date);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "2-digit",
-  });
-});
-import { computed, ref, watch, nextTick, onMounted, onUnmounted } from "vue";
-// --- Periodic and Visibility-triggered Data Refresh ---
-const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
-let refreshTimer = null;
-
-function setupPeriodicAndVisibilityRefresh() {
-  // Periodic refresh
-  refreshTimer = setInterval(() => {
-    loadHomeData();
-  }, REFRESH_INTERVAL_MS);
-
-  // Visibility API refresh
-  const handleVisibility = () => {
-    if (document.visibilityState === "visible") {
-      loadHomeData();
-    }
-  };
-  document.addEventListener("visibilitychange", handleVisibility);
-
-  // Cleanup
-  onUnmounted(() => {
-    if (refreshTimer) clearInterval(refreshTimer);
-    document.removeEventListener("visibilitychange", handleVisibility);
-  });
-}
-
-onMounted(() => {
-  setupPeriodicAndVisibilityRefresh();
-});
+import { computed, ref, watch, nextTick } from "vue";
 
 const emit = defineEmits(["navigate"]);
 const props = defineProps({
@@ -59,7 +19,6 @@ const summary = ref({
 const loading = ref(true);
 const error = ref("");
 const latestCompetition = ref(null);
-const latestMovementCompetition = ref(null);
 const latestResults = ref([]);
 const best14Leaders = ref([]);
 const leagueLeaders = ref([]);
@@ -119,6 +78,18 @@ const latestWinnerName = computed(() => {
 });
 
 const latestTopScore = computed(() => latestResults.value[0]?.score ?? "-");
+
+const latestCompetitionDate = computed(() => {
+  if (!latestCompetition.value || !latestCompetition.value.competition_date)
+    return null;
+  const date = new Date(latestCompetition.value.competition_date);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+  });
+});
 
 const latestSideGames = computed(() => {
   const snakes = latestResults.value.filter((row) => row.snake).length;
@@ -275,7 +246,8 @@ const loadHomeData = async () => {
       (altSeasonKey ? props.metadata.best14?.[altSeasonKey] : []) ||
       [];
 
-    // Sort and compute top 3 ranks (including ties for 3rd)
+    // Sort and compute leaders using rank positions first.
+    // This ensures all tied players in ranks 1-3 are shown.
     const sortedBest14 = best14
       .map((player) => ({
         ...player,
@@ -285,16 +257,30 @@ const loadHomeData = async () => {
       }))
       .sort((a, b) => Number(b.total_score) - Number(a.total_score));
 
-    // Find the top 3 unique scores
-    const uniqueScores = [
-      ...new Set(sortedBest14.map((p) => Number(p.total_score))),
-    ];
-    const top3Scores = uniqueScores.slice(0, 3);
+    const hasRankData = sortedBest14.some((p) => {
+      const rank = Number(p.position);
+      return Number.isFinite(rank);
+    });
 
-    // Filter all players whose score is in the top 3 scores
-    best14Leaders.value = sortedBest14.filter((p) =>
-      top3Scores.includes(Number(p.total_score)),
-    );
+    if (hasRankData) {
+      best14Leaders.value = sortedBest14.filter((p) => {
+        const rank = Number(p.position);
+        return Number.isFinite(rank) && rank <= 3;
+      });
+    } else {
+      // Fallback: use top 3 unique scores if rank data is unavailable.
+      const uniqueScores = [
+        ...new Set(
+          sortedBest14
+            .map((p) => Number(p.total_score))
+            .filter((score) => Number.isFinite(score)),
+        ),
+      ];
+      const top3Scores = uniqueScores.slice(0, 3);
+      best14Leaders.value = sortedBest14.filter((p) =>
+        top3Scores.includes(Number(p.total_score)),
+      );
+    }
 
     const leagues =
       props.metadata.leagues?.[seasonKey] ||
@@ -379,7 +365,18 @@ const loadHomeData = async () => {
 };
 
 watch(
-  () => props.metadata,
+  [
+    () => props.metadata.loading,
+    () => props.metadata.loadError,
+    () => props.metadata.competitions,
+    () => props.metadata.results,
+    () => props.metadata.summaries,
+    () => props.metadata.dashboard,
+    () => props.metadata.best14,
+    () => props.metadata.leagues,
+    () => props.metadata.handicap_history,
+    () => props.metadata.profiles,
+  ],
   () => {
     if (props.metadata.loading) {
       loading.value = true;
@@ -393,7 +390,7 @@ watch(
     error.value = "";
     loadHomeData();
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 );
 </script>
 

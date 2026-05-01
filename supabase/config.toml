@@ -1,0 +1,2 @@
+[functions.fetch-all-data]
+verify_jwt = false

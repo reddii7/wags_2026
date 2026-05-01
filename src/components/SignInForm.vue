@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import { useSession } from "../composables/useSession";
 
+const emit = defineEmits(["success"]);
 const showPassword = ref(false);
 const email = ref("");
 const password = ref("");
@@ -10,13 +11,14 @@ const error = ref("");
 const { signIn } = useSession();
 
 const handleSubmit = async () => {
+  if (submitting.value) return;
   submitting.value = true;
   error.value = "";
   try {
     await signIn({ email: email.value, password: password.value });
-    // Success: parent should close dialog
+    emit("success");
   } catch (loginError) {
-    error.value = loginError.message;
+    error.value = loginError?.message || "Unable to sign in.";
   } finally {
     submitting.value = false;
   }
@@ -44,12 +46,31 @@ const handleSubmit = async () => {
       autocomplete="current-password"
       required
     />
-    <label style="font-size: 0.9em; display: flex; align-items: center; gap: 0.5em; margin-bottom: 1em;">
-      <input type="checkbox" v-model="showPassword" style="width: 1em; height: 1em;" /> Show password
+    <label
+      style="
+        font-size: 0.9em;
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        margin-bottom: 1em;
+      "
+    >
+      <input
+        type="checkbox"
+        v-model="showPassword"
+        style="width: 1em; height: 1em"
+      />
+      Show password
     </label>
-    <button class="quiet-button" type="submit" :disabled="submitting">
+    <button
+      class="quiet-button"
+      type="submit"
+      :disabled="submitting"
+    >
       {{ submitting ? "Signing in…" : "Sign in" }}
     </button>
-    <p v-if="error" class="empty-state" style="margin-top: 0.5em;">{{ error }}</p>
+    <p v-if="error" class="empty-state" style="margin-top: 0.5em">
+      {{ error }}
+    </p>
   </form>
 </template>

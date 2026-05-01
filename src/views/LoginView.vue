@@ -19,7 +19,7 @@ const handleSubmit = async () => {
     const redirectTarget =
       typeof route.query.redirect === "string"
         ? route.query.redirect
-        : "/admin/competitions";
+        : "/";
     await router.push(redirectTarget);
   } catch (loginError) {
     error.value = loginError.message;
@@ -34,7 +34,7 @@ const handleSubmit = async () => {
     <section class="content-panel auth-panel compact-panel">
       <div class="panel-heading">
         <h3>Sign in</h3>
-        <span>Committee or admin</span>
+        <span>Members area</span>
       </div>
       <form class="auth-form" @submit.prevent="handleSubmit">
         <label class="field-label" for="login-email">Email</label>
