@@ -191,7 +191,11 @@ function setTab(id) {
 }
 
 .f1-section-nav {
+  display: flex;
+  gap: 1.1rem;
   padding: 0 0.5rem;
   margin-top: 0.5rem;
+  border-bottom: 1px solid var(--line);
+  justify-content: space-evenly;
 }
 </style>
