@@ -139,7 +139,8 @@ const groups = computed(() => {
     if (!separatorGroup) continue;
     separatorGroup.rows.push({
       ...rawRow,
-      position: rawRow.position ?? rawRow.pos ?? rawRow.rank_no ?? rawRow.rank ?? "",
+      position:
+        rawRow.position ?? rawRow.pos ?? rawRow.rank_no ?? rawRow.rank ?? "",
     });
   }
   if (groupsFromSeparators.length > 1) {
@@ -149,7 +150,9 @@ const groups = computed(() => {
         rows: g.rows.filter(isRenderableLeaguePlayerRow),
       }))
       .filter((g) => g.rows.length)
-      .sort((a, b) => leagueSortIndex(a.leagueName) - leagueSortIndex(b.leagueName));
+      .sort(
+        (a, b) => leagueSortIndex(a.leagueName) - leagueSortIndex(b.leagueName),
+      );
   }
 
   // First pass: normalize rows and infer league labels from explicit fields
@@ -174,7 +177,8 @@ const groups = computed(() => {
 
     normalizedRows.push({
       ...rawRow,
-      position: rawRow.position ?? rawRow.pos ?? rawRow.rank_no ?? rawRow.rank ?? "",
+      position:
+        rawRow.position ?? rawRow.pos ?? rawRow.rank_no ?? rawRow.rank ?? "",
       _leagueLabel: explicitLabel || currentLabelFromSeparator || null,
     });
   }
@@ -184,7 +188,10 @@ const groups = computed(() => {
   // Try grouping by inferred labels first.
   const mapped = new Map();
   for (const row of normalizedRows) {
-    const key = resolveLeagueLabel({ ...row, league_name: row._leagueLabel }, mapped.size);
+    const key = resolveLeagueLabel(
+      { ...row, league_name: row._leagueLabel },
+      mapped.size,
+    );
     if (!mapped.has(key)) mapped.set(key, []);
     mapped.get(key).push(row);
   }
@@ -209,8 +216,8 @@ const groups = computed(() => {
       }))
       .filter((g) => g.rows.length)
       .sort(
-      (a, b) => leagueSortIndex(a.leagueName) - leagueSortIndex(b.leagueName),
-    );
+        (a, b) => leagueSortIndex(a.leagueName) - leagueSortIndex(b.leagueName),
+      );
   }
 
   return groupedByLabel
@@ -219,7 +226,9 @@ const groups = computed(() => {
       rows: g.rows.filter(isRenderableLeaguePlayerRow),
     }))
     .filter((g) => g.rows.length)
-    .sort((a, b) => leagueSortIndex(a.leagueName) - leagueSortIndex(b.leagueName));
+    .sort(
+      (a, b) => leagueSortIndex(a.leagueName) - leagueSortIndex(b.leagueName),
+    );
 });
 
 const leagueNavIdx = ref(0);
@@ -401,7 +410,11 @@ const closeBest10 = () => {
       No league data found for this season.
     </p>
 
-    <nav v-if="groups.length > 1" class="league-round-nav" aria-label="League selector">
+    <nav
+      v-if="groups.length > 1"
+      class="league-round-nav"
+      aria-label="League selector"
+    >
       <div class="league-round-scroll">
         <button
           v-for="(name, idx) in leagueNavList"

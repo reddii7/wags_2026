@@ -7,7 +7,7 @@
         <h3>MORE</h3>
         <span>Updates coming soon</span>
       </div>
-      <p class="empty-state">Under developement.</p>
+      <p class="empty-state">Under development.</p>
     </section>
   </section>
 </template>
