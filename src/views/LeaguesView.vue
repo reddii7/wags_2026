@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
 import { triggerHapticFeedback } from "../utils/haptics";
@@ -9,31 +9,232 @@ const props = defineProps({
   metadata: { type: Object, required: true },
 });
 
-const groups = computed(() => {
+const rawLeagueRows = computed(() => {
   // Filter by selected season (id or start_year)
   const seasonId = props.season?.id;
   const seasonYear = String(props.season?.start_year);
-  const leagueRows =
+  return (
     props.metadata?.leagues?.[seasonId] ||
     props.metadata?.leagues?.[seasonYear] ||
-    [];
-  const mapped = new Map();
-  for (const row of leagueRows) {
-    if (!mapped.has(row.league_name)) mapped.set(row.league_name, []);
-    mapped.get(row.league_name).push({
-      ...row,
-      position: row.position ?? row.pos ?? row.rank_no ?? "",
+    []
+  );
+});
+
+const canonicalLeagueNames = [
+  "PREMIERSHIP",
+  "CHAMPIONSHIP",
+  "LEAGUE 1",
+  "LEAGUE 2",
+];
+
+const leagueSortIndex = (name) => {
+  const normalized = String(name || "").toUpperCase();
+  const idx = canonicalLeagueNames.findIndex((n) => n === normalized);
+  if (idx !== -1) return idx;
+  const numMatch = normalized.match(/\bLEAGUE\s*(\d+)\b/);
+  if (numMatch) return Number(numMatch[1]) + 1;
+  return 999;
+};
+
+const getPlayerLabel = (row) =>
+  String(row?.full_name || row?.player || row?.name || "").trim();
+
+const normalizeLeagueToken = (value) =>
+  String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const parseSeparatorLeagueLabel = (row) => {
+  const label = normalizeLeagueToken(getPlayerLabel(row));
+  if (/^LEAGUE\s*\d+$/.test(label)) {
+    const num = label.match(/\d+/)?.[0] || "";
+    return num ? `LEAGUE ${num}` : label;
+  }
+  if (canonicalLeagueNames.includes(label)) return label;
+  return null;
+};
+
+const isLeagueSeparatorRow = (row) => {
+  const rawName = getPlayerLabel(row);
+  if (!rawName) return false;
+  const label = normalizeLeagueToken(rawName);
+  const isLabel =
+    /^LEAGUE\s*\d+$/.test(label) ||
+    canonicalLeagueNames.includes(label) ||
+    /^LEAGUE/.test(label);
+  const hasNoScore =
+    row?.total_score === undefined ||
+    row?.total_score === null ||
+    row?.total_score === "";
+  return isLabel && hasNoScore;
+};
+
+const isRenderableLeaguePlayerRow = (row) => {
+  if (parseSeparatorLeagueLabel(row)) return false;
+  if (isLeagueSeparatorRow(row)) return false;
+  const hasName = !!getPlayerLabel(row);
+  return hasName;
+};
+
+const resolveLeagueLabel = (row, fallbackIndex) => {
+  const fromRow =
+    row?.league_name ||
+    row?.league ||
+    row?.division ||
+    row?.division_name ||
+    row?.group_name ||
+    row?.tier ||
+    row?.league_title;
+
+  if (fromRow !== undefined && fromRow !== null && String(fromRow).trim()) {
+    return String(fromRow);
+  }
+
+  return canonicalLeagueNames[fallbackIndex] || `LEAGUE ${fallbackIndex + 1}`;
+};
+
+const buildGroupsFromResets = (rows) => {
+  const grouped = [];
+  let current = null;
+  let lastPos = -Infinity;
+
+  rows.forEach((row) => {
+    const pos = Number(row.position ?? row.pos ?? row.rank_no ?? row.rank);
+    const isValidPos = Number.isFinite(pos);
+    const startsNewGroup = !current || (isValidPos && pos <= lastPos);
+
+    if (startsNewGroup) {
+      current = {
+        leagueName: resolveLeagueLabel(row, grouped.length),
+        rows: [],
+      };
+      grouped.push(current);
+      lastPos = -Infinity;
+    }
+
+    current.rows.push(row);
+    if (isValidPos) lastPos = pos;
+  });
+
+  return grouped;
+};
+
+const groups = computed(() => {
+  const leagueRows = rawLeagueRows.value;
+  if (!Array.isArray(leagueRows) || !leagueRows.length) return [];
+
+  // Highest-priority parser: payloads that include embedded separator rows
+  // such as "LEAGUE 1" inside the row list.
+  const groupsFromSeparators = [];
+  let separatorGroup = null;
+  for (const rawRow of leagueRows) {
+    const separatorLabel = parseSeparatorLeagueLabel(rawRow);
+    if (separatorLabel) {
+      separatorGroup = { leagueName: separatorLabel, rows: [] };
+      groupsFromSeparators.push(separatorGroup);
+      continue;
+    }
+    if (!separatorGroup) continue;
+    separatorGroup.rows.push({
+      ...rawRow,
+      position: rawRow.position ?? rawRow.pos ?? rawRow.rank_no ?? rawRow.rank ?? "",
     });
   }
-  return [...mapped.entries()].map(([leagueName, players]) => ({
+  if (groupsFromSeparators.length > 1) {
+    return groupsFromSeparators
+      .map((g) => ({
+        leagueName: g.leagueName,
+        rows: g.rows.filter(isRenderableLeaguePlayerRow),
+      }))
+      .filter((g) => g.rows.length)
+      .sort((a, b) => leagueSortIndex(a.leagueName) - leagueSortIndex(b.leagueName));
+  }
+
+  // First pass: normalize rows and infer league labels from explicit fields
+  // or embedded separator rows in flat payloads.
+  let currentLabelFromSeparator = null;
+  const normalizedRows = [];
+  for (const rawRow of leagueRows) {
+    if (isLeagueSeparatorRow(rawRow)) {
+      currentLabelFromSeparator =
+        parseSeparatorLeagueLabel(rawRow) ||
+        String(rawRow.full_name || rawRow.player || rawRow.name);
+      continue;
+    }
+    const explicitLabel =
+      rawRow?.league_name ||
+      rawRow?.league ||
+      rawRow?.division ||
+      rawRow?.division_name ||
+      rawRow?.group_name ||
+      rawRow?.tier ||
+      rawRow?.league_title;
+
+    normalizedRows.push({
+      ...rawRow,
+      position: rawRow.position ?? rawRow.pos ?? rawRow.rank_no ?? rawRow.rank ?? "",
+      _leagueLabel: explicitLabel || currentLabelFromSeparator || null,
+    });
+  }
+
+  if (!normalizedRows.length) return [];
+
+  // Try grouping by inferred labels first.
+  const mapped = new Map();
+  for (const row of normalizedRows) {
+    const key = resolveLeagueLabel({ ...row, league_name: row._leagueLabel }, mapped.size);
+    if (!mapped.has(key)) mapped.set(key, []);
+    mapped.get(key).push(row);
+  }
+
+  const groupedByLabel = [...mapped.entries()].map(([leagueName, players]) => ({
     leagueName,
-    rows: players,
+    rows: [...players].sort((a, b) => {
+      const pa = Number(a.position);
+      const pb = Number(b.position);
+      const va = Number.isFinite(pa) ? pa : 999;
+      const vb = Number.isFinite(pb) ? pb : 999;
+      return va - vb;
+    }),
   }));
+
+  // If everything collapses into one group, recover groups by detecting position resets.
+  if (groupedByLabel.length <= 1 && normalizedRows.length > 15) {
+    return buildGroupsFromResets(normalizedRows)
+      .map((g) => ({
+        leagueName: g.leagueName,
+        rows: g.rows.filter(isRenderableLeaguePlayerRow),
+      }))
+      .filter((g) => g.rows.length)
+      .sort(
+      (a, b) => leagueSortIndex(a.leagueName) - leagueSortIndex(b.leagueName),
+    );
+  }
+
+  return groupedByLabel
+    .map((g) => ({
+      leagueName: g.leagueName,
+      rows: g.rows.filter(isRenderableLeaguePlayerRow),
+    }))
+    .filter((g) => g.rows.length)
+    .sort((a, b) => leagueSortIndex(a.leagueName) - leagueSortIndex(b.leagueName));
 });
 
 const leagueNavIdx = ref(0);
 const leagueNavList = computed(() => groups.value.map((g) => g.leagueName));
 const selectedGroup = computed(() => groups.value[leagueNavIdx.value] || null);
+
+watch(groups, (nextGroups) => {
+  if (!nextGroups.length) {
+    leagueNavIdx.value = 0;
+    return;
+  }
+  if (leagueNavIdx.value > nextGroups.length - 1) {
+    leagueNavIdx.value = 0;
+  }
+});
 const selectedPlayer = ref(null);
 const detailRows = ref([]);
 const detailLoading = ref(false);
@@ -96,7 +297,7 @@ const formatDate = (value) => {
 const formatLeagueTitle = (value) => {
   if (!value) return "LEAGUE";
   // Map league names to new names
-  const leagueMap = ["PREMIERSHIP", "CHAMPIONSHIP", "LEAGUE 1", "LEAGUE 2"];
+  const leagueMap = canonicalLeagueNames;
   // Try to match by number or order
   const match = String(value).match(/\d+/);
   if (match && leagueMap[Number(match[0]) - 1]) {
@@ -200,18 +401,21 @@ const closeBest10 = () => {
       No league data found for this season.
     </p>
 
-    <div v-if="groups.length" class="season-selector" role="tablist" aria-label="League selector">
-      <button
-        v-for="(name, idx) in leagueNavList"
-        :key="name"
-        type="button"
-        class="season-pill"
-        :class="{ active: leagueNavIdx === idx }"
-        @click="leagueNavIdx = idx"
-      >
-        {{ formatLeagueTitle(name) }}
-      </button>
-    </div>
+    <nav v-if="groups.length > 1" class="league-round-nav" aria-label="League selector">
+      <div class="league-round-scroll">
+        <button
+          v-for="(name, idx) in leagueNavList"
+          :key="name"
+          type="button"
+          class="league-round-item"
+          :class="{ active: leagueNavIdx === idx }"
+          @click="leagueNavIdx = idx"
+        >
+          {{ formatLeagueTitle(name) }}
+          <span v-if="leagueNavIdx === idx" class="league-round-line"></span>
+        </button>
+      </div>
+    </nav>
 
     <section
       v-if="selectedGroup"
@@ -258,3 +462,51 @@ const closeBest10 = () => {
     </AppDialog>
   </section>
 </template>
+
+<style scoped>
+.league-round-nav {
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  padding: 0.1rem 0;
+}
+
+.league-round-scroll {
+  display: flex;
+  overflow-x: auto;
+  padding: 0 1rem;
+  gap: 0.25rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.league-round-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.league-round-item {
+  position: relative;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.6rem 0.75rem;
+  min-width: 3.6rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.league-round-item.active {
+  color: var(--text);
+}
+
+.league-round-line {
+  position: absolute;
+  bottom: 0;
+  left: 0.4rem;
+  right: 0.4rem;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+}
+</style>

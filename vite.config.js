@@ -5,10 +5,22 @@ import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+    define: {
+        __APP_VERSION__: JSON.stringify(process.env.COMMIT_REF || String(Date.now())),
+    },
+    server: {
+        host: true,
+        port: 5173,
+        strictPort: true,
+        headers: {
+            'Cache-Control': 'no-store',
+        },
+    },
     plugins: [
         vue(),
         VitePWA({
             registerType: 'autoUpdate',
+            injectRegister: 'auto',
             manifest: {
                 name: 'WAGS',
                 short_name: 'WAGS',
@@ -31,11 +43,13 @@ export default defineConfig({
             },
             workbox: {
                 cleanupOutdatedCaches: true,
+                skipWaiting: true,
+                clientsClaim: true,
                 navigateFallback: '/index.html',
                 navigateFallbackDenylist: [/^\/api\//],
             },
             devOptions: {
-                enabled: true,
+                enabled: false,
             },
         }),
     ],

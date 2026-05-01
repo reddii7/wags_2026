@@ -1,5 +1,4 @@
-@media (max-width: 600px) {
-}
+@media (max-width: 600px) {}
 
 /* Home hero block */
 .hero-block.home-hero {
@@ -104,7 +103,7 @@
     display: block;
     height: 0.19rem;
     width: 100%;
-    background: #ff0000;
+    background: var(--accent);
     border-radius: 0.12rem 0.12rem 0 0;
     position: absolute;
     left: 0;
@@ -339,15 +338,15 @@ select {
     width: 100%;
     padding: 0.52rem 0.56rem calc(0.86rem + env(safe-area-inset-bottom, 0px));
     border-radius: 0;
-    background: rgba(var(--bg-rgb), 0.88);
-    backdrop-filter: blur(22px) saturate(165%);
-    -webkit-backdrop-filter: blur(22px) saturate(165%);
+    background: var(--bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     box-shadow: none;
-    border-top: 1px solid color-mix(in srgb, var(--line) 44%, transparent);
+    border-top: 0;
     border-left: 0;
     border-right: 0;
     border-bottom: 0;
-    transition: transform 220ms ease;
+    transition: transform 220ms ease, opacity 220ms ease;
 }
 
 .bottom-nav-link {
@@ -422,10 +421,12 @@ select {
 }
 
 .app-shell.chrome-hidden .bottom-nav {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-}@media (max-width: 900px) {
+    opacity: 0;
+    transform: translateY(120%);
+    pointer-events: none;
+}
+
+@media (max-width: 900px) {
     .app-main {
         width: min(100%, 680px);
         padding: 0.72rem;
@@ -455,7 +456,9 @@ select {
     .home-dashboard {
         grid-template-columns: 1fr 1fr;
     }
-}@media (max-width: 640px) {
+}
+
+@media (max-width: 640px) {
     .app-main {
         padding: 4.05rem 0.74rem calc(5.8rem + env(safe-area-inset-bottom, 0px));
     }
@@ -775,10 +778,6 @@ select {
     color: var(--text);
 }
 
-.season-pill.active {
-    /* No italic for active pill */
-}
-
 .content-panel {
     padding: 1rem 0;
     border-radius: 32px;
@@ -1073,7 +1072,9 @@ select {
     flex: 0 0 auto;
     padding: 0.38rem 0.58rem;
     font-size: 0.78rem;
-}@keyframes dialog-fade-in {
+}
+
+@keyframes dialog-fade-in {
     from {
         opacity: 0;
     }
@@ -1081,7 +1082,9 @@ select {
     to {
         opacity: 1;
     }
-}@keyframes dialog-backdrop-in {
+}
+
+@keyframes dialog-backdrop-in {
     from {
         opacity: 0;
     }
@@ -1089,7 +1092,9 @@ select {
     to {
         opacity: 1;
     }
-}@keyframes dialog-panel-in {
+}
+
+@keyframes dialog-panel-in {
     from {
         opacity: 0;
         transform: translateY(10px) scale(0.985);
@@ -1114,7 +1119,9 @@ select {
 .page-fade-enter-from,
 .page-fade-leave-to {
     opacity: 0;
-}@media (max-width: 900px) {
+}
+
+@media (max-width: 900px) {
     .app-main {
         width: min(100%, 680px);
         padding: 0.72rem;
@@ -1144,7 +1151,9 @@ select {
     .home-dashboard {
         grid-template-columns: 1fr 1fr;
     }
-}@media (max-width: 640px) {
+}
+
+@media (max-width: 640px) {
     .app-main {
         padding: 4.05rem 0.74rem calc(5.8rem + env(safe-area-inset-bottom, 0px));
     }
@@ -1292,7 +1301,9 @@ select {
 .bottom-nav-link.router-link-active {
     background: transparent !important;
     box-shadow: none !important;
-}@keyframes pulse {
+}
+
+@keyframes pulse {
 
     0%,
     100% {
