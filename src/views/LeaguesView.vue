@@ -472,15 +472,9 @@ const closeBest10 = () => {
 
 .league-round-scroll {
   display: flex;
-  overflow-x: auto;
-  padding: 0 1rem;
+  justify-content: space-evenly;
+  padding: 0 0.5rem;
   gap: 0.25rem;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.league-round-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .league-round-item {
