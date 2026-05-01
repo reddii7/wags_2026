@@ -103,10 +103,15 @@ Deno.serve(async (req) => {
   // No RPC calls, no per-row processing. Returned in ~100-200 ms.
   if (view === "shell") {
     const [seasonsRes, compsRes, profilesRes, historyRes] = await Promise.all([
-      supabase.from("seasons").select("*").order("start_year", { ascending: false }),
+      supabase
+        .from("seasons")
+        .select("*")
+        .order("start_year", { ascending: false }),
       supabase
         .from("competitions")
-        .select("id, name, competition_date, status, winner_id, prize_pot, rollover_amount, season")
+        .select(
+          "id, name, competition_date, status, winner_id, prize_pot, rollover_amount, season",
+        )
         .order("competition_date", { ascending: false }),
       supabase
         .from("profiles")
@@ -117,11 +122,19 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: false }),
     ]);
 
-    const shellHistory = (historyRes.data || []).slice().sort((a: any, b: any) => {
-      const tA = toTime(a?.competitions?.competition_date) ?? toTime(a?.created_at) ?? 0;
-      const tB = toTime(b?.competitions?.competition_date) ?? toTime(b?.created_at) ?? 0;
-      return tB - tA;
-    });
+    const shellHistory = (historyRes.data || [])
+      .slice()
+      .sort((a: any, b: any) => {
+        const tA =
+          toTime(a?.competitions?.competition_date) ??
+          toTime(a?.created_at) ??
+          0;
+        const tB =
+          toTime(b?.competitions?.competition_date) ??
+          toTime(b?.created_at) ??
+          0;
+        return tB - tA;
+      });
 
     return new Response(
       JSON.stringify({

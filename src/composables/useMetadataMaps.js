@@ -11,34 +11,34 @@ import { computed } from "vue";
  *   );
  */
 export function useMetadataMaps(metadataRef) {
-  /** Map<userId, profile> */
-  const playerById = computed(() => {
-    const map = new Map();
-    for (const p of metadataRef.value?.profiles ?? []) {
-      map.set(p.id, p);
-    }
-    return map;
-  });
+    /** Map<userId, profile> */
+    const playerById = computed(() => {
+        const map = new Map();
+        for (const p of metadataRef.value?.profiles ?? []) {
+            map.set(p.id, p);
+        }
+        return map;
+    });
 
-  /** Map<competitionId, competition> */
-  const compById = computed(() => {
-    const map = new Map();
-    for (const c of metadataRef.value?.competitions ?? []) {
-      map.set(c.id, c);
-    }
-    return map;
-  });
+    /** Map<competitionId, competition> */
+    const compById = computed(() => {
+        const map = new Map();
+        for (const c of metadataRef.value?.competitions ?? []) {
+            map.set(c.id, c);
+        }
+        return map;
+    });
 
-  /** Map<seasonId, Set<competitionId>> */
-  const seasonCompIds = computed(() => {
-    const map = new Map();
-    for (const c of metadataRef.value?.competitions ?? []) {
-      if (!c.season) continue;
-      if (!map.has(c.season)) map.set(c.season, new Set());
-      map.get(c.season).add(c.id);
-    }
-    return map;
-  });
+    /** Map<seasonId, Set<competitionId>> */
+    const seasonCompIds = computed(() => {
+        const map = new Map();
+        for (const c of metadataRef.value?.competitions ?? []) {
+            if (!c.season) continue;
+            if (!map.has(c.season)) map.set(c.season, new Set());
+            map.get(c.season).add(c.id);
+        }
+        return map;
+    });
 
-  return { playerById, compById, seasonCompIds };
+    return { playerById, compById, seasonCompIds };
 }

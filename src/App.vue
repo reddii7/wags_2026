@@ -9,6 +9,7 @@ import HomeView from "./views/HomeView.vue";
 import HandicapsView from "./views/HandicapsView.vue";
 import StatsHubView from "./views/StatsHubView.vue";
 import RSCupView from "./views/RSCupView.vue";
+import MoreView from "./views/MoreView.vue";
 const selectedCompetitionId = ref(null);
 
 // Handle navigation events from child components
@@ -75,7 +76,8 @@ async function loadGlobalMetadata() {
           : shellData.error?.message || "Server error",
       );
     }
-    if (!shellRes.ok) throw new Error(`Could not load data (${shellRes.status}).`);
+    if (!shellRes.ok)
+      throw new Error(`Could not load data (${shellRes.status}).`);
 
     // Merge shell data, but keep boot loader on first load until full stats arrive.
     Object.assign(globalMetadata.value, shellData);
@@ -144,6 +146,12 @@ const sections = [
     label: "RS CUP",
     icon: "trophy",
     component: markRaw(RSCupView),
+  },
+  {
+    name: "more",
+    label: "MORE",
+    icon: "more",
+    component: markRaw(MoreView),
   },
 ];
 
@@ -323,14 +331,10 @@ onBeforeUnmount(() => {
 }
 
 .bottom-nav {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  padding: 0 0.5rem;
+  justify-content: center;
 }
 
 .bottom-nav-link {
-  flex: 1;
-  max-width: 80px;
+  max-width: none;
 }
 </style>

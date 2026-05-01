@@ -17,9 +17,7 @@ const handleSubmit = async () => {
   try {
     await signIn({ email: email.value, password: password.value });
     const redirectTarget =
-      typeof route.query.redirect === "string"
-        ? route.query.redirect
-        : "/";
+      typeof route.query.redirect === "string" ? route.query.redirect : "/";
     await router.push(redirectTarget);
   } catch (loginError) {
     error.value = loginError.message;

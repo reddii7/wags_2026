@@ -62,11 +62,7 @@ const handleSubmit = async () => {
       />
       Show password
     </label>
-    <button
-      class="quiet-button"
-      type="submit"
-      :disabled="submitting"
-    >
+    <button class="quiet-button" type="submit" :disabled="submitting">
       {{ submitting ? "Signing in…" : "Sign in" }}
     </button>
     <p v-if="error" class="empty-state" style="margin-top: 0.5em">

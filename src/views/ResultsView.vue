@@ -31,9 +31,7 @@ const rows = computed(() => {
   const seasonYear = String(props.season?.start_year);
   const seasonCompIds = new Set(
     (props.metadata?.competitions || [])
-      .filter(
-        (c) => c.season === seasonId || String(c.season) === seasonYear,
-      )
+      .filter((c) => c.season === seasonId || String(c.season) === seasonYear)
       .map((c) => c.id),
   );
   return results.value
