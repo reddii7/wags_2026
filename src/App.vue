@@ -102,11 +102,16 @@ const sections = [
 ];
 
 const currentSection = ref(sections[0]);
+const selectedCompetitionId = ref(null);
 
 // Ensure currentSection is always a valid section object
 function switchSection(section) {
   triggerHapticFeedback();
   currentSection.value = section || sections[0];
+}
+
+function handleNavigate(competitionId) {
+  selectedCompetitionId.value = competitionId;
 }
 
 const currentSectionComponent = computed(

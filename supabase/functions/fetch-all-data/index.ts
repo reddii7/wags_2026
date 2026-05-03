@@ -102,7 +102,14 @@ Deno.serve(async (req) => {
   // Fast boot payload: seasons, competitions, profiles, handicap_history only.
   // No RPC calls, no per-row processing. Returned in ~100-200 ms.
   if (view === "shell") {
-    const [seasonsRes, compsRes, profilesRes, historyRes] = await Promise.all([
+    const [
+      seasonsRes,
+      compsRes,
+      profilesRes,
+      historyRes,
+      tournamentsRes,
+      matchesRes,
+    ] = await Promise.all([
       supabase
         .from("seasons")
         .select("*")
@@ -120,6 +127,15 @@ Deno.serve(async (req) => {
         .from("handicap_history")
         .select("*, competitions(name, competition_date)")
         .order("created_at", { ascending: false }),
+      supabase
+        .from("matchplay_tournaments")
+        .select("*")
+        .order("id", { ascending: false }),
+      supabase
+        .from("matchplay_matches")
+        .select("*")
+        .order("round_number", { ascending: true })
+        .order("id", { ascending: true }),
     ]);
 
     const shellHistory = (historyRes.data || [])
@@ -150,6 +166,8 @@ Deno.serve(async (req) => {
         leagues: {},
         dashboard: {},
         winners: {},
+        matchplay_tournaments: tournamentsRes.data || [],
+        matchplay_matches: matchesRes.data || [],
       }),
       {
         headers: {
@@ -190,38 +208,64 @@ Deno.serve(async (req) => {
   const competitionIds = competitions.map((c) => c.id);
 
   // 3. Fetch all related data (flat arrays)
-  const [resultsRes, summariesRes, historyRes, roundsRes, profilesRes] =
-    await Promise.all([
-      competitionIds.length
-        ? supabase
-            .from("public_results_view")
-            .select("*")
-            .in("competition_id", competitionIds)
-        : { data: [], error: null },
-      competitionIds.length
-        ? supabase
-            .from("results_summary")
-            .select(
-              "competition_id, winner_names, amount, winner_type, num_players, snakes, camels, week_number, week_date, second_names",
-            )
-            .in("competition_id", competitionIds)
-        : { data: [], error: null },
-      // IMPORTANT: do NOT order by joined table columns in PostgREST builder
-      // Order locally instead (competition_date desc, then created_at desc)
-      supabase
-        .from("handicap_history")
-        .select("*, competitions(name, competition_date)")
-        .order("created_at", { ascending: false }),
-      supabase.from("rounds").select("*"),
-      supabase
-        .from("profiles")
-        .select("id, full_name, role, league_name, current_handicap"),
-    ]);
+  const [
+    resultsRes,
+    summariesRes,
+    historyRes,
+    roundsRes,
+    profilesRes,
+    tournamentsRes,
+    matchesRes,
+  ] = await Promise.all([
+    competitionIds.length
+      ? supabase
+          .from("public_results_view")
+          .select("*")
+          .in("competition_id", competitionIds)
+      : { data: [], error: null },
+    competitionIds.length
+      ? supabase
+          .from("results_summary")
+          .select(
+            "competition_id, winner_names, amount, winner_type, num_players, snakes, camels, week_number, week_date, second_names",
+          )
+          .in("competition_id", competitionIds)
+      : { data: [], error: null },
+    // IMPORTANT: do NOT order by joined table columns in PostgREST builder
+    // Order locally instead (competition_date desc, then created_at desc)
+    supabase
+      .from("handicap_history")
+      .select("*, competitions(name, competition_date)")
+      .order("created_at", { ascending: false }),
+    supabase.from("rounds").select("*"),
+    supabase
+      .from("profiles")
+      .select("id, full_name, role, league_name, current_handicap"),
+    supabase
+      .from("matchplay_tournaments")
+      .select("*")
+      .order("id", { ascending: false }),
+    supabase
+      .from("matchplay_matches")
+      .select("*")
+      .order("round_number", { ascending: true })
+      .order("id", { ascending: true }),
+  ]);
 
   const results = resultsRes.data || [];
   const summaries = summariesRes.data || [];
   const rounds = roundsRes.data || [];
   const profiles = profilesRes.data || [];
+  const matchplay_tournaments = tournamentsRes.data || [];
+  const matchplay_matches = matchesRes.data || [];
+
+  // Check for tournament query errors
+  if (tournamentsRes.error) {
+    console.error("Tournaments query error:", tournamentsRes.error);
+  }
+  if (matchesRes.error) {
+    console.error("Matches query error:", matchesRes.error);
+  }
 
   // Sort + dedupe handicap_history
   const handicap_history_raw = historyRes.data || [];
@@ -429,6 +473,8 @@ Deno.serve(async (req) => {
       leagues,
       dashboard,
       winners,
+      matchplay_tournaments,
+      matchplay_matches,
     }),
     {
       headers: {
