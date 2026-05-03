@@ -2,7 +2,6 @@
 import { ref } from "vue";
 import { useSession } from "../composables/useSession";
 
-const emit = defineEmits(["success"]);
 const showPassword = ref(false);
 const email = ref("");
 const password = ref("");
@@ -11,14 +10,13 @@ const error = ref("");
 const { signIn } = useSession();
 
 const handleSubmit = async () => {
-  if (submitting.value) return;
   submitting.value = true;
   error.value = "";
   try {
     await signIn({ email: email.value, password: password.value });
-    emit("success");
+    // Success: parent should close dialog
   } catch (loginError) {
-    error.value = loginError?.message || "Unable to sign in.";
+    error.value = loginError.message;
   } finally {
     submitting.value = false;
   }

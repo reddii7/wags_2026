@@ -1,29 +1,19 @@
 <script setup>
 import { ref, computed, onBeforeUnmount, onMounted, markRaw } from "vue";
 import { useTheme } from "./composables/useTheme";
+import { useSession } from "./composables/useSession";
 import NavIcon from "./components/NavIcon.vue";
+import AppDialog from "./components/AppDialog.vue";
+import SignInForm from "./components/SignInForm.vue";
 import { triggerHapticFeedback } from "./utils/haptics";
 import { supabase } from "./lib/supabase";
-import { FETCH_ALL_DATA_URL } from "./lib/supabaseConfig.js";
+import { FETCH_ALL_DATA_URL, SUPABASE_ANON_KEY } from "./lib/supabaseConfig.js";
 import HomeView from "./views/HomeView.vue";
 import HandicapsView from "./views/HandicapsView.vue";
 import StatsHubView from "./views/StatsHubView.vue";
 import RSCupView from "./views/RSCupView.vue";
-import MoreView from "./views/MoreView.vue";
-const selectedCompetitionId = ref(null);
-
-// Handle navigation events from child components
-const handleNavigate = (data) => {
-  if (data?.competitionId) {
-    selectedCompetitionId.value = data.competitionId;
-  }
-  if (data?.section) {
-    const section = visibleSections.value.find((s) => s.name === data.section);
-    if (section) {
-      switchSection(section);
-    }
-  }
-};
+const { user, loading: sessionLoading, signOut } = useSession();
+const showSignIn = ref(false);
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -38,7 +28,6 @@ const globalMetadata = ref({
 });
 const hasScrolled = ref(false);
 let lastScrollY = 0;
-let hasInitialFullData = false;
 
 let reloadDebounceTimer = null;
 function scheduleGlobalMetadataReload() {
@@ -50,52 +39,15 @@ function scheduleGlobalMetadataReload() {
 }
 
 async function loadGlobalMetadata() {
-  const isInitialLoad = !hasInitialFullData;
-  if (isInitialLoad) {
-    globalMetadata.value.loading = true;
-  }
+  globalMetadata.value.loading = true;
   globalMetadata.value.loadError = "";
-
-  // ── Phase 1: shell (seasons, competitions, profiles, handicap_history) ──────
-  // This is fast (~100-200 ms) and enough to show the nav + HandicapsView.
-  try {
-    const shellRes = await fetch(`${FETCH_ALL_DATA_URL}?view=shell`, {
-      cache: "no-store",
-    });
-    const shellText = await shellRes.text();
-    let shellData;
-    try {
-      shellData = shellText ? JSON.parse(shellText) : {};
-    } catch {
-      throw new Error("Server returned invalid data.");
-    }
-    if (shellData?.error) {
-      throw new Error(
-        typeof shellData.error === "string"
-          ? shellData.error
-          : shellData.error?.message || "Server error",
-      );
-    }
-    if (!shellRes.ok)
-      throw new Error(`Could not load data (${shellRes.status}).`);
-
-    // Merge shell data, but keep boot loader on first load until full stats arrive.
-    Object.assign(globalMetadata.value, shellData);
-  } catch (err) {
-    if (isInitialLoad) {
-      globalMetadata.value.loadError =
-        err?.message || "Could not load data. Try again.";
-      globalMetadata.value.loading = false;
-      return;
-    }
-    console.error("Failed to load shell metadata:", err);
-  }
-
-  // ── Phase 2: full stats (results, summaries, best14, leagues, etc.) ─────────
-  // Heavier RPC-driven payload; completes in background after UI is visible.
   try {
     const response = await fetch(FETCH_ALL_DATA_URL, {
       cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_ANON_KEY,
+      },
     });
     const text = await response.text();
     let data;
@@ -104,28 +56,27 @@ async function loadGlobalMetadata() {
     } catch {
       throw new Error("Server returned invalid data.");
     }
+    if (data?.error) {
+      const msg =
+        typeof data.error === "string"
+          ? data.error
+          : data.error?.message || "Server error";
+      throw new Error(msg);
+    }
     if (!response.ok) {
       throw new Error(`Could not load data (${response.status}).`);
     }
-    if (data?.error) {
-      throw new Error(
-        typeof data.error === "string"
-          ? data.error
-          : data.error?.message || "Server error",
-      );
-    }
     Object.assign(globalMetadata.value, data);
-    hasInitialFullData = true;
   } catch (err) {
     globalMetadata.value.loadError =
       err?.message || "Could not load data. Try again.";
-    console.error("Failed to load full stats:", err);
+    console.error("Failed to load global metadata:", err);
   } finally {
-    if (isInitialLoad) {
-      globalMetadata.value.loading = false;
-    }
+    globalMetadata.value.loading = false;
   }
 }
+
+// ...existing code...
 
 const sections = [
   { name: "home", label: "Home", icon: "home", component: markRaw(HomeView) },
@@ -147,22 +98,16 @@ const sections = [
     icon: "trophy",
     component: markRaw(RSCupView),
   },
-  {
-    name: "more",
-    label: "MORE",
-    icon: "more",
-    component: markRaw(MoreView),
-  },
+  // ...existing code...
 ];
 
 const currentSection = ref(sections[0]);
 
+// Ensure currentSection is always a valid section object
 function switchSection(section) {
   triggerHapticFeedback();
   currentSection.value = section || sections[0];
 }
-
-const visibleSections = computed(() => sections);
 
 const currentSectionComponent = computed(
   () => currentSection.value?.component || sections[0].component,
@@ -263,7 +208,7 @@ onBeforeUnmount(() => {
 
     <nav class="bottom-nav" aria-label="Primary">
       <button
-        v-for="section in visibleSections"
+        v-for="section in sections"
         :key="section.name"
         class="bottom-nav-link"
         :class="{ active: currentSectionName === section.name }"
@@ -272,7 +217,10 @@ onBeforeUnmount(() => {
         <NavIcon :name="section.icon" />
         <span class="bottom-nav-label">{{ section.label }}</span>
       </button>
+      <!-- ...existing nav code... -->
     </nav>
+
+    <!-- ...existing code... -->
   </div>
 </template>
 
@@ -320,21 +268,5 @@ onBeforeUnmount(() => {
 
 .app-load-error__retry:hover {
   opacity: 0.9;
-}
-
-.menu-dots {
-  display: none;
-  width: 20px;
-  height: 20px;
-  justify-content: center;
-  align-items: center;
-}
-
-.bottom-nav {
-  justify-content: center;
-}
-
-.bottom-nav-link {
-  max-width: none;
 }
 </style>
