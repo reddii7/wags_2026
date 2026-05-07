@@ -383,9 +383,23 @@ Deno.serve(async (req) => {
       .filter(([, rows]) => Array.isArray(rows) && rows.length > 0)
       .map(([competitionId]) => competitionId),
   );
+  const validResultUsersByCompetition = new Map<string, Set<string>>();
+  Object.entries(resultsByComp).forEach(([competitionId, rows]) => {
+    const users = new Set(
+      (rows || [])
+        .map((row: any) => String(row?.user_id || ""))
+        .filter(Boolean),
+    );
+    validResultUsersByCompetition.set(competitionId, users);
+  });
   dedupedHandicapHistory = dedupedHandicapHistory.filter((entry: any) => {
     const competitionId = String(entry?.competition_id || "");
-    return competitionId && validResultCompetitionIds.has(competitionId);
+    if (!competitionId || !validResultCompetitionIds.has(competitionId)) {
+      return false;
+    }
+    const userId = String(entry?.user_id || "");
+    const allowedUsers = validResultUsersByCompetition.get(competitionId);
+    return !!userId && !!allowedUsers && allowedUsers.has(userId);
   });
 
   const summariesMapGlobal = new Map(
