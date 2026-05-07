@@ -449,6 +449,44 @@ Deno.serve(async (req) => {
         const rows = resultsByComp[latestComp.id] || [];
         dash.results = rows;
 
+        // HomeView consumes dashboard leader cards from these keys.
+        // Build them directly from DB-backed season RPC datasets.
+        const seasonBest14 = Array.isArray(best14[season.id])
+          ? best14[season.id]
+          : [];
+        dash.best14_leaders = seasonBest14.slice(0, 10).map((row: any) => ({
+          id: row?.user_id,
+          user_id: row?.user_id,
+          full_name: row?.full_name || "",
+          position: row?.rank_no ?? null,
+          total_score: row?.best_total ?? row?.total_score ?? 0,
+        }));
+
+        const seasonLeagues = Array.isArray(leagues[season.id])
+          ? leagues[season.id]
+          : [];
+        const leadersByLeague = new Map<string, any>();
+        for (const row of seasonLeagues) {
+          const leagueName = String(row?.league_name || "");
+          if (!leagueName) continue;
+          const rankNo = Number(row?.rank_no ?? 999999);
+          const current = leadersByLeague.get(leagueName);
+          const currentRank = Number(current?.rank_no ?? 999999);
+          if (!current || rankNo < currentRank) {
+            leadersByLeague.set(leagueName, row);
+          }
+        }
+        dash.league_leaders = Array.from(leadersByLeague.values()).map(
+          (row: any) => ({
+            id: row?.user_id,
+            user_id: row?.user_id,
+            league_name: row?.league_name || "",
+            full_name: row?.full_name || "",
+            position: row?.rank_no ?? null,
+            total_score: row?.total_score ?? 0,
+          }),
+        );
+
         const compSummary = summariesMapGlobal.get(latestComp.id);
         dash.summary = compSummary || {
           competition_id: latestComp.id,
