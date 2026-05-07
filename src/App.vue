@@ -136,9 +136,28 @@ const handleScroll = () => {
 };
 
 let supabaseChannels = [];
+const handleVisibilityChange = () => {
+  if (document.visibilityState === "visible") {
+    scheduleGlobalMetadataReload();
+  }
+};
+
+// iOS PWA doesn't reliably fire visibilitychange — pageshow and focus cover it
+const handlePageShow = (e) => {
+  // e.persisted = restored from bfcache; always reload on show
+  scheduleGlobalMetadataReload();
+};
+
+const handleWindowFocus = () => {
+  scheduleGlobalMetadataReload();
+};
+
 onMounted(() => {
   lastScrollY = window.scrollY || 0;
   window.addEventListener("scroll", handleScroll, { passive: true });
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("pageshow", handlePageShow);
+  window.addEventListener("focus", handleWindowFocus);
   handleScroll();
   loadGlobalMetadata();
 
@@ -167,6 +186,9 @@ onBeforeUnmount(() => {
   }
   supabaseChannels.forEach((ch) => supabase.removeChannel(ch));
   window.removeEventListener("scroll", handleScroll);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
+  window.removeEventListener("pageshow", handlePageShow);
+  window.removeEventListener("focus", handleWindowFocus);
 });
 </script>
 

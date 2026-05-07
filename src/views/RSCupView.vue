@@ -160,9 +160,6 @@ const selectRound = (idx) => {
     <section class="hero-block home-hero cup-hero knockout-hero">
       <div class="home-hero__intro">
         <div class="wags-headline">RS Cup 2026</div>
-        <p class="wags-body hero-description">
-          Please play games by 20 May 2026
-        </p>
       </div>
     </section>
 
@@ -182,14 +179,15 @@ const selectRound = (idx) => {
           :key="round.roundNumber"
           class="round-section"
         >
-          <h3 class="round-header">{{ round.roundLabel }}</h3>
+          <h3 class="round-header round-header--left">{{ round.roundLabel }}</h3>
 
           <div class="matches-list">
+            <p v-if="round.matches.every(m => !m.match.winner_id)" class="pending-deadline">To be played by 20 May 2026</p>
             <template v-for="(match, idx) in round.matches" :key="match.id">
-              <div
-                v-if="idx > 0 && !match.match.winner_id && round.matches[idx - 1].match.winner_id"
-                class="matches-divider"
-              ></div>
+              <template v-if="idx > 0 && !match.match.winner_id && round.matches[idx - 1].match.winner_id">
+                <div class="matches-divider"></div>
+                <p class="pending-deadline">To be played by 20 May 2026</p>
+              </template>
               <div class="match-item">
               <div class="match-players">
                 <span
@@ -271,6 +269,25 @@ const selectRound = (idx) => {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0 1rem 1.5rem;
+}
+
+.round-header--left {
+  text-align: left;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.pending-deadline {
+  display: block;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #858585;
+  font-family: inherit;
+  text-align: left;
+  padding: 1rem 1rem 0.75rem;
+  margin: 0;
 }
 
 .matches-divider {
