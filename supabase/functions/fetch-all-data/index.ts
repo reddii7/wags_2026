@@ -233,7 +233,38 @@ Deno.serve(async (req) => {
       { status: 500 },
     );
   }
-  const competitionIds = competitions.map((c) => c.id);
+  let scopedCompetitions = competitions;
+
+  // Anchor displayed competitions to admin season definitions.
+  // This suppresses stale per-round rows after manual season cleanup/moves.
+  if (Array.isArray(seasonIds) && seasonIds.length > 0) {
+    const allowedNamesBySeason = new Map<string, Set<string>>();
+    await Promise.all(
+      seasonIds.map(async (seasonId) => {
+        const adminCompRes = await supabase.rpc("admin_list_competitions", {
+          p_season_id: seasonId,
+        });
+        if (adminCompRes.error || !Array.isArray(adminCompRes.data)) return;
+        const names = new Set(
+          adminCompRes.data
+            .map((row: any) => String(row?.name || "").trim())
+            .filter(Boolean),
+        );
+        allowedNamesBySeason.set(seasonId, names);
+      }),
+    );
+
+    if (allowedNamesBySeason.size > 0) {
+      scopedCompetitions = scopedCompetitions.filter((competition: any) => {
+        const seasonId = String(competition?.season || "");
+        const name = String(competition?.name || "").trim();
+        const allowed = allowedNamesBySeason.get(seasonId);
+        return !!allowed && allowed.has(name);
+      });
+    }
+  }
+
+  const competitionIds = scopedCompetitions.map((c) => c.id);
 
   // 3. Fetch all related data (flat arrays)
   const [
@@ -387,7 +418,7 @@ Deno.serve(async (req) => {
         : [];
 
       // 5. Dashboard Logic (Optimized for precision)
-      const seasonComps = competitions.filter(
+      const seasonComps = scopedCompetitions.filter(
         (c: any) =>
           c.season === season.id ||
           (typeof c.season === "string" && c.season.includes(seasonYear)),
@@ -488,7 +519,7 @@ Deno.serve(async (req) => {
   );
 
   // 6. Ensure every competition has a summary in the summaries array
-  const allSummaries = competitions.map((comp: any) => {
+  const allSummaries = scopedCompetitions.map((comp: any) => {
     if (summariesMapGlobal.has(comp.id)) return summariesMapGlobal.get(comp.id);
     const compResults = resultsByComp[comp.id] || [];
     return {
@@ -509,7 +540,7 @@ Deno.serve(async (req) => {
   return new Response(
     JSON.stringify({
       seasons,
-      competitions,
+      competitions: scopedCompetitions,
       results,
       summaries: allSummaries,
       handicap_history: dedupedHandicapHistory,
