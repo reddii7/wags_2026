@@ -3,12 +3,11 @@ import App from './App.vue';
 import router from './router';
 import './styles.css';
 import { initializeSession } from './composables/useSession';
+import { registerSW } from 'virtual:pwa-register';
 
 const APP_VERSION = __APP_VERSION__;
 const VERSION_KEY = 'wags-app-version';
 const VERSION_RELOAD_KEY = 'wags-app-version-reload';
-const SW_KILL_SWITCH_KEY = 'wags-sw-kill-switch-version';
-const SW_KILL_SWITCH_VERSION = '2026-05-08-1';
 
 const clearServiceWorkerAndCaches = async () => {
     const tasks = [];
@@ -59,21 +58,27 @@ const ensureLatestBuild = async () => {
     return false;
 };
 
-const runServiceWorkerKillSwitch = async () => {
-    if (import.meta.env.DEV) return true;
-    const appliedVersion = localStorage.getItem(SW_KILL_SWITCH_KEY);
-    if (appliedVersion === SW_KILL_SWITCH_VERSION) return true;
+if ('serviceWorker' in navigator) {
+    if (import.meta.env.DEV) {
+        // Prevent stale app shell during local network/mobile testing.
+        clearServiceWorkerAndCaches();
+    } else {
+        const updateSW = registerSW({
+            immediate: true,
+            onNeedRefresh() {
+                updateSW(true);
+            },
+        });
 
-    await clearServiceWorkerAndCaches();
-    localStorage.setItem(SW_KILL_SWITCH_KEY, SW_KILL_SWITCH_VERSION);
-    window.location.reload();
-    return false;
-};
+        // Check for updates when app returns to foreground.
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible') return;
+            navigator.serviceWorker.getRegistration().then((reg) => reg?.update());
+        });
+    }
+}
 
 const bootstrap = async () => {
-    const canContinueAfterKillSwitch = await runServiceWorkerKillSwitch();
-    if (!canContinueAfterKillSwitch) return;
-
     if (!import.meta.env.DEV) {
         const canContinue = await ensureLatestBuild();
         if (!canContinue) return;
