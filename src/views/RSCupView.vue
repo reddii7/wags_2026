@@ -68,19 +68,25 @@ const roundsWithMatches = computed(() => {
       return {
         roundNumber: Number(roundNumber),
         roundLabel: roundLabel,
-        matches: roundMatches.map((match) => {
-          const player1 = getPlayer(match.player1_id);
-          const player2 = getPlayer(match.player2_id);
+        matches: roundMatches
+          .map((match) => {
+            const player1 = getPlayer(match.player1_id);
+            const player2 = getPlayer(match.player2_id);
 
-          return {
-            id: match.id,
-            players: `${player1.full_name} vs ${player2.full_name}`,
-            status: match.winner_id ? "Completed" : "Pending",
-            player1: player1.full_name,
-            player2: player2.full_name,
-            match: match,
-          };
-        }),
+            return {
+              id: match.id,
+              players: `${player1.full_name} vs ${player2.full_name}`,
+              status: match.winner_id ? "Completed" : "Pending",
+              player1: player1.full_name,
+              player2: player2.full_name,
+              match: match,
+            };
+          })
+          .sort((a, b) => {
+            if (a.match.winner_id && !b.match.winner_id) return -1;
+            if (!a.match.winner_id && b.match.winner_id) return 1;
+            return 0;
+          }),
       };
     });
 });
@@ -179,17 +185,41 @@ const selectRound = (idx) => {
           <h3 class="round-header">{{ round.roundLabel }}</h3>
 
           <div class="matches-list">
-            <div
-              v-for="match in round.matches"
-              :key="match.id"
-              class="match-item"
-            >
+            <template v-for="(match, idx) in round.matches" :key="match.id">
+              <div
+                v-if="idx > 0 && !match.match.winner_id && round.matches[idx - 1].match.winner_id"
+                class="matches-divider"
+              ></div>
+              <div class="match-item">
               <div class="match-players">
-                <span class="player-name">{{ match.player1 }}</span>
-                <span class="match-versus">vs</span>
-                <span class="player-name">{{ match.player2 }}</span>
+                <span
+                  class="player-name"
+                  :class="{
+                    winner: !!match.match.winner_id,
+                  }"
+                >
+                  {{
+                    match.match.winner_id
+                      ? getPlayer(match.match.winner_id).full_name
+                      : match.player1
+                  }}
+                </span>
+                <span class="match-versus">{{ match.match.winner_id ? 'beat' : 'vs' }}</span>
+                <span
+                  class="player-name"
+                  :class="{
+                    loser: !!match.match.winner_id,
+                  }"
+                >
+                  {{
+                    match.match.winner_id
+                      ? getPlayer(match.match.winner_id === match.match.player1_id ? match.match.player2_id : match.match.player1_id).full_name
+                      : match.player2
+                  }}
+                </span>
               </div>
             </div>
+            </template>
           </div>
         </div>
       </div>
@@ -241,6 +271,10 @@ const selectRound = (idx) => {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0 1rem 1.5rem;
+}
+
+.matches-divider {
+  height: 1.25rem;
 }
 
 .match-item {
