@@ -28,6 +28,8 @@ const getCorsHeaders = (origin: string | null) => {
 interface Season {
   id: string;
   start_year: number;
+  name?: string;
+  label?: string;
 }
 
 interface Competition {
@@ -45,6 +47,25 @@ const toTime = (d: unknown) => {
   if (!d) return null;
   const t = new Date(String(d)).getTime();
   return Number.isFinite(t) ? t : null;
+};
+
+const resolveSeasonIds = (seasons: Season[], seasonParam: string | null) => {
+  const raw = String(seasonParam || "").trim();
+  if (!raw) return null;
+
+  const target = raw.toLowerCase();
+  const ids = seasons
+    .filter((season: any) => {
+      const seasonId = String(season?.id || "");
+      const startYear = String(season?.start_year || "");
+      const name = String(season?.name || season?.label || "")
+        .trim()
+        .toLowerCase();
+      return seasonId === raw || startYear === raw || name === target;
+    })
+    .map((season) => season.id);
+
+  return ids.length ? ids : [];
 };
 
 Deno.serve(async (req) => {
@@ -97,6 +118,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const view = url.searchParams.get("view");
+  const seasonParam = url.searchParams.get("season");
 
   // ── SHELL VIEW ────────────────────────────────────────────────────────────────
   // Fast boot payload: seasons, competitions, profiles, handicap_history only.
@@ -186,13 +208,25 @@ Deno.serve(async (req) => {
     );
   }
 
-  // 2. Fetch all competitions (all time)
-  const { data: competitions, error: compsError } = await supabase
+  const seasonIds = resolveSeasonIds(seasons, seasonParam);
+
+  // 2. Fetch competitions (optionally scoped by season)
+  let competitionsQuery = supabase
     .from("competitions")
     .select(
       "id, name, competition_date, status, winner_id, prize_pot, rollover_amount, season",
     )
     .order("competition_date", { ascending: false });
+  if (Array.isArray(seasonIds) && seasonIds.length > 0) {
+    competitionsQuery = competitionsQuery.in("season", seasonIds);
+  }
+  if (Array.isArray(seasonIds) && seasonIds.length === 0) {
+    competitionsQuery = competitionsQuery.eq(
+      "id",
+      "00000000-0000-0000-0000-000000000000",
+    );
+  }
+  const { data: competitions, error: compsError } = await competitionsQuery;
   if (compsError || !competitions) {
     return new Response(
       JSON.stringify({ error: compsError?.message ?? "No competitions found" }),
@@ -228,13 +262,16 @@ Deno.serve(async (req) => {
           )
           .in("competition_id", competitionIds)
       : { data: [], error: null },
-    // IMPORTANT: do NOT order by joined table columns in PostgREST builder
-    // Order locally instead (competition_date desc, then created_at desc)
-    supabase
-      .from("handicap_history")
-      .select("*")
-      .order("created_at", { ascending: false }),
-    supabase.from("rounds").select("*"),
+    competitionIds.length
+      ? supabase
+          .from("handicap_history")
+          .select("*")
+          .in("competition_id", competitionIds)
+          .order("created_at", { ascending: false })
+      : { data: [], error: null },
+    competitionIds.length
+      ? supabase.from("rounds").select("*").in("competition_id", competitionIds)
+      : { data: [], error: null },
     supabase
       .from("profiles")
       .select("id, full_name, role, league_name, current_handicap"),
@@ -284,7 +321,7 @@ Deno.serve(async (req) => {
 
   // Deduplicate handicap_history: keep only the latest entry per (user_id, competition_id)
   // If competition_id is null, treat as manual adjustment and keep all
-  const dedupedHandicapHistory: any[] = [];
+  let dedupedHandicapHistory: any[] = [];
   const seen = new Map<string, boolean>();
   for (const entry of handicap_history) {
     if (!entry.competition_id) {
@@ -307,6 +344,18 @@ Deno.serve(async (req) => {
     },
     {} as Record<string, any[]>,
   );
+
+  // Suppress stale history rows after manual season resets.
+  // A handicap change must belong to a competition that currently has result rows.
+  const validResultCompetitionIds = new Set(
+    Object.entries(resultsByComp)
+      .filter(([, rows]) => Array.isArray(rows) && rows.length > 0)
+      .map(([competitionId]) => competitionId),
+  );
+  dedupedHandicapHistory = dedupedHandicapHistory.filter((entry: any) => {
+    const competitionId = String(entry?.competition_id || "");
+    return competitionId && validResultCompetitionIds.has(competitionId);
+  });
 
   const summariesMapGlobal = new Map(
     summaries.map((s: any) => [s.competition_id, s]),
