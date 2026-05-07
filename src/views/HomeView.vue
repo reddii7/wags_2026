@@ -130,6 +130,82 @@ const rolloverMessage = computed(() => {
   return `A rollover with ${amountText} carried into the next week.`;
 });
 
+const getSeasonBest14Fallback = (seasonKey, allSeasons) => {
+  const altSeasonKey =
+    allSeasons?.find((s) => String(s.start_year) === String(seasonKey))?.id ||
+    allSeasons?.find((s) => s.id === seasonKey)?.start_year;
+
+  const best14 =
+    props.metadata.best14?.[seasonKey] ||
+    (altSeasonKey ? props.metadata.best14?.[altSeasonKey] : []) ||
+    [];
+
+  const sortedBest14 = best14
+    .map((player) => ({
+      ...player,
+      position: player.position ?? player.pos ?? player.rank_no ?? "",
+      total_score: player.best_total ?? player.total_score ?? 0,
+      id: `${seasonKey}-${player.user_id || player.full_name}`,
+    }))
+    .sort((a, b) => Number(b.total_score) - Number(a.total_score));
+
+  const hasRankData = sortedBest14.some((p) => Number.isFinite(Number(p.position)));
+  if (hasRankData) {
+    return sortedBest14.filter((p) => {
+      const rank = Number(p.position);
+      return Number.isFinite(rank) && rank <= 3;
+    });
+  }
+
+  const uniqueScores = [
+    ...new Set(
+      sortedBest14
+        .map((p) => Number(p.total_score))
+        .filter((score) => Number.isFinite(score)),
+    ),
+  ];
+  const top3Scores = uniqueScores.slice(0, 3);
+  return sortedBest14.filter((p) =>
+    top3Scores.includes(Number(p.total_score)),
+  );
+};
+
+const getSeasonLeagueLeadersFallback = (seasonKey, allSeasons) => {
+  const altSeasonKey =
+    allSeasons?.find((s) => String(s.start_year) === String(seasonKey))?.id ||
+    allSeasons?.find((s) => s.id === seasonKey)?.start_year;
+
+  const leagues =
+    props.metadata.leagues?.[seasonKey] ||
+    (altSeasonKey ? props.metadata.leagues?.[altSeasonKey] : []) ||
+    [];
+
+  const divisionMap = new Map();
+  for (const row of leagues) {
+    const key = row.league_name || row.division || "Division";
+    const current = divisionMap.get(key);
+    const rowPos = Number(row.position ?? row.pos ?? row.rank_no ?? 1);
+    const currentPos = current
+      ? Number(current.position ?? current.pos ?? current.rank_no ?? 1)
+      : Infinity;
+    if (!current || rowPos < currentPos) {
+      divisionMap.set(key, {
+        ...row,
+        position: rowPos,
+        total_score: row.total_score ?? row.points ?? 0,
+      });
+    }
+  }
+
+  return Array.from(divisionMap.values())
+    .sort((a, b) =>
+      String(a.league_name || a.division).localeCompare(
+        String(b.league_name || b.division),
+      ),
+    )
+    .slice(0, 4);
+};
+
 const loadHomeData = async () => {
   if (props.metadata.loading) {
     loading.value = true;
@@ -249,13 +325,23 @@ const loadHomeData = async () => {
       position: row.position ?? row.pos ?? row.rank_no ?? "999",
     }));
 
-    // Backend-prepared home card leaders.
-    best14Leaders.value = Array.isArray(dash?.best14_leaders)
+    // Backend-prepared home card leaders with frontend fallback.
+    const dashboardBest14 = Array.isArray(dash?.best14_leaders)
       ? dash.best14_leaders
       : [];
-    leagueLeaders.value = Array.isArray(dash?.league_leaders)
+    const dashboardLeagues = Array.isArray(dash?.league_leaders)
       ? dash.league_leaders
       : [];
+
+    best14Leaders.value =
+      dashboardBest14.length > 0
+        ? dashboardBest14
+        : getSeasonBest14Fallback(seasonKey, seasonsArr);
+
+    leagueLeaders.value =
+      dashboardLeagues.length > 0
+        ? dashboardLeagues
+        : getSeasonLeagueLeadersFallback(seasonKey, seasonsArr);
 
     // Use the same logic as HandicapsView to get the latest change for each player
     const history = props.metadata?.handicap_history || [];

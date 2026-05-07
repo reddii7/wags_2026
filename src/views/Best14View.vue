@@ -70,6 +70,66 @@ const detailColumns = [
   },
 ];
 
+const resolvePlayerId = (player) => {
+  const directId = player.user_id || player.player_id || player.id;
+  if (directId) return directId;
+  const byName = (props.metadata?.profiles || []).find(
+    (p) => String(p.full_name).trim() === String(player.full_name || "").trim(),
+  );
+  return byName?.id || null;
+};
+
+const buildLocalTopRounds = (player, take) => {
+  const seasonId = props.season?.id;
+  const seasonYear = String(props.season?.start_year || "");
+  const playerId = resolvePlayerId(player);
+  const competitions = props.metadata?.competitions || [];
+  const seasonComps = competitions.filter(
+    (c) => c.season === seasonId || String(c.season) === seasonYear,
+  );
+  const compMap = new Map(seasonComps.map((c) => [c.id, c]));
+
+  const sourceRows = [
+    ...(props.metadata?.results || []),
+    ...(props.metadata?.rounds || []),
+  ];
+
+  const dedupe = new Map();
+  for (const row of sourceRows) {
+    const comp = compMap.get(row.competition_id);
+    if (!comp) continue;
+    const rowPlayerId = row.user_id || row.player_id;
+    const rowPlayerName = String(row.player || row.full_name || "").trim();
+    const selectedName = String(player.full_name || "").trim();
+    if (
+      !(playerId && rowPlayerId === playerId) &&
+      !(selectedName && rowPlayerName === selectedName)
+    ) {
+      continue;
+    }
+
+    const score = Number(row.stableford_score ?? row.score ?? 0);
+    const existing = dedupe.get(row.competition_id);
+    if (!existing || score > Number(existing.stableford_score || 0)) {
+      dedupe.set(row.competition_id, {
+        id: `${row.competition_id}-${playerId || selectedName}`,
+        competition_id: row.competition_id,
+        competition_name: comp.name || "Unknown Round",
+        competition_date: comp.competition_date,
+        stableford_score: score,
+      });
+    }
+  }
+
+  return Array.from(dedupe.values())
+    .sort((a, b) => {
+      const scoreDiff = Number(b.stableford_score) - Number(a.stableford_score);
+      if (scoreDiff !== 0) return scoreDiff;
+      return new Date(b.competition_date) - new Date(a.competition_date);
+    })
+    .slice(0, take);
+};
+
 // No-op: rows is now computed from metadata
 
 // Disable best 14 modal if not available in metadata
@@ -95,18 +155,22 @@ const openBest14 = async (player) => {
         p_take: 14,
       },
     );
-    if (rpcError) throw rpcError;
-
-    detailRows.value = Array.isArray(data)
-      ? data.map((row) => ({
-          ...row,
-          id: `${row.competition_id}-${playerId}`,
-        }))
-      : [];
+    if (rpcError) {
+      detailRows.value = buildLocalTopRounds(player, 14);
+    } else {
+      detailRows.value = Array.isArray(data)
+        ? data.map((row) => ({
+            ...row,
+            id: `${row.competition_id}-${playerId}`,
+          }))
+        : [];
+    }
     isDetailOpen.value = true;
   } catch (e) {
-    detailRows.value = [];
-    error.value = e?.message || "Could not load best 14 details.";
+    detailRows.value = buildLocalTopRounds(player, 14);
+    if (!detailRows.value.length) {
+      error.value = e?.message || "Could not load best 14 details.";
+    }
     isDetailOpen.value = true;
   } finally {
     detailLoading.value = false;
