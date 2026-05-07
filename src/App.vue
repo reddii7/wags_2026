@@ -136,15 +136,35 @@ const handleScroll = () => {
 };
 
 let supabaseChannels = [];
+
+// Check if a new service worker is waiting and reload to apply it
+const checkForSWUpdate = () => {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.getRegistration().then((reg) => {
+    if (!reg) return;
+    if (reg.waiting) {
+      // New SW is ready — tell it to take over then reload
+      reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        window.location.reload();
+      }, { once: true });
+    } else {
+      // No waiting SW, just trigger an update check
+      reg.update();
+    }
+  });
+};
+
 const handleVisibilityChange = () => {
   if (document.visibilityState === "visible") {
+    checkForSWUpdate();
     scheduleGlobalMetadataReload();
   }
 };
 
 // iOS PWA doesn't reliably fire visibilitychange — pageshow and focus cover it
 const handlePageShow = (e) => {
-  // e.persisted = restored from bfcache; always reload on show
+  checkForSWUpdate();
   scheduleGlobalMetadataReload();
 };
 
