@@ -20,7 +20,7 @@ const tabs = [
   { id: "results", label: "RESULTS", component: markRaw(ResultsView) },
   { id: "leagues", label: "LEAGUES", component: markRaw(LeaguesView) },
   { id: "best14", label: "BEST 14", component: markRaw(Best14View) },
-  { id: "winners", label: "WINNERS", component: markRaw(WinnersTable) },
+  { id: "winners", label: "CHAMPS", component: markRaw(WinnersTable) },
 ];
 
 const activeTabId = ref(tabs[0].id);
