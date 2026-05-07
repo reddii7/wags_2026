@@ -454,7 +454,10 @@ Deno.serve(async (req) => {
         const seasonBest14 = Array.isArray(best14[season.id])
           ? best14[season.id]
           : [];
-        dash.best14_leaders = seasonBest14.slice(0, 10).map((row: any) => ({
+        const best14Top3WithTies = seasonBest14.filter(
+          (row: any) => Number(row?.rank_no ?? 999999) <= 3,
+        );
+        dash.best14_leaders = best14Top3WithTies.map((row: any) => ({
           id: row?.user_id,
           user_id: row?.user_id,
           full_name: row?.full_name || "",
