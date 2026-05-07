@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WAGS Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+
+        input[type=number]::-webkit-inner-spin-button {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen font-sans" x-data="wagsAdmin()" x-init="init()" x-cloak>
+
+    <!-- Toast -->
+    <div x-show="toast" x-transition
+        class="fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium"
+        :class="toastType === 'error' ? 'bg-red-600' : 'bg-green-600'" x-text="toast"></div>
+
+    <!-- Header -->
+    <header class="bg-gray-900 text-white px-6 py-3 flex items-center justify-between shadow">
+        <div class="flex items-center gap-3">
+            <span class="text-xl font-bold tracking-tight">⛳ WAGS Admin</span>
+            <span x-show="connected" class="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">Connected</span>
+            <span x-show="!connected" class="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">Not
+                connected</span>
+        </div>
+        <div class="flex items-center gap-2 text-sm text-gray-400">
+            <span x-show="activeSeason" x-text="'Season: ' + (activeSeason?.label || '')"></span>
+            <button @click="tab='config'" class="ml-4 text-gray-400 hover:text-white">⚙ Config</button>
+        </div>
+    </header>
+
+    <!-- Tab Nav -->
+    <nav class="bg-white border-b shadow-sm px-6 flex gap-1 overflow-x-auto" x-show="connected">
+        <template x-for="t in tabs" :key="t.id">
+            <button @click="switchTab(t.id)"
+                :class="tab === t.id ? 'border-b-2 border-blue-600 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-800'"
+                class="px-4 py-3 text-sm whitespace-nowrap transition-colors" x-text="t.label">
+            </button>
+        </template>
+    </nav>
+
+    <main class="max-w-5xl mx-auto p-6">
+
+        <!-- ══════════════════════════ CONFIG TAB ══════════════════════════ -->
+        <div x-show="tab === 'config'">
+            <div class="bg-white rounded-xl shadow p-6 max-w-lg">
+                <h2 class="text-lg font-bold mb-4">Supabase Connection</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Project URL</label>
+                        <input x-model="config.url" type="url"
+                            class="w-full border rounded-lg px-3 py-2 text-sm font-mono"
+                            placeholder="https://xxxx.supabase.co" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Service Role Key <span
+                                class="text-red-500">*</span></label>
+                        <input x-model="config.key" type="password"
+                            class="w-full border rounded-lg px-3 py-2 text-sm font-mono"
+                            placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
+                        <p class="text-xs text-gray-500 mt-1">Found in Supabase Dashboard → Settings → API →
+                            service_role secret. Stored locally only.</p>
+                    </div>
+                    <button @click="connectSupabase()" :disabled="!config.url || !config.key"
+                        class="w-full bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                        Connect & Load
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════ PLAYERS TAB ══════════════════════════ -->
+        <div x-show="tab === 'players'">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold">Players</h2>
+                <button @click="openPlayerForm(null)"
+                    class="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700">
+                    + Add Player
+                </button>
+            </div>
+
+            <!-- Season membership context -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 flex items-center gap-3 text-sm"
+                x-show="activeSeason">
+                <span class="text-blue-700">League assignments for season:</span>
+                <span class="font-semibold text-blue-900" x-text="activeSeason?.label"></span>
+                <span class="text-blue-500 text-xs">(edit inline below)</span>
+            </div>
+
+            <div class="bg-white rounded-xl shadow overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600">Name</th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600">Handicap</th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600">Current HC</th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600">League</th>
+                            <th class="px-4 py-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="p in players" :key="p.id">
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="px-4 py-3 font-medium" x-text="p.full_name"></td>
+                                <td class="px-4 py-3 text-gray-600" x-text="p.starting_handicap"></td>
+                                <td class="px-4 py-3 font-semibold" x-text="Number(p.current_handicap).toFixed(1)"></td>
+                                <td class="px-4 py-3">
+                                    <select x-show="activeSeason" @change="setMembership(p.id, $event.target.value)"
+                                        class="border rounded px-2 py-1 text-sm bg-white">
+                                        <option value="UNASSIGNED" :selected="p.league_name === 'UNASSIGNED'">UNASSIGNED
+                                        </option>
+                                        <option value="PREMIERSHIP" :selected="p.league_name === 'PREMIERSHIP'">
+                                            PREMIERSHIP</option>
+                                        <option value="CHAMPIONSHIP" :selected="p.league_name === 'CHAMPIONSHIP'">
+                                            CHAMPIONSHIP</option>
+                                        <option value="LEAGUE ONE" :selected="p.league_name === 'LEAGUE ONE'">LEAGUE ONE
+                                        </option>
+                                        <option value="LEAGUE TWO" :selected="p.league_name === 'LEAGUE TWO'">LEAGUE TWO
+                                        </option>
+                                    </select>
+                                    <span x-show="!activeSeason" class="text-gray-400 text-xs">No active season</span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <button @click="openPlayerForm(p)"
+                                        class="text-blue-600 hover:underline text-xs">Edit</button>
+                                </td>
+                            </tr>
+                        </template>
+                        <tr x-show="players.length === 0">
+                            <td colspan="5" class="px-4 py-8 text-center text-gray-400">No players yet. Add your first
+                                player above.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Player Modal -->
+            <div x-show="playerModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-40">
+                <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+                    <h3 class="font-bold text-lg mb-4" x-text="playerForm.id ? 'Edit Player' : 'New Player'"></h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Full Name</label>
+                            <input x-model="playerForm.full_name" class="w-full border rounded-lg px-3 py-2 text-sm"
+                                placeholder="John Smith" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Starting Handicap</label>
+                            <input x-model.number="playerForm.starting_handicap" type="number" step="0.1" min="0"
+                                max="54" class="w-full border rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-5">
+                        <button @click="savePlayer()"
+                            class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-blue-700">Save</button>
+                        <button @click="playerModal = false"
+                            class="flex-1 border rounded-lg py-2 text-sm hover:bg-gray-50">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════ SETUP TAB ══════════════════════════ -->
+        <div x-show="tab === 'setup'">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                <!-- Seasons -->
+                <div class="bg-white rounded-xl shadow p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-base">Seasons</h3>
+                        <button @click="openSeasonForm(null)" class="text-blue-600 text-sm hover:underline">+
+                            New</button>
+                    </div>
+                    <div class="space-y-2">
+                        <template x-for="s in seasons" :key="s.id">
+                            <div class="flex items-center justify-between p-3 border rounded-lg"
+                                :class="s.is_active ? 'border-green-400 bg-green-50' : 'border-gray-200'">
+                                <div>
+                                    <div class="font-semibold text-sm" x-text="s.label"></div>
+                                    <div class="text-xs text-gray-500"
+                                        x-text="s.start_date + ' → ' + (s.end_date || 'ongoing')"></div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span x-show="s.is_active"
+                                        class="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">Active</span>
+                                    <button @click="openSeasonForm(s)"
+                                        class="text-blue-600 text-xs hover:underline">Edit</button>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="seasons.length === 0" class="text-gray-400 text-sm text-center py-4">No seasons yet
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rule Sets -->
+                <div class="bg-white rounded-xl shadow p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-base">Rule Sets</h3>
+                        <button @click="openRuleSetForm(null)" class="text-blue-600 text-sm hover:underline">+
+                            New</button>
+                    </div>
+                    <div class="space-y-2">
+                        <template x-for="r in ruleSets" :key="r.id">
+                            <div class="flex items-center justify-between p-3 border rounded-lg"
+                                :class="r.active ? 'border-blue-400 bg-blue-50' : 'border-gray-200'">
+                                <div>
+                                    <div class="font-semibold text-sm" x-text="r.name"></div>
+                                    <div class="text-xs text-gray-500">
+                                        Entry: £<span x-text="r.entry_fee"></span> |
+                                        Bank: £<span x-text="r.bank_share"></span> |
+                                        Weekly: £<span x-text="r.weekly_winner_share"></span> |
+                                        Fine: £<span x-text="r.snake_camel_fine"></span>
+                                    </div>
+                                </div>
+                                <button @click="openRuleSetForm(r)"
+                                    class="text-blue-600 text-xs hover:underline">Edit</button>
+                            </div>
+                        </template>
+                        <div x-show="ruleSets.length === 0" class="text-gray-400 text-sm text-center py-4">No rule sets
+                            yet</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- End season movement -->
+            <div class="bg-white rounded-xl shadow p-5 mt-6">
+                <h3 class="font-bold text-base mb-3">End Season League Movements</h3>
+                <p class="text-sm text-gray-600 mb-4">Apply promotions/relegations from final standings: top 3 move up
+                    and bottom 3 move down between adjacent leagues.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">From Season</label>
+                        <select x-model="seasonMovement.fromSeasonId"
+                            class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">— select source season —</option>
+                            <template x-for="s in seasons" :key="'from-' + s.id">
+                                <option :value="s.id" x-text="s.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">To Season</label>
+                        <select x-model="seasonMovement.toSeasonId"
+                            class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">— select target season —</option>
+                            <template x-for="s in seasons" :key="'to-' + s.id">
+                                <option :value="s.id" x-text="s.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center gap-3">
+                    <button @click="applyLeagueMovements()"
+                        :disabled="seasonMovement.running || !seasonMovement.fromSeasonId || !seasonMovement.toSeasonId || seasonMovement.fromSeasonId === seasonMovement.toSeasonId"
+                        class="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <span x-text="seasonMovement.running ? 'Applying…' : 'Apply End Season Movements'"></span>
+                    </button>
+                    <span x-show="seasonMovement.lastCount !== null" class="text-xs text-gray-500"
+                        x-text="'Updated memberships: ' + seasonMovement.lastCount"></span>
+                </div>
+            </div>
+
+            <!-- Season Transition: Initialize Handicaps -->
+            <div class="bg-white rounded-xl shadow p-5 mt-6">
+                <h3 class="font-bold text-base mb-1">Start of Season: Initialize Handicaps</h3>
+                <p class="text-sm text-gray-600 mb-4">Carry each player's final handicap from one season into the next
+                    season's starting state. Run this <em>after</em> applying league movements, and <em>before</em>
+                    entering any rounds for the new season.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">From Season (prior finals)</label>
+                        <select x-model="seasonInit.fromSeasonId"
+                            class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">— select source season —</option>
+                            <template x-for="s in seasons" :key="'hcpfrom-' + s.id">
+                                <option :value="s.id" x-text="s.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">To Season (new season)</label>
+                        <select x-model="seasonInit.toSeasonId"
+                            class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">— select target season —</option>
+                            <template x-for="s in seasons" :key="'hcpto-' + s.id">
+                                <option :value="s.id" x-text="s.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center gap-3">
+                    <button @click="initSeasonHandicaps()"
+                        :disabled="seasonInit.running || !seasonInit.fromSeasonId || !seasonInit.toSeasonId || seasonInit.fromSeasonId === seasonInit.toSeasonId"
+                        class="bg-teal-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <span x-text="seasonInit.running ? 'Initializing…' : 'Initialize Handicaps'"></span>
+                    </button>
+                    <span x-show="seasonInit.lastCount !== null" class="text-xs text-gray-500"
+                        x-text="'Initialized: ' + seasonInit.lastCount + ' players'"></span>
+                </div>
+            </div>
+
+            <!-- Season Modal -->
+            <div x-show="seasonModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-40">
+                <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+                    <h3 class="font-bold text-lg mb-4" x-text="seasonForm.id ? 'Edit Season' : 'New Season'"></h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Label</label>
+                            <input x-model="seasonForm.label" class="w-full border rounded-lg px-3 py-2 text-sm"
+                                placeholder="WAGS 2026" />
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Start Date</label>
+                                <input x-model="seasonForm.start_date" type="date"
+                                    class="w-full border rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">End Date</label>
+                            <input x-model="seasonForm.end_date" type="date"
+                                class="w-full border rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input x-model="seasonForm.is_active" type="checkbox" class="rounded" />
+                            <span class="text-sm font-medium">Set as active season</span>
+                        </label>
+                    </div>
+                    <div class="flex gap-2 mt-5">
+                        <button @click="saveSeason()"
+                            class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-blue-700">Save</button>
+                        <button @click="seasonModal = false"
+                            class="flex-1 border rounded-lg py-2 text-sm hover:bg-gray-50">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rule Set Modal -->
+            <div x-show="ruleSetModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-40">
+                <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+                    <h3 class="font-bold text-lg mb-4" x-text="ruleSetForm.id ? 'Edit Rule Set' : 'New Rule Set'"></h3>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Code</label>
+                                <input x-model="ruleSetForm.code" class="w-full border rounded-lg px-3 py-2 text-sm"
+                                    placeholder="WAGS2026" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Name</label>
+                                <input x-model="ruleSetForm.name" class="w-full border rounded-lg px-3 py-2 text-sm"
+                                    placeholder="WAGS 2026" />
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Entry Fee (£)</label>
+                                <input x-model.number="ruleSetForm.entry_fee" type="number" step="0.5"
+                                    class="w-full border rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Bank Share (£)</label>
+                                <input x-model.number="ruleSetForm.bank_share" type="number" step="0.5"
+                                    class="w-full border rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Weekly Share (£)</label>
+                                <input x-model.number="ruleSetForm.weekly_winner_share" type="number" step="0.5"
+                                    class="w-full border rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Fine (£)</label>
+                                <input x-model.number="ruleSetForm.snake_camel_fine" type="number" step="0.5"
+                                    class="w-full border rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Par Score</label>
+                                <input x-model.number="ruleSetForm.stableford_par" type="number"
+                                    class="w-full border rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Best N Scores</label>
+                                <input x-model.number="ruleSetForm.best_scores_take" type="number"
+                                    class="w-full border rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-5">
+                        <button @click="saveRuleSet()"
+                            class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-blue-700">Save</button>
+                        <button @click="ruleSetModal = false"
+                            class="flex-1 border rounded-lg py-2 text-sm hover:bg-gray-50">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════ IMPORT TAB ══════════════════════════ -->
+        <div x-show="tab === 'import'">
+            <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-4 py-3 text-sm mb-4">
+                Use this for bulk migration into a clean schema. Import order runs automatically:
+                Players → Seasons → Rule Sets → Memberships → Competitions → Rounds/Scores.
+            </div>
+
+            <div class="bg-white rounded-xl shadow p-5 mb-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-bold">Bulk JSON Import</h2>
+                    <div class="flex items-center gap-2">
+                        <button @click="resetAllData()" :disabled="importRunning"
+                            class="bg-red-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                            Reset All Data
+                        </button>
+                        <button @click="runBulkImport()" :disabled="importRunning"
+                            class="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                            <span x-text="importRunning ? 'Importing…' : 'Run Import'"></span>
+                        </button>
+                    </div>
+                </div>
+                <label class="block text-sm font-medium mb-2">Payload</label>
+                <textarea x-model="importJson" spellcheck="false"
+                    class="w-full h-96 border rounded-lg px-3 py-2 font-mono text-xs leading-5"
+                    placeholder="Paste bulk import JSON here"></textarea>
+            </div>
+
+            <div class="bg-white rounded-xl shadow p-5">
+                <h3 class="font-bold mb-3">Import Log</h3>
+                <div class="space-y-2 max-h-72 overflow-auto text-sm">
+                    <template x-for="(line, idx) in importLogs" :key="idx">
+                        <div class="px-3 py-2 rounded border border-gray-200 bg-gray-50 font-mono text-xs"
+                            x-text="line"></div>
+                    </template>
+                    <div x-show="importLogs.length === 0" class="text-gray-400">No import activity yet.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════ SCORES TAB ══════════════════════════ -->
+        <div x-show="tab === 'scores'">
+            <h2 class="text-lg font-bold mb-4">Enter Weekly Scores</h2>
+
+            <!-- Step 1: Competition -->
+            <div class="bg-white rounded-xl shadow p-5 mb-4">
+                <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-3">1 · Competition</h3>
+                <div class="flex flex-wrap gap-3 items-end">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Season</label>
+                        <select x-model="selectedSeasonId" @change="loadCompetitions()"
+                            class="border rounded-lg px-3 py-2 text-sm">
+                            <option value="">— select —</option>
+                            <template x-for="s in seasons" :key="s.id">
+                                <option :value="s.id" x-text="s.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div x-show="selectedSeasonId">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Competition</label>
+                        <select x-model="selectedCompetitionId" @change="onCompetitionChange()"
+                            class="border rounded-lg px-3 py-2 text-sm">
+                            <option value="">— select or create new —</option>
+                            <template x-for="c in competitions" :key="c.id">
+                                <option :value="c.id" x-text="c.name + ' (' + c.starts_on + ')'"></option>
+                            </template>
+                            <option value="__new__">+ Create new competition</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- New competition form -->
+                <div x-show="selectedCompetitionId === '__new__'"
+                    class="mt-4 p-4 bg-gray-50 rounded-lg border space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium mb-1">Date</label>
+                            <input x-model="compForm.starts_on" type="date" @change="autoFillCompName()"
+                                class="w-full border rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1">Type</label>
+                            <select x-model="compForm.competition_type"
+                                class="w-full border rounded-lg px-3 py-2 text-sm">
+                                <option value="main_weekly">Main Weekly</option>
+                                <option value="winter_weekly">Winter Weekly</option>
+                                <option value="away_day">Away Day</option>
+                                <option value="matchplay">Matchplay</option>
+                                <option value="season_final_champs">Season Final (Champs)</option>
+                                <option value="season_final_chumps">Season Final (Chumps)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1">Name</label>
+                        <input x-model="compForm.name" class="w-full border rounded-lg px-3 py-2 text-sm"
+                            placeholder="Week 1" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1">Rule Set</label>
+                        <select x-model="compForm.rule_set_id" class="w-full border rounded-lg px-3 py-2 text-sm">
+                            <option value="">— select —</option>
+                            <template x-for="r in ruleSets" :key="r.id">
+                                <option :value="r.id" x-text="r.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <button @click="createCompetition()"
+                        :disabled="!compForm.starts_on || !compForm.name || !compForm.rule_set_id"
+                        class="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                        Create Competition
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: Round -->
+            <div x-show="selectedCompetitionId && selectedCompetitionId !== '__new__'"
+                class="bg-white rounded-xl shadow p-5 mb-4">
+                <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-3">2 · Round</h3>
+                <div class="flex flex-wrap gap-3 items-end">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Round</label>
+                        <select x-model="selectedRoundId" @change="loadRoundDetail()"
+                            class="border rounded-lg px-3 py-2 text-sm">
+                            <option value="">— select or create —</option>
+                            <template x-for="r in rounds" :key="r.id">
+                                <option :value="r.id"
+                                    x-text="'Round ' + r.round_no + ' (' + r.round_date + ') — ' + r.status + ' — ' + r.entry_count + ' players'">
+                                </option>
+                            </template>
+                            <option value="__new__">+ Create new round</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- New round form -->
+                <div x-show="selectedRoundId === '__new__'" class="mt-4 p-4 bg-gray-50 rounded-lg border">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium mb-1">Round No.</label>
+                            <input x-model.number="roundForm.round_no" type="number" min="1"
+                                class="w-full border rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1">Date</label>
+                            <input x-model="roundForm.round_date" type="date"
+                                class="w-full border rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                    </div>
+                    <button @click="createRound()" :disabled="!roundForm.round_date"
+                        class="mt-3 bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                        Create Round
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: Score Entry -->
+            <div x-show="selectedRoundId && selectedRoundId !== '__new__'"
+                class="bg-white rounded-xl shadow overflow-hidden mb-4">
+                <div class="px-5 py-4 border-b flex items-center justify-between">
+                    <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide">3 · Players & Scores</h3>
+                    <div class="flex gap-2">
+                        <button @click="addAllPlayers()" class="text-xs text-blue-600 hover:underline">Add all
+                            players</button>
+                    </div>
+                </div>
+
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="text-left px-4 py-2 font-semibold text-gray-600 w-8">✓</th>
+                            <th class="text-left px-4 py-2 font-semibold text-gray-600">Player</th>
+                            <th class="text-left px-4 py-2 font-semibold text-gray-600 w-16">HC</th>
+                            <th class="text-center px-4 py-2 font-semibold text-gray-600 w-24">Stableford</th>
+                            <th class="text-center px-4 py-2 font-semibold text-gray-600 w-16">🐍</th>
+                            <th class="text-center px-4 py-2 font-semibold text-gray-600 w-16">🐪</th>
+                            <th class="px-4 py-2 w-16"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Players in round -->
+                        <template x-for="entry in roundDetail" :key="entry.player_id">
+                            <tr class="border-b" :class="getRoundStatus() === 'finalized' ? 'bg-green-50' : ''">
+                                <td class="px-4 py-2 text-green-600">✓</td>
+                                <td class="px-4 py-2 font-medium" x-text="entry.full_name"></td>
+                                <td class="px-4 py-2 text-gray-500 text-xs"
+                                    x-text="Number(entry.current_handicap).toFixed(1)"></td>
+                                <td class="px-3 py-2">
+                                    <input :disabled="getRoundStatus() === 'finalized'"
+                                        x-model.number="scores[entry.player_id].stableford" type="number" min="0"
+                                        max="60" step="1"
+                                        class="w-full border rounded px-2 py-1 text-center text-sm disabled:bg-gray-100"
+                                        :class="!scores[entry.player_id]?.stableford && scores[entry.player_id]?.stableford !== 0 ? 'border-orange-300 bg-orange-50' : 'border-gray-300'" />
+                                </td>
+                                <td class="px-4 py-2 text-center">
+                                    <input type="checkbox" :disabled="getRoundStatus() === 'finalized'"
+                                        x-model="scores[entry.player_id].snake"
+                                        class="w-4 h-4 cursor-pointer disabled:cursor-not-allowed" />
+                                </td>
+                                <td class="px-4 py-2 text-center">
+                                    <input type="checkbox" :disabled="getRoundStatus() === 'finalized'"
+                                        x-model="scores[entry.player_id].camel"
+                                        class="w-4 h-4 cursor-pointer disabled:cursor-not-allowed" />
+                                </td>
+                                <td class="px-4 py-2 text-right">
+                                    <button x-show="getRoundStatus() !== 'finalized'"
+                                        @click="removePlayer(entry.player_id)"
+                                        class="text-red-500 hover:text-red-700 text-xs">✕</button>
+                                </td>
+                            </tr>
+                        </template>
+
+                        <!-- Players not in round (add button) -->
+                        <template x-for="p in playersNotInRound" :key="p.id">
+                            <tr class="border-b bg-gray-50 opacity-60 hover:opacity-100 transition-opacity">
+                                <td class="px-4 py-2"></td>
+                                <td class="px-4 py-2 text-gray-500" x-text="p.full_name"></td>
+                                <td class="px-4 py-2 text-gray-400 text-xs"
+                                    x-text="Number(p.current_handicap).toFixed(1)"></td>
+                                <td colspan="3"></td>
+                                <td class="px-4 py-2 text-right">
+                                    <button @click="addPlayer(p.id)"
+                                        class="text-blue-600 hover:underline text-xs font-medium">+ Add</button>
+                                </td>
+                            </tr>
+                        </template>
+
+                        <tr x-show="roundDetail.length === 0 && players.length === 0">
+                            <td colspan="7" class="px-4 py-6 text-center text-gray-400">No players found. Add players
+                                first.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Action buttons -->
+            <div x-show="selectedRoundId && selectedRoundId !== '__new__' && roundDetail.length > 0"
+                class="flex flex-wrap gap-3 items-center">
+                <button x-show="getRoundStatus() !== 'finalized'" @click="saveScores()" :disabled="saving"
+                    class="bg-gray-700 text-white rounded-lg px-5 py-2 text-sm font-semibold hover:bg-gray-900 disabled:opacity-40">
+                    <span x-text="saving ? 'Saving…' : '💾 Save Scores'"></span>
+                </button>
+                <button x-show="getRoundStatus() !== 'finalized'" @click="finalizeRound()"
+                    :disabled="saving || !allScoresEntered()"
+                    class="bg-green-600 text-white rounded-lg px-5 py-2 text-sm font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <span x-text="saving ? 'Finalizing…' : '✅ Save & Finalize Round'"></span>
+                </button>
+                <button x-show="getRoundStatus() === 'finalized'" @click="reopenRound()"
+                    class="bg-orange-500 text-white rounded-lg px-5 py-2 text-sm font-semibold hover:bg-orange-600">
+                    🔓 Reopen Round
+                </button>
+                <span x-show="!allScoresEntered() && getRoundStatus() !== 'finalized'" class="text-xs text-orange-500">
+                    Enter all scores before finalizing
+                </span>
+            </div>
+
+            <!-- Outcome card -->
+            <div x-show="roundOutcome"
+                class="mt-5 bg-gradient-to-br from-green-50 to-emerald-100 border border-green-300 rounded-xl p-5">
+                <h3 class="font-bold text-green-800 text-base mb-3">🏆 Round Result</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">Winner Type</div>
+                        <div class="font-bold text-green-900 capitalize"
+                            x-text="roundOutcome?.winner_type?.replace('_', ' ')"></div>
+                    </div>
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">Winner(s)</div>
+                        <div class="font-bold text-green-900"
+                            x-text="(roundOutcome?.winner_names || []).join(', ') || '—'"></div>
+                    </div>
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">Winning Score</div>
+                        <div class="font-bold text-green-900" x-text="roundOutcome?.winning_score ?? '—'"></div>
+                    </div>
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">Payout</div>
+                        <div class="font-bold text-green-900">£<span x-text="roundOutcome?.payout_amount ?? 0"></span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">Players</div>
+                        <div class="font-bold text-green-900" x-text="roundOutcome?.entry_count ?? 0"></div>
+                    </div>
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">Snakes 🐍</div>
+                        <div class="font-bold text-green-900" x-text="roundOutcome?.snakes_count ?? 0"></div>
+                    </div>
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">Camels 🐪</div>
+                        <div class="font-bold text-green-900" x-text="roundOutcome?.camels_count ?? 0"></div>
+                    </div>
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">To Bank</div>
+                        <div class="font-bold text-green-900">£<span x-text="roundOutcome?.bank_allocation ?? 0"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════ RESULTS TAB ══════════════════════════ -->
+        <div x-show="tab === 'results'">
+            <h2 class="text-lg font-bold mb-4">Round Results</h2>
+            <div class="bg-white rounded-xl shadow p-5 mb-4">
+                <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-3">Result Context</h3>
+                <div class="flex flex-wrap gap-3 items-end">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Season</label>
+                        <select x-model="selectedSeasonId" @change="loadCompetitions()"
+                            class="border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">— select —</option>
+                            <template x-for="s in seasons" :key="'res-s-' + s.id">
+                                <option :value="s.id" x-text="s.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div x-show="selectedSeasonId">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Competition</label>
+                        <select x-model="selectedCompetitionId" @change="onCompetitionChange()"
+                            class="border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">— select —</option>
+                            <template x-for="c in competitions" :key="'res-c-' + c.id">
+                                <option :value="c.id" x-text="c.name + ' (' + c.starts_on + ')'"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div x-show="selectedCompetitionId && selectedCompetitionId !== '__new__'">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Round</label>
+                        <select x-model="selectedRoundId" @change="loadRoundDetail()"
+                            class="border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">— select —</option>
+                            <template x-for="r in rounds" :key="'res-r-' + r.id">
+                                <option :value="r.id"
+                                    x-text="'Round ' + r.round_no + ' (' + r.round_date + ') — ' + r.status"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-700"
+                x-show="!selectedRoundId || roundDetail.length === 0">
+                Select a season, competition and round to view results.
+            </div>
+            <div x-show="selectedRoundId && selectedRoundId !== '__new__' && roundDetail.length > 0" class="mt-4">
+                <div class="mb-3 flex items-center gap-3">
+                    <button x-show="getRoundStatus() !== 'finalized'" @click="finalizeRound()"
+                        :disabled="saving || !allScoresEntered()"
+                        class="bg-green-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <span x-text="saving ? 'Finalizing…' : '✅ Finalize Round'"></span>
+                    </button>
+                    <button x-show="getRoundStatus() === 'finalized'" @click="reopenRound()"
+                        class="bg-orange-500 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-orange-600">
+                        🔓 Reopen Round
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow overflow-hidden">
+                    <div class="px-5 py-4 border-b flex items-center justify-between">
+                        <h3 class="font-semibold" x-text="'Leaderboard — Round ' + (selectedRound?.round_no || '')">
+                        </h3>
+                        <span class="text-xs px-2 py-1 rounded-full font-medium"
+                            :class="getRoundStatus() === 'finalized' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'"
+                            x-text="getRoundStatus() === 'finalized' ? '✅ Finalized' : '⏳ Draft'"></span>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 border-b">
+                            <tr>
+                                <th class="text-left px-4 py-3 font-semibold text-gray-600">Pos</th>
+                                <th class="text-left px-4 py-3 font-semibold text-gray-600">Player</th>
+                                <th class="text-left px-4 py-3 font-semibold text-gray-600">HC</th>
+                                <th class="text-center px-4 py-3 font-semibold text-gray-600">Score</th>
+                                <th class="text-center px-4 py-3 font-semibold text-gray-600">🐍</th>
+                                <th class="text-center px-4 py-3 font-semibold text-gray-600">🐪</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="entry in roundDetail" :key="entry.player_id">
+                                <tr class="border-b" :class="entry.rank_no === 1 ? 'bg-yellow-50' : ''">
+                                    <td class="px-4 py-3 font-bold text-gray-700" x-text="entry.rank_no ?? '—'"></td>
+                                    <td class="px-4 py-3 font-medium" x-text="entry.full_name"></td>
+                                    <td class="px-4 py-3 text-gray-500 text-xs"
+                                        x-text="Number(entry.current_handicap).toFixed(1)"></td>
+                                    <td class="px-4 py-3 text-center font-bold text-lg"
+                                        x-text="entry.stableford_points ?? '—'"></td>
+                                    <td class="px-4 py-3 text-center" x-text="entry.has_snake ? '🐍' : ''"></td>
+                                    <td class="px-4 py-3 text-center" x-text="entry.has_camel ? '🐪' : ''"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div x-show="roundOutcome"
+                class="mt-4 bg-gradient-to-br from-green-50 to-emerald-100 border border-green-300 rounded-xl p-5">
+                <h3 class="font-bold text-green-800 text-base mb-3">🏆 Current Outcome</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">Winner(s)</div>
+                        <div class="font-bold text-green-900"
+                            x-text="(roundOutcome?.winner_names || []).join(', ') || '—'"></div>
+                    </div>
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">Winning Score</div>
+                        <div class="font-bold text-green-900" x-text="roundOutcome?.winning_score ?? '—'"></div>
+                    </div>
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">Payout</div>
+                        <div class="font-bold text-green-900">£<span x-text="roundOutcome?.payout_amount ?? 0"></span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-green-600 text-xs font-medium uppercase">To Bank</div>
+                        <div class="font-bold text-green-900">£<span x-text="roundOutcome?.bank_allocation ?? 0"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════ FINANCE TAB ══════════════════════════ -->
+        <div x-show="tab === 'finance'">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold">Finance</h2>
+                <button @click="loadFinanceData()"
+                    class="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700">Refresh</button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow p-5 mb-4">
+                <div class="flex flex-wrap gap-3 items-end">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Season</label>
+                        <select x-model="financeFilter.seasonId" @change="loadFinanceData()"
+                            class="border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">— select season —</option>
+                            <template x-for="s in seasons" :key="'fin-s-' + s.id">
+                                <option :value="s.id" x-text="s.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Wallet</label>
+                        <select x-model="financeFilter.wallet" @change="loadFinanceData()"
+                            class="border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">All wallets</option>
+                            <option value="bank">Bank</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="player">Player</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div class="bg-white rounded-xl shadow p-4">
+                    <div class="text-xs text-gray-500 uppercase">Net Total</div>
+                    <div class="text-2xl font-bold" x-text="'£' + financeTotals.net.toFixed(2)"></div>
+                </div>
+                <div class="bg-white rounded-xl shadow p-4">
+                    <div class="text-xs text-gray-500 uppercase">Credits</div>
+                    <div class="text-2xl font-bold text-green-700" x-text="'£' + financeTotals.credits.toFixed(2)">
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow p-4">
+                    <div class="text-xs text-gray-500 uppercase">Debits</div>
+                    <div class="text-2xl font-bold text-red-700" x-text="'£' + financeTotals.debits.toFixed(2)"></div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600">When</th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600">Wallet</th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600">Reason</th>
+                            <th class="text-left px-4 py-3 font-semibold text-gray-600">Round</th>
+                            <th class="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="evt in financeEvents" :key="evt.id">
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="px-4 py-3 text-xs text-gray-600"
+                                    x-text="new Date(evt.created_at).toLocaleString()"></td>
+                                <td class="px-4 py-3 font-medium uppercase" x-text="evt.wallet"></td>
+                                <td class="px-4 py-3" x-text="evt.reason"></td>
+                                <td class="px-4 py-3 text-xs text-gray-500"
+                                    x-text="evt.round_id ? evt.round_id.slice(0,8) : '—'"></td>
+                                <td class="px-4 py-3 text-right font-semibold"
+                                    :class="Number(evt.amount) >= 0 ? 'text-green-700' : 'text-red-700'"
+                                    x-text="'£' + Number(evt.amount).toFixed(2)"></td>
+                            </tr>
+                        </template>
+                        <tr x-show="!financeLoading && financeEvents.length === 0">
+                            <td colspan="5" class="px-4 py-8 text-center text-gray-400">No finance events for this
+                                filter.</td>
+                        </tr>
+                        <tr x-show="financeLoading">
+                            <td colspan="5" class="px-4 py-8 text-center text-gray-400">Loading finance events…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        function wagsAdmin() {
+            return {
+                tab: 'config',
+                tabs: [
+                    { id: 'players', label: '👤 Players' },
+                    { id: 'setup', label: '⚙️ Setup' },
+                    { id: 'import', label: '📦 Bulk Import' },
+                    { id: 'scores', label: '⛳ Enter Scores' },
+                    { id: 'results', label: '🏆 Results' },
+                    { id: 'finance', label: '💷 Finance' },
+                ],
+                config: {
+                    url: 'https://babuygaqjazdolpzivhe.supabase.co',
+                    key: ''
+                },
+                sb: null,
+                connected: false,
+                toast: null,
+                toastType: 'success',
+                saving: false,
+
+                players: [],
+                seasons: [],
+                activeSeason: null,
+                ruleSets: [],
+                competitions: [],
+                rounds: [],
+                roundDetail: [],
+                roundOutcome: null,
+                selectedRound: null,
+
+                selectedSeasonId: '',
+                selectedCompetitionId: '',
+                selectedRoundId: '',
+
+                playerModal: false,
+                seasonModal: false,
+                ruleSetModal: false,
+
+                playerForm: { id: null, full_name: '', starting_handicap: 20 },
+                seasonForm: { id: null, label: '', start_year: new Date().getFullYear(), start_date: '', end_date: '', is_active: true },
+                ruleSetForm: { id: null, code: 'WAGS2026', name: 'WAGS 2026', entry_fee: 5, bank_share: 3.50, weekly_winner_share: 1.50, snake_camel_fine: 1, stableford_par: 20, best_scores_take: 14 },
+                compForm: { id: null, competition_type: 'main_weekly', name: '', starts_on: '', rule_set_id: '' },
+                roundForm: { round_no: 1, round_date: '' },
+                scores: {},
+                importRunning: false,
+                importJson: `{
+  "players": [
+    { "full_name": "Player One", "starting_handicap": 18.0 }
+  ],
+  "seasons": [
+    { "label": "WAGS 2026", "start_date": "2026-04-01", "end_date": "2026-10-31", "is_active": true }
+  ],
+  "rule_sets": [
+    {
+      "code": "WAGS2026",
+      "name": "WAGS 2026",
+      "entry_fee": 5,
+      "bank_share": 3.5,
+      "weekly_winner_share": 1.5,
+      "snake_camel_fine": 1,
+      "stableford_par": 20,
+      "best_scores_take": 14
+    }
+  ],
+  "memberships": [
+    { "season_label": "WAGS 2026", "player_name": "Player One", "league_name": "UNASSIGNED" }
+  ],
+  "competitions": [
+    {
+      "season_label": "WAGS 2026",
+      "rule_set_code": "WAGS2026",
+      "competition_type": "main_weekly",
+      "name": "Week 1",
+      "starts_on": "2026-04-01"
+    }
+  ],
+  "rounds": [
+    {
+      "season_label": "WAGS 2026",
+      "competition_name": "Week 1",
+      "competition_date": "2026-04-01",
+      "round_no": 1,
+      "round_date": "2026-04-01",
+      "finalize": true,
+      "entries": [
+        { "player_name": "Player One", "stableford": 34, "snake": false, "camel": false }
+      ]
+    }
+  ]
+}`,
+                importLogs: [],
+                financeLoading: false,
+                financeEvents: [],
+                financeFilter: {
+                    seasonId: '',
+                    wallet: '',
+                },
+                seasonMovement: {
+                    fromSeasonId: '',
+                    toSeasonId: '',
+                    running: false,
+                    lastCount: null,
+                },
+                seasonInit: {
+                    fromSeasonId: '',
+                    toSeasonId: '',
+                    running: false,
+                    lastCount: null,
+                },
+
+                init() {
+                    const saved = localStorage.getItem('wags_admin_config');
+                    if (saved) {
+                        try { this.config = { ...this.config, ...JSON.parse(saved) }; } catch { }
+                    }
+                    if (this.config.key) this.connectSupabase();
+                },
+
+                showToast(msg, type = 'success') {
+                    this.toast = msg; this.toastType = type;
+                    setTimeout(() => this.toast = null, 3500);
+                },
+
+                async connectSupabase() {
+                    this.sb = window.supabase.createClient(this.config.url, this.config.key);
+                    localStorage.setItem('wags_admin_config', JSON.stringify(this.config));
+                    try {
+                        await this.loadAll();
+                        this.connected = true;
+                        this.tab = 'scores';
+                        this.showToast('Connected successfully');
+                    } catch (e) {
+                        this.showToast('Connection failed: ' + e.message, 'error');
+                    }
+                },
+
+                async rpc(fn, args = {}) {
+                    const { data, error } = await this.sb.rpc(fn, args);
+                    if (error) throw error;
+                    return data;
+                },
+
+                async loadAll() {
+                    await Promise.all([this.loadPlayers(), this.loadSeasons(), this.loadRuleSets()]);
+                },
+
+                async loadPlayers() {
+                    const seasonId = this.activeSeason?.id || this.selectedSeasonId || null;
+                    this.players = await this.rpc('admin_list_players', { p_season_id: seasonId });
+                },
+
+                async loadSeasons() {
+                    this.seasons = await this.rpc('admin_list_seasons');
+                    this.activeSeason = this.seasons.find(s => s.is_active) || this.seasons[0] || null;
+                    if (this.activeSeason && !this.selectedSeasonId) {
+                        this.selectedSeasonId = this.activeSeason.id;
+                    }
+                    if (this.activeSeason && !this.financeFilter.seasonId) {
+                        this.financeFilter.seasonId = this.activeSeason.id;
+                    }
+                    if (this.activeSeason && !this.seasonMovement.fromSeasonId) {
+                        this.seasonMovement.fromSeasonId = this.activeSeason.id;
+                    }
+                },
+
+                async loadRuleSets() {
+                    this.ruleSets = await this.rpc('admin_list_rule_sets');
+                    if (this.ruleSets.length === 1 && !this.compForm.rule_set_id) {
+                        this.compForm.rule_set_id = this.ruleSets[0].id;
+                    }
+                },
+
+                async findSeasonWithCompetitions(preferredSeasonId = '') {
+                    const candidateIds = [
+                        preferredSeasonId,
+                        this.selectedSeasonId,
+                        this.financeFilter.seasonId,
+                        this.activeSeason?.id,
+                        ...this.seasons.map(s => s.id),
+                    ].filter(Boolean);
+
+                    const seen = new Set();
+                    for (const seasonId of candidateIds) {
+                        if (seen.has(seasonId)) continue;
+                        seen.add(seasonId);
+                        const comps = await this.rpc('admin_list_competitions', { p_season_id: seasonId });
+                        if (Array.isArray(comps) && comps.length > 0) {
+                            return { seasonId, competitions: comps };
+                        }
+                    }
+                    return null;
+                },
+
+                async loadCompetitions() {
+                    if (!this.selectedSeasonId) return;
+                    const competitions = await this.rpc('admin_list_competitions', { p_season_id: this.selectedSeasonId });
+                    this.competitions = Array.isArray(competitions) ? competitions : [];
+                    this.selectedCompetitionId = '';
+                    this.selectedRoundId = '';
+                    this.rounds = [];
+                    this.roundDetail = [];
+                    this.roundOutcome = null;
+                    // Auto-fill round_no
+                    this.roundForm.round_no = this.competitions.length + 1;
+                },
+
+                async onCompetitionChange() {
+                    this.selectedRoundId = '';
+                    this.rounds = [];
+                    this.roundDetail = [];
+                    this.roundOutcome = null;
+                    if (this.selectedCompetitionId && this.selectedCompetitionId !== '__new__') {
+                        await this.loadRounds();
+                    }
+                },
+
+                async loadRounds() {
+                    this.rounds = await this.rpc('admin_list_rounds', { p_competition_id: this.selectedCompetitionId });
+                    // Auto-select if only one round
+                    if (this.rounds.length === 1) {
+                        this.selectedRoundId = this.rounds[0].id;
+                        await this.loadRoundDetail();
+                    }
+                    this.roundForm.round_no = this.rounds.length + 1;
+                    this.roundForm.round_date = this.competitions.find(c => c.id === this.selectedCompetitionId)?.starts_on || '';
+                },
+
+                async loadRoundDetail() {
+                    this.roundDetail = [];
+                    this.roundOutcome = null;
+                    this.selectedRound = this.rounds.find(r => r.id === this.selectedRoundId) || null;
+                    if (!this.selectedRoundId || this.selectedRoundId === '__new__') return;
+                    this.roundDetail = await this.rpc('admin_get_round_detail', { p_round_id: this.selectedRoundId });
+                    // Build scores map
+                    this.scores = {};
+                    for (const e of this.roundDetail) {
+                        this.scores[e.player_id] = {
+                            stableford: e.stableford_points ?? '',
+                            snake: e.has_snake ?? false,
+                            camel: e.has_camel ?? false,
+                        };
+                    }
+                    // Load outcome if finalized
+                    if (this.getRoundStatus() === 'finalized') {
+                        try {
+                            const outcomes = await this.rpc('admin_get_round_outcome', { p_round_id: this.selectedRoundId });
+                            this.roundOutcome = Array.isArray(outcomes) ? outcomes[0] : outcomes;
+                        } catch { }
+                    }
+                },
+
+                getRoundStatus() {
+                    return this.selectedRound?.status || '';
+                },
+
+                get playersNotInRound() {
+                    const inRound = new Set(this.roundDetail.map(e => e.player_id));
+                    return this.players.filter(p => !inRound.has(p.id));
+                },
+
+                get financeTotals() {
+                    let credits = 0;
+                    let debits = 0;
+                    for (const evt of this.financeEvents) {
+                        const amount = Number(evt.amount || 0);
+                        if (amount >= 0) credits += amount;
+                        else debits += Math.abs(amount);
+                    }
+                    return { net: credits - debits, credits, debits };
+                },
+
+                allScoresEntered() {
+                    if (this.roundDetail.length === 0) return false;
+                    return this.roundDetail.every(e => {
+                        const s = this.scores[e.player_id];
+                        return s && (s.stableford !== '' && s.stableford !== null && s.stableford !== undefined);
+                    });
+                },
+
+                async addPlayer(playerId) {
+                    try {
+                        await this.rpc('admin_set_round_entry', { p_round_id: this.selectedRoundId, p_player_id: playerId, p_entry_fee_paid: 0 });
+                        await this.loadRoundDetail();
+                        this.showToast('Player added');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                async addAllPlayers() {
+                    try {
+                        for (const p of this.players) {
+                            await this.rpc('admin_set_round_entry', { p_round_id: this.selectedRoundId, p_player_id: p.id, p_entry_fee_paid: 0 });
+                        }
+                        await this.loadRoundDetail();
+                        this.showToast('All players added');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                async removePlayer(playerId) {
+                    if (!confirm('Remove this player from the round?')) return;
+                    try {
+                        await this.rpc('admin_remove_round_entry', { p_round_id: this.selectedRoundId, p_player_id: playerId });
+                        await this.loadRoundDetail();
+                        this.showToast('Player removed');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                async saveScores() {
+                    this.saving = true;
+                    try {
+                        for (const entry of this.roundDetail) {
+                            const s = this.scores[entry.player_id];
+                            if (s && (s.stableford !== '' && s.stableford !== null)) {
+                                await this.rpc('admin_upsert_score', {
+                                    p_round_id: this.selectedRoundId,
+                                    p_player_id: entry.player_id,
+                                    p_stableford: Number(s.stableford),
+                                    p_gross: null,
+                                    p_snake: !!s.snake,
+                                    p_camel: !!s.camel,
+                                });
+                            }
+                        }
+                        await this.loadRoundDetail();
+                        this.showToast('Scores saved');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                    finally { this.saving = false; }
+                },
+
+                async finalizeRound() {
+                    if (!this.allScoresEntered()) { this.showToast('Enter all scores first', 'error'); return; }
+                    if (!confirm('Save all scores and finalize this round? This calculates winners and handicap changes.')) return;
+                    this.saving = true;
+                    try {
+                        await this.saveScores();
+                        await this.rpc('admin_finalize_round', { p_round_id: this.selectedRoundId });
+                        // Reload
+                        await this.loadRounds();
+                        this.selectedRoundId = this.rounds.find(r => r.status === 'finalized')?.id || this.selectedRoundId;
+                        await this.loadRoundDetail();
+                        const outcomes = await this.rpc('admin_get_round_outcome', { p_round_id: this.selectedRoundId });
+                        this.roundOutcome = Array.isArray(outcomes) ? outcomes[0] : outcomes;
+                        this.showToast('Round finalized!');
+                        this.tab = 'results';
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                    finally { this.saving = false; }
+                },
+
+                async reopenRound() {
+                    if (!confirm('Reopen this round? The outcome will be deleted and handicap changes reversed.')) return;
+                    try {
+                        await this.rpc('admin_reopen_round', { p_round_id: this.selectedRoundId });
+                        await this.loadRoundDetail();
+                        this.roundOutcome = null;
+                        await this.loadRounds();
+                        this.showToast('Round reopened');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                async loadFinanceData() {
+                    if (!this.financeFilter.seasonId || !this.sb) {
+                        this.financeEvents = [];
+                        return;
+                    }
+                    this.financeLoading = true;
+                    try {
+                        const rows = await this.rpc('admin_list_finance_events', {
+                            p_season_id: this.financeFilter.seasonId,
+                            p_wallet: this.financeFilter.wallet || null,
+                        });
+                        this.financeEvents = Array.isArray(rows) ? rows : [];
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.financeLoading = false;
+                    }
+                },
+
+                async ensureResultsContext() {
+                    if (!this.selectedSeasonId && this.activeSeason?.id) {
+                        this.selectedSeasonId = this.activeSeason.id;
+                    }
+                    if (!this.selectedSeasonId) return;
+
+                    await this.loadCompetitions();
+                    if (!this.selectedCompetitionId && this.competitions.length > 0) {
+                        this.selectedCompetitionId = this.competitions[0].id;
+                    }
+                    if (!this.selectedCompetitionId || this.selectedCompetitionId === '__new__') return;
+
+                    await this.loadRounds();
+                    if (!this.selectedRoundId && this.rounds.length > 0) {
+                        this.selectedRoundId = this.rounds[0].id;
+                    }
+                    if (this.selectedRoundId) {
+                        await this.loadRoundDetail();
+                    }
+                },
+
+                async initSeasonHandicaps() {
+                    if (!this.seasonInit.fromSeasonId || !this.seasonInit.toSeasonId) {
+                        this.showToast('Select both source and target seasons', 'error');
+                        return;
+                    }
+                    if (this.seasonInit.fromSeasonId === this.seasonInit.toSeasonId) {
+                        this.showToast('Source and target seasons must be different', 'error');
+                        return;
+                    }
+                    if (!confirm('Initialize handicaps in the target season from the source season finals? Existing starting handicaps for the target season will be overwritten.')) return;
+                    this.seasonInit.running = true;
+                    try {
+                        const rows = await this.rpc('admin_init_season_handicaps_from_prior', {
+                            p_new_season_id: this.seasonInit.toSeasonId,
+                            p_prior_season_id: this.seasonInit.fromSeasonId,
+                        });
+                        this.seasonInit.lastCount = Array.isArray(rows) ? rows.length : Number(rows || 0);
+                        this.showToast(`Handicaps initialized for ${this.seasonInit.lastCount} players`);
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.seasonInit.running = false;
+                    }
+                },
+
+                async applyLeagueMovements() {
+                    if (!this.seasonMovement.fromSeasonId || !this.seasonMovement.toSeasonId) {
+                        this.showToast('Select both source and target seasons', 'error');
+                        return;
+                    }
+                    if (this.seasonMovement.fromSeasonId === this.seasonMovement.toSeasonId) {
+                        this.showToast('Source and target seasons must be different', 'error');
+                        return;
+                    }
+                    if (!confirm('Apply end-of-season promotions/relegations now? This updates target season memberships.')) return;
+
+                    this.seasonMovement.running = true;
+                    try {
+                        const count = await this.rpc('admin_apply_league_movements', {
+                            p_from_season_id: this.seasonMovement.fromSeasonId,
+                            p_to_season_id: this.seasonMovement.toSeasonId,
+                        });
+                        this.seasonMovement.lastCount = Number(count || 0);
+                        await this.loadPlayers();
+                        this.showToast(`League movements applied (${this.seasonMovement.lastCount} memberships)`);
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.seasonMovement.running = false;
+                    }
+                },
+
+                autoFillCompName() {
+                    if (!this.compForm.starts_on || !this.selectedSeasonId) return;
+                    const weekNo = this.competitions.length + 1;
+                    this.compForm.name = 'Week ' + weekNo;
+                },
+
+                async createCompetition() {
+                    try {
+                        const comp = this.competitions.find(c => c.starts_on === this.compForm.starts_on);
+                        const id = await this.rpc('admin_upsert_competition', {
+                            p_id: comp?.id || null,
+                            p_season_id: this.selectedSeasonId,
+                            p_rule_set_id: this.compForm.rule_set_id,
+                            p_competition_type: this.compForm.competition_type,
+                            p_name: this.compForm.name,
+                            p_starts_on: this.compForm.starts_on,
+                        });
+                        await this.loadCompetitions();
+                        this.selectedCompetitionId = id;
+                        await this.loadRounds();
+                        this.showToast('Competition created');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                async createRound() {
+                    try {
+                        const comp = this.competitions.find(c => c.id === this.selectedCompetitionId);
+                        const id = await this.rpc('admin_create_round', {
+                            p_competition_id: this.selectedCompetitionId,
+                            p_season_id: this.selectedSeasonId,
+                            p_round_no: this.roundForm.round_no,
+                            p_round_date: this.roundForm.round_date,
+                        });
+                        await this.loadRounds();
+                        this.selectedRoundId = id;
+                        await this.loadRoundDetail();
+                        this.showToast('Round created');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                // Players
+                openPlayerForm(p) {
+                    this.playerForm = p
+                        ? { id: p.id, full_name: p.full_name, starting_handicap: p.starting_handicap }
+                        : { id: null, full_name: '', starting_handicap: 20 };
+                    this.playerModal = true;
+                },
+
+                async savePlayer() {
+                    try {
+                        await this.rpc('admin_upsert_player', {
+                            p_id: this.playerForm.id,
+                            p_full_name: this.playerForm.full_name,
+                            p_starting_handicap: Number(this.playerForm.starting_handicap),
+                        });
+                        await this.loadPlayers();
+                        this.playerModal = false;
+                        this.showToast('Player saved');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                async setMembership(playerId, leagueName) {
+                    if (!this.activeSeason) return;
+                    try {
+                        await this.rpc('admin_set_membership', {
+                            p_season_id: this.activeSeason.id,
+                            p_player_id: playerId,
+                            p_league_name: leagueName,
+                        });
+                        this.showToast('League updated');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                // Seasons
+                openSeasonForm(s) {
+                    this.seasonForm = s
+                        ? { id: s.id, label: s.label, start_year: s.start_year, start_date: s.start_date, end_date: s.end_date || '', is_active: s.is_active }
+                        : { id: null, label: 'WAGS ' + new Date().getFullYear(), start_year: new Date().getFullYear(), start_date: new Date().toISOString().slice(0, 10), end_date: '', is_active: true };
+                    this.seasonModal = true;
+                },
+
+                async saveSeason() {
+                    try {
+                        const startDate = typeof this.seasonForm.start_date === 'string'
+                            ? this.seasonForm.start_date.trim()
+                            : '';
+                        const yearFromDate = /^\d{4}-\d{2}-\d{2}$/.test(startDate)
+                            ? Number(startDate.slice(0, 4))
+                            : NaN;
+                        const fallbackYear = new Date().getFullYear();
+                        const safeStartYear = Number.isFinite(yearFromDate)
+                            ? yearFromDate
+                            : fallbackYear;
+                        const safeStartDate = startDate || `${safeStartYear}-01-01`;
+
+                        await this.rpc('admin_upsert_season', {
+                            p_id: this.seasonForm.id,
+                            p_label: this.seasonForm.label,
+                            p_start_year: safeStartYear,
+                            p_start_date: safeStartDate,
+                            p_end_date: this.seasonForm.end_date || null,
+                            p_is_active: !!this.seasonForm.is_active,
+                        });
+                        await this.loadSeasons();
+                        await this.loadPlayers();
+                        this.seasonModal = false;
+                        this.showToast('Season saved');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                // Rule Sets
+                openRuleSetForm(r) {
+                    this.ruleSetForm = r
+                        ? { id: r.id, code: r.code, name: r.name, entry_fee: r.entry_fee, bank_share: r.bank_share, weekly_winner_share: r.weekly_winner_share, snake_camel_fine: r.snake_camel_fine, stableford_par: r.stableford_par, best_scores_take: r.best_scores_take }
+                        : { id: null, code: 'WAGS2026', name: 'WAGS 2026', entry_fee: 5, bank_share: 3.50, weekly_winner_share: 1.50, snake_camel_fine: 1, stableford_par: 20, best_scores_take: 14 };
+                    this.ruleSetModal = true;
+                },
+
+                async saveRuleSet() {
+                    try {
+                        await this.rpc('admin_upsert_rule_set', {
+                            p_id: this.ruleSetForm.id,
+                            p_code: this.ruleSetForm.code,
+                            p_name: this.ruleSetForm.name,
+                            p_entry_fee: Number(this.ruleSetForm.entry_fee),
+                            p_bank_share: Number(this.ruleSetForm.bank_share),
+                            p_weekly_winner_share: Number(this.ruleSetForm.weekly_winner_share),
+                            p_snake_camel_fine: Number(this.ruleSetForm.snake_camel_fine),
+                            p_stableford_par: Number(this.ruleSetForm.stableford_par),
+                            p_best_scores_take: Number(this.ruleSetForm.best_scores_take),
+                            p_season_mode: this.ruleSetForm.season_mode || 'main',
+                        });
+                        await this.loadRuleSets();
+                        this.ruleSetModal = false;
+                        this.showToast('Rule set saved');
+                    } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                logImport(message) {
+                    const stamp = new Date().toISOString().slice(11, 19);
+                    this.importLogs.unshift(`[${stamp}] ${message}`);
+                    this.importLogs = this.importLogs.slice(0, 200);
+                },
+
+                toKey(value) {
+                    return String(value || '').trim().toLowerCase();
+                },
+
+                getPayloadArray(payload, key) {
+                    const rows = payload[key];
+                    return Array.isArray(rows) ? rows : [];
+                },
+
+                parseImportPayload() {
+                    try {
+                        const parsed = JSON.parse(this.importJson || '{}');
+                        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                            throw new Error('Payload root must be a JSON object');
+                        }
+                        return parsed;
+                    } catch (e) {
+                        throw new Error(`Invalid JSON payload: ${e.message}`);
+                    }
+                },
+
+                async buildSeasonMap() {
+                    const seasons = await this.rpc('admin_list_seasons');
+                    const byId = new Map();
+                    const byLabel = new Map();
+                    for (const season of seasons) {
+                        byId.set(season.id, season);
+                        byLabel.set(this.toKey(season.label), season);
+                    }
+                    return { seasons, byId, byLabel };
+                },
+
+                async buildRuleSetMap() {
+                    const ruleSets = await this.rpc('admin_list_rule_sets');
+                    const byId = new Map();
+                    const byCode = new Map();
+                    const byName = new Map();
+                    for (const rule of ruleSets) {
+                        byId.set(rule.id, rule);
+                        byCode.set(this.toKey(rule.code), rule);
+                        byName.set(this.toKey(rule.name), rule);
+                    }
+                    return { ruleSets, byId, byCode, byName };
+                },
+
+                async buildPlayerMap() {
+                    const players = await this.rpc('admin_list_players', { p_season_id: null });
+                    const byId = new Map();
+                    const byName = new Map();
+                    for (const player of players) {
+                        byId.set(player.id, player);
+                        byName.set(this.toKey(player.full_name), player);
+                    }
+                    return { players, byId, byName };
+                },
+
+                async buildCompetitionMap(seasons) {
+                    const byId = new Map();
+                    const byKey = new Map();
+                    for (const season of seasons) {
+                        const comps = await this.rpc('admin_list_competitions', { p_season_id: season.id });
+                        for (const comp of comps) {
+                            byId.set(comp.id, comp);
+                            const k1 = `${this.toKey(season.label)}|${this.toKey(comp.name)}|${comp.starts_on}`;
+                            const k2 = `${season.id}|${this.toKey(comp.name)}|${comp.starts_on}`;
+                            byKey.set(k1, comp);
+                            byKey.set(k2, comp);
+                        }
+                    }
+                    return { byId, byKey };
+                },
+
+                resolveSeasonId(row, seasonMap) {
+                    if (row.season_id && seasonMap.byId.has(row.season_id)) return row.season_id;
+                    const season = seasonMap.byLabel.get(this.toKey(row.season_label));
+                    return season?.id || null;
+                },
+
+                resolveRuleSetId(row, ruleMap) {
+                    if (row.rule_set_id && ruleMap.byId.has(row.rule_set_id)) return row.rule_set_id;
+                    const byCode = ruleMap.byCode.get(this.toKey(row.rule_set_code));
+                    if (byCode) return byCode.id;
+                    const byName = ruleMap.byName.get(this.toKey(row.rule_set_name));
+                    if (byName) return byName.id;
+                    return null;
+                },
+
+                async importPlayers(rows) {
+                    for (const row of rows) {
+                        await this.rpc('admin_upsert_player', {
+                            p_id: row.id || null,
+                            p_full_name: row.full_name,
+                            p_starting_handicap: Number(row.starting_handicap ?? 20),
+                        });
+                    }
+                    this.logImport(`Players imported: ${rows.length}`);
+                },
+
+                async importSeasons(rows) {
+                    for (const row of rows) {
+                        const startDate = String(row.start_date || '').trim();
+                        if (!startDate) throw new Error(`Season missing start_date: ${row.label || 'unknown'}`);
+                        await this.rpc('admin_upsert_season', {
+                            p_id: row.id || null,
+                            p_label: row.label,
+                            p_start_year: Number(startDate.slice(0, 4)),
+                            p_start_date: startDate,
+                            p_end_date: row.end_date || null,
+                            p_is_active: !!row.is_active,
+                        });
+                    }
+                    this.logImport(`Seasons imported: ${rows.length}`);
+                },
+
+                async importRuleSets(rows) {
+                    for (const row of rows) {
+                        await this.rpc('admin_upsert_rule_set', {
+                            p_id: row.id || null,
+                            p_code: row.code,
+                            p_name: row.name,
+                            p_entry_fee: Number(row.entry_fee ?? 5),
+                            p_bank_share: Number(row.bank_share ?? 3.5),
+                            p_weekly_winner_share: Number(row.weekly_winner_share ?? 1.5),
+                            p_snake_camel_fine: Number(row.snake_camel_fine ?? 1),
+                            p_stableford_par: Number(row.stableford_par ?? 20),
+                            p_best_scores_take: Number(row.best_scores_take ?? 14),
+                            p_season_mode: row.season_mode || 'main',
+                        });
+                    }
+                    this.logImport(`Rule sets imported: ${rows.length}`);
+                },
+
+                async importMemberships(rows) {
+                    const seasonMap = await this.buildSeasonMap();
+                    const playerMap = await this.buildPlayerMap();
+                    let count = 0;
+                    for (const row of rows) {
+                        const seasonId = this.resolveSeasonId(row, seasonMap);
+                        if (!seasonId) throw new Error(`Membership season not found: ${row.season_label || row.season_id || 'unknown'}`);
+                        const playerId = row.player_id || playerMap.byName.get(this.toKey(row.player_name))?.id;
+                        if (!playerId) throw new Error(`Membership player not found: ${row.player_name || row.player_id || 'unknown'}`);
+                        await this.rpc('admin_set_membership', {
+                            p_season_id: seasonId,
+                            p_player_id: playerId,
+                            p_league_name: row.league_name || 'UNASSIGNED',
+                        });
+                        count += 1;
+                    }
+                    this.logImport(`Memberships imported: ${count}`);
+                },
+
+                async importCompetitions(rows) {
+                    const seasonMap = await this.buildSeasonMap();
+                    const ruleMap = await this.buildRuleSetMap();
+                    let count = 0;
+                    for (const row of rows) {
+                        const seasonId = this.resolveSeasonId(row, seasonMap);
+                        if (!seasonId) throw new Error(`Competition season not found: ${row.season_label || row.season_id || 'unknown'}`);
+                        const ruleSetId = this.resolveRuleSetId(row, ruleMap);
+                        if (!ruleSetId) throw new Error(`Competition rule set not found: ${row.rule_set_code || row.rule_set_name || row.rule_set_id || 'unknown'}`);
+                        await this.rpc('admin_upsert_competition', {
+                            p_id: row.id || null,
+                            p_season_id: seasonId,
+                            p_rule_set_id: ruleSetId,
+                            p_competition_type: row.competition_type || 'main_weekly',
+                            p_name: row.name,
+                            p_starts_on: row.starts_on,
+                        });
+                        count += 1;
+                    }
+                    this.logImport(`Competitions imported: ${count}`);
+                },
+
+                async importRounds(rows) {
+                    const seasonMap = await this.buildSeasonMap();
+                    const competitionMap = await this.buildCompetitionMap(seasonMap.seasons);
+                    const playerMap = await this.buildPlayerMap();
+                    let roundsCount = 0;
+                    let scoresCount = 0;
+
+                    for (const row of rows) {
+                        const seasonId = this.resolveSeasonId(row, seasonMap);
+                        if (!seasonId) throw new Error(`Round season not found: ${row.season_label || row.season_id || 'unknown'}`);
+
+                        let competitionId = row.competition_id || null;
+                        if (!competitionId) {
+                            const date = row.competition_date || row.competition_starts_on || row.starts_on || row.round_date;
+                            const k1 = `${this.toKey(row.season_label)}|${this.toKey(row.competition_name)}|${date}`;
+                            const k2 = `${seasonId}|${this.toKey(row.competition_name)}|${date}`;
+                            const comp = competitionMap.byKey.get(k1) || competitionMap.byKey.get(k2);
+                            competitionId = comp?.id || null;
+                        }
+                        if (!competitionId) throw new Error(`Round competition not found: ${row.competition_name || row.competition_id || 'unknown'}`);
+
+                        const roundId = await this.rpc('admin_create_round', {
+                            p_competition_id: competitionId,
+                            p_season_id: seasonId,
+                            p_round_no: Number(row.round_no || 1),
+                            p_round_date: row.round_date,
+                        });
+                        roundsCount += 1;
+
+                        const entries = Array.isArray(row.entries) ? row.entries : [];
+                        for (const entry of entries) {
+                            const playerId = entry.player_id || playerMap.byName.get(this.toKey(entry.player_name))?.id;
+                            if (!playerId) throw new Error(`Round entry player not found: ${entry.player_name || entry.player_id || 'unknown'}`);
+
+                            await this.rpc('admin_set_round_entry', {
+                                p_round_id: roundId,
+                                p_player_id: playerId,
+                                p_entry_fee_paid: Number(entry.entry_fee_paid || 0),
+                            });
+
+                            if (entry.stableford !== undefined && entry.stableford !== null && entry.stableford !== '') {
+                                await this.rpc('admin_upsert_score', {
+                                    p_round_id: roundId,
+                                    p_player_id: playerId,
+                                    p_stableford: Number(entry.stableford),
+                                    p_gross: entry.gross ?? null,
+                                    p_snake: !!entry.snake,
+                                    p_camel: !!entry.camel,
+                                });
+                                scoresCount += 1;
+                            }
+                        }
+
+                        if (row.finalize === true) {
+                            await this.rpc('admin_finalize_round', { p_round_id: roundId });
+                        }
+                    }
+
+                    this.logImport(`Rounds imported: ${roundsCount}`);
+                    this.logImport(`Scores imported: ${scoresCount}`);
+                },
+
+                async runBulkImport() {
+                    this.importRunning = true;
+                    this.importLogs = [];
+                    try {
+                        const payload = this.parseImportPayload();
+
+                        const players = this.getPayloadArray(payload, 'players');
+                        const seasons = this.getPayloadArray(payload, 'seasons');
+                        const ruleSets = this.getPayloadArray(payload, 'rule_sets');
+                        const memberships = this.getPayloadArray(payload, 'memberships');
+                        const competitions = this.getPayloadArray(payload, 'competitions');
+                        const rounds = this.getPayloadArray(payload, 'rounds');
+
+                        this.logImport('Bulk import started');
+                        if (players.length) await this.importPlayers(players);
+                        if (seasons.length) await this.importSeasons(seasons);
+                        if (ruleSets.length) await this.importRuleSets(ruleSets);
+                        if (memberships.length) await this.importMemberships(memberships);
+                        if (competitions.length) await this.importCompetitions(competitions);
+                        if (rounds.length) await this.importRounds(rounds);
+
+                        await this.loadAll();
+                        if (this.selectedSeasonId) {
+                            await this.loadCompetitions();
+                        }
+
+                        this.logImport('Bulk import complete');
+                        this.showToast('Bulk import complete');
+                    } catch (e) {
+                        this.logImport(`ERROR: ${e.message}`);
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.importRunning = false;
+                    }
+                },
+
+                async resetAllData() {
+                    if (!confirm('This will permanently remove all players, seasons, competitions, rounds and scores in this project. Continue?')) return;
+                    this.importRunning = true;
+                    try {
+                        await this.rpc('admin_reset_all_data');
+                        this.players = [];
+                        this.seasons = [];
+                        this.activeSeason = null;
+                        this.ruleSets = [];
+                        this.competitions = [];
+                        this.rounds = [];
+                        this.roundDetail = [];
+                        this.roundOutcome = null;
+                        this.selectedSeasonId = '';
+                        this.selectedCompetitionId = '';
+                        this.selectedRoundId = '';
+                        this.importLogs = [];
+                        this.logImport('All data reset complete');
+                        await this.loadAll();
+                        this.showToast('All data reset complete');
+                    } catch (e) {
+                        this.logImport(`ERROR: ${e.message}`);
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.importRunning = false;
+                    }
+                },
+
+                async switchTab(id) {
+                    const prev = this.tab;
+                    this.tab = id;
+                    // Prevent Scores/Results selections bleeding into each other
+                    if (prev !== id && (prev === 'scores' || prev === 'results') && (id === 'scores' || id === 'results')) {
+                        this.selectedCompetitionId = '';
+                        this.selectedRoundId = '';
+                        this.rounds = [];
+                        this.roundDetail = [];
+                        this.roundOutcome = null;
+                    }
+                    if (id === 'players') {
+                        await this.loadPlayers();
+                    }
+                    if (id === 'finance') {
+                        if (!this.financeFilter.seasonId && this.activeSeason?.id) {
+                            this.financeFilter.seasonId = this.activeSeason.id;
+                        }
+                        await this.loadFinanceData();
+                    }
+                },
+            };
+        }
+    </script>
+</body>
+
+</html>

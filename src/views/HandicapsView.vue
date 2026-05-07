@@ -67,6 +67,11 @@ const trendValues = computed(() =>
   historyRows.value.map((row) => row.new_handicap).reverse(),
 );
 
+const normalizeCompetitionLabel = (label) =>
+  String(label || "")
+    .replace(/\s*-\s*week\s*1\s*$/i, "")
+    .trim();
+
 const getLatestCompetitionChangeMap = (history, competitions) => {
   // Find the latest competition by date to ensure the comparison is correct
   const nonOpen = (competitions || []).filter((c) => c.status !== "open");
@@ -254,7 +259,7 @@ const loadHistory = async () => {
         // If there's no competition_id or it's not found, only then call it manual
         competitionLabel = "Manual adjustment";
       } else {
-        competitionLabel = compName;
+        competitionLabel = normalizeCompetitionLabel(compName);
       }
       return {
         id: `${selectedPlayerId.value}-${item.created_at}-${index}`,

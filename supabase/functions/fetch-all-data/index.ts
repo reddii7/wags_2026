@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
         .select("id, full_name, role, league_name, current_handicap"),
       supabase
         .from("handicap_history")
-        .select("*, competitions(name, competition_date)")
+        .select("*")
         .order("created_at", { ascending: false }),
       supabase
         .from("matchplay_tournaments")
@@ -141,14 +141,8 @@ Deno.serve(async (req) => {
     const shellHistory = (historyRes.data || [])
       .slice()
       .sort((a: any, b: any) => {
-        const tA =
-          toTime(a?.competitions?.competition_date) ??
-          toTime(a?.created_at) ??
-          0;
-        const tB =
-          toTime(b?.competitions?.competition_date) ??
-          toTime(b?.created_at) ??
-          0;
+        const tA = toTime(a?.competition_date) ?? toTime(a?.created_at) ?? 0;
+        const tB = toTime(b?.competition_date) ?? toTime(b?.created_at) ?? 0;
         return tB - tA;
       });
 
@@ -222,6 +216,9 @@ Deno.serve(async (req) => {
           .from("public_results_view")
           .select("*")
           .in("competition_id", competitionIds)
+          .order("competition_id", { ascending: false })
+          .order("position", { ascending: true })
+          .order("player", { ascending: true })
       : { data: [], error: null },
     competitionIds.length
       ? supabase
@@ -235,7 +232,7 @@ Deno.serve(async (req) => {
     // Order locally instead (competition_date desc, then created_at desc)
     supabase
       .from("handicap_history")
-      .select("*, competitions(name, competition_date)")
+      .select("*")
       .order("created_at", { ascending: false }),
     supabase.from("rounds").select("*"),
     supabase
@@ -252,7 +249,7 @@ Deno.serve(async (req) => {
       .order("id", { ascending: true }),
   ]);
 
-  const results = resultsRes.data || [];
+  const results = (resultsRes.data || []).slice();
   const summaries = summariesRes.data || [];
   const rounds = roundsRes.data || [];
   const profiles = profilesRes.data || [];
@@ -272,8 +269,8 @@ Deno.serve(async (req) => {
   const handicap_history = handicap_history_raw
     .slice()
     .sort((a: any, b: any) => {
-      const tA = toTime(a?.competitions?.competition_date);
-      const tB = toTime(b?.competitions?.competition_date);
+      const tA = toTime(a?.competition_date);
+      const tB = toTime(b?.competition_date);
 
       // Prefer competition_date; fallback to created_at
       const cA = tA ?? toTime(a?.created_at);

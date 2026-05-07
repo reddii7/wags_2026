@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
 import { triggerHapticFeedback } from "../utils/haptics";
+import { supabase } from "../lib/supabase";
 
 const props = defineProps({
   season: { type: Object, required: true },
@@ -280,12 +281,6 @@ const detailColumns = [
     width: "minmax(0, 1fr)",
   },
   {
-    key: "competition_date",
-    label: "Date",
-    className: "numeric narrow",
-    width: "6rem",
-  },
-  {
     key: "stableford_score",
     label: "Score",
     className: "numeric",
@@ -323,61 +318,53 @@ const formatLeagueTitle = (value) => {
   return String(value).toUpperCase();
 };
 
+const normalizeCompetitionLabel = (label) =>
+  String(label || "")
+    .replace(/\s*-\s*week\s*1\s*$/i, "")
+    .trim();
+
 // No-op: groups is now computed from metadata
 
 // Disable best 10 modal if not available in metadata
-const openBest10 = (player) => {
+const openBest10 = async (player) => {
   triggerHapticFeedback();
+  error.value = "";
   selectedPlayer.value = player;
   detailLoading.value = true;
-
-  const allRounds = props.metadata?.rounds || [];
-  const allComps = props.metadata?.competitions || [];
-  const allResults = props.metadata?.results || [];
-  const seasonId = props.season?.id;
-  const seasonYear = String(props.season?.start_year);
-
-  // Filter competitions for this season
-  const seasonCompIds = new Set(
-    allComps
-      .filter((c) => c.season === seasonId || String(c.season) === seasonYear)
-      .map((c) => c.id),
-  );
-
-  const targetPlayerId = player.user_id || player.player_id || player.id;
-
-  // Map player rounds with competition details
-  const roundMap = new Map();
-  [...allRounds, ...allResults].forEach((r) => {
-    const rowUid = r.user_id || r.player_id;
-    if (rowUid === targetPlayerId && seasonCompIds.has(r.competition_id)) {
-      // Use Map to deduplicate by competition_id
-      const existing = roundMap.get(r.competition_id);
-      const score = r.stableford_score ?? r.score;
-      if (!existing || score !== undefined) {
-        roundMap.set(r.competition_id, {
-          ...r,
-          stableford_score: score,
-        });
-      }
+  try {
+    const seasonId = props.season?.id;
+    const playerId = player.user_id || player.player_id || player.id;
+    if (!seasonId || !playerId) {
+      detailRows.value = [];
+      isDetailOpen.value = true;
+      return;
     }
-  });
 
-  detailRows.value = Array.from(roundMap.values())
-    .map((r) => {
-      const comp = allComps.find((c) => c.id === r.competition_id);
-      return {
-        ...r,
-        competition_name: comp?.name || "Unknown Round",
-        competition_date: comp?.competition_date,
-      };
-    })
-    .sort(
-      (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
+    const { data, error: rpcError } = await supabase.rpc(
+      "get_player_top_rounds",
+      {
+        p_season_id: seasonId,
+        p_player_id: playerId,
+        p_take: 10,
+      },
     );
+    if (rpcError) throw rpcError;
 
-  detailLoading.value = false;
-  isDetailOpen.value = true;
+    detailRows.value = Array.isArray(data)
+      ? data.map((row) => ({
+          ...row,
+          competition_name: normalizeCompetitionLabel(row.competition_name),
+          id: `${row.competition_id}-${playerId}`,
+        }))
+      : [];
+    isDetailOpen.value = true;
+  } catch (e) {
+    detailRows.value = [];
+    error.value = e?.message || "Could not load best 10 details.";
+    isDetailOpen.value = true;
+  } finally {
+    detailLoading.value = false;
+  }
 };
 
 const closeBest10 = () => {

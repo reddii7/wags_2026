@@ -114,6 +114,22 @@ const latestStats = computed(() => {
   return { players, snakes, camels };
 });
 
+const isRolloverHero = computed(() => {
+  const winnerType = String(summary.value?.winner_type || "").toLowerCase();
+  if (winnerType === "rollover" || winnerType === "tie") return true;
+  return latestTopRows.value.length > 1;
+});
+
+const rolloverMessage = computed(() => {
+  const amount = Number(summary.value?.amount || 0);
+  const amountText = `£${amount.toFixed(2)}`;
+  const topScore = latestTopRows.value?.[0]?.score;
+  if (topScore !== null && topScore !== undefined && topScore !== "") {
+    return `A rollover with ${topScore} points leading, carrying ${amountText} into the next week.`;
+  }
+  return `A rollover with ${amountText} carried into the next week.`;
+});
+
 const loadHomeData = async () => {
   if (props.metadata.loading) {
     loading.value = true;
@@ -208,109 +224,24 @@ const loadHomeData = async () => {
       dash?.results && Array.isArray(dash.results) && dash.results.length
         ? dash.results
         : fallbackResults;
-    latestResults.value = sourceResults
-      .map((row) => ({
-        id: `${row.competition_id}-${row.user_id}`,
-        competition_id: row.competition_id,
-        user_id: row.user_id,
-        player: row.player || row.full_name || "Unknown player",
-        score: row.score ?? row.stableford_score ?? row.total_score ?? "—",
-        snake: Boolean(row.snake ?? row.has_snake),
-        camel: Boolean(row.camel ?? row.has_camel),
-        position: row.position ?? row.pos ?? row.rank_no ?? "999",
-      }))
-      .sort((a, b) => {
-        const posA = Number(a.position);
-        const posB = Number(b.position);
-        if (Number.isFinite(posA) && Number.isFinite(posB) && posA !== posB) {
-          return posA - posB;
-        }
-        const scoreA = Number(a.score);
-        const scoreB = Number(b.score);
-        if (Number.isFinite(scoreA) && Number.isFinite(scoreB)) {
-          return scoreB - scoreA;
-        }
-        return String(a.player).localeCompare(String(b.player));
-      });
+    latestResults.value = sourceResults.map((row) => ({
+      id: `${row.competition_id}-${row.user_id}`,
+      competition_id: row.competition_id,
+      user_id: row.user_id,
+      player: row.player || row.full_name || "Unknown player",
+      score: row.score ?? row.stableford_score ?? row.total_score ?? "—",
+      snake: Boolean(row.snake ?? row.has_snake),
+      camel: Boolean(row.camel ?? row.has_camel),
+      position: row.position ?? row.pos ?? row.rank_no ?? "999",
+    }));
 
-    // Best 14 and Leagues for this season (try both id and start_year as keys)
-    // Use the same seasonKey as above
-    const altSeasonKey =
-      props.metadata.seasons?.find(
-        (s) => String(s.start_year) === String(seasonKey),
-      )?.id ||
-      props.metadata.seasons?.find((s) => s.id === seasonKey)?.start_year;
-
-    const best14 =
-      props.metadata.best14?.[seasonKey] ||
-      (altSeasonKey ? props.metadata.best14?.[altSeasonKey] : []) ||
-      [];
-
-    // Sort and compute leaders using rank positions first.
-    // This ensures all tied players in ranks 1-3 are shown.
-    const sortedBest14 = best14
-      .map((player) => ({
-        ...player,
-        position: player.position ?? player.pos ?? player.rank_no ?? "1",
-        total_score: player.best_total,
-        id: `${seasonKey}-${player.user_id}`,
-      }))
-      .sort((a, b) => Number(b.total_score) - Number(a.total_score));
-
-    const hasRankData = sortedBest14.some((p) => {
-      const rank = Number(p.position);
-      return Number.isFinite(rank);
-    });
-
-    if (hasRankData) {
-      best14Leaders.value = sortedBest14.filter((p) => {
-        const rank = Number(p.position);
-        return Number.isFinite(rank) && rank <= 3;
-      });
-    } else {
-      // Fallback: use top 3 unique scores if rank data is unavailable.
-      const uniqueScores = [
-        ...new Set(
-          sortedBest14
-            .map((p) => Number(p.total_score))
-            .filter((score) => Number.isFinite(score)),
-        ),
-      ];
-      const top3Scores = uniqueScores.slice(0, 3);
-      best14Leaders.value = sortedBest14.filter((p) =>
-        top3Scores.includes(Number(p.total_score)),
-      );
-    }
-
-    const leagues =
-      props.metadata.leagues?.[seasonKey] ||
-      (altSeasonKey ? props.metadata.leagues?.[altSeasonKey] : []) ||
-      [];
-    // Group by division (league_name), pick top position in each
-    const divisionMap = new Map();
-    for (const row of leagues) {
-      const key = row.league_name || row.division || "Division";
-      const current = divisionMap.get(key);
-      // Use numeric position if available, else default to 1
-      const rowPos = Number(row.position ?? row.pos ?? row.rank_no ?? 1);
-      const currentPos = current
-        ? Number(current.position ?? current.pos ?? current.rank_no ?? 1)
-        : Infinity;
-      if (!current || rowPos < currentPos) {
-        divisionMap.set(key, row);
-      }
-    }
-    leagueLeaders.value = Array.from(divisionMap.values())
-      .sort((a, b) =>
-        String(a.league_name || a.division).localeCompare(
-          String(b.league_name || b.division),
-        ),
-      )
-      .slice(0, 4)
-      .map((row) => ({
-        ...row,
-        position: "1",
-      }));
+    // Backend-prepared home card leaders.
+    best14Leaders.value = Array.isArray(dash?.best14_leaders)
+      ? dash.best14_leaders
+      : [];
+    leagueLeaders.value = Array.isArray(dash?.league_leaders)
+      ? dash.league_leaders
+      : [];
 
     // Use the same logic as HandicapsView to get the latest change for each player
     const history = props.metadata?.handicap_history || [];
@@ -412,8 +343,8 @@ watch(
             </template>
           </span>
           <template v-if="latestTopRows.length">
-            <span v-if="summary.winner_type === 'rollover'">
-              A rollover with
+            <span v-if="isRolloverHero">
+              {{ rolloverMessage }}
             </span>
             <template
               v-if="
@@ -505,10 +436,7 @@ watch(
                       : 'mini-pill--negative'
                   "
                 >
-                  {{ item.old_handicap }}→{{ item.new_handicap }}
-                  <span style="font-size: 0.9em; opacity: 0.7">
-                    ({{ item.oldRounded }}→{{ item.newRounded }})</span
-                  >
+                  {{ item.oldRounded }}→{{ item.newRounded }}
                 </span>
               </span>
             </div>
@@ -562,7 +490,9 @@ watch(
             :key="leader.league_name || idx"
             class="home-compact-row"
           >
-            <span class="home-rank home-rank--league">{{ idx + 1 }}</span>
+            <span class="home-rank home-rank--league">{{
+              leader.position ?? idx + 1
+            }}</span>
             <span class="home-name">{{ leader.full_name }}</span>
             <span class="home-value">{{ leader.total_score }}</span>
           </div>

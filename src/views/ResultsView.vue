@@ -25,29 +25,12 @@ const competitions = computed(() => props.metadata?.competitions || []);
 const results = computed(() => props.metadata?.results || []);
 const summaries = computed(() => props.metadata?.summaries || []);
 const rows = computed(() => {
-  const allRounds = props.metadata?.rounds || [];
-  const allResults = props.metadata?.results || [];
-  const seasonId = props.season?.id;
-  const seasonYear = String(props.season?.start_year);
-  const seasonCompIds = new Set(
-    (props.metadata?.competitions || [])
-      .filter((c) => c.season === seasonId || String(c.season) === seasonYear)
-      .map((c) => c.id),
-  );
   return results.value
     .filter((r) => r.competition_id === selectedCompetitionId.value)
     .map((row) => {
-      // Calculate games played for each player
-      const targetPlayerId = row.user_id || row.player_id || row.id;
-      const gamesPlayed = [...allRounds, ...allResults].filter((r2) => {
-        const rowUid = r2.user_id || r2.player_id;
-        return (
-          rowUid === targetPlayerId && seasonCompIds.has(r2.competition_id)
-        );
-      }).length;
       return {
         ...row,
-        games_played: gamesPlayed,
+        position: row.position ?? row.pos ?? row.rank_no ?? row.rank ?? "",
       };
     });
 });
@@ -163,6 +146,67 @@ const winnerValue = computed(() => {
   return score !== undefined && score !== null ? `${names} (${score})` : names;
 });
 
+const heroWinnerNames = computed(() => {
+  if (summary.value?.winner_names && summary.value.winner_names.length) {
+    return summary.value.winner_names;
+  }
+  return leadingRows.value.map((row) => row.player);
+});
+
+const formattedHeroWinnerNames = computed(() => {
+  const names = heroWinnerNames.value || [];
+  if (!names.length) return "";
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return names.join(" and ");
+  return `${names.slice(0, -1).join(", ")} and ${names.slice(-1)}`;
+});
+
+const heroRolloverAmount = computed(() => {
+  // For tie/rollover weeks, show cumulative carry across the current tie streak.
+  if (selectedCompetitionId.value) {
+    const sorted = [...competitionsForSeason.value].sort(
+      (a, b) => new Date(a.competition_date) - new Date(b.competition_date),
+    );
+    const idx = sorted.findIndex((c) => c.id === selectedCompetitionId.value);
+    if (idx !== -1) {
+      const selectedSummary = summaries.value.find(
+        (s) => s.competition_id === selectedCompetitionId.value,
+      );
+      if (selectedSummary?.winner_type === "tie") {
+        let total = 0;
+        for (let i = idx; i >= 0; i -= 1) {
+          const compId = sorted[i]?.id;
+          const s = summaries.value.find(
+            (row) => row.competition_id === compId,
+          );
+          if (!s || s.winner_type !== "tie") break;
+          const amt = Number(s.amount);
+          if (Number.isFinite(amt) && amt > 0) total += amt;
+        }
+        if (total > 0) return total;
+      }
+    }
+  }
+
+  const summaryAmount = Number(summary.value?.amount);
+  if (Number.isFinite(summaryAmount) && summaryAmount > 0) return summaryAmount;
+
+  const rollover = Number(selectedCompetition.value?.rollover_amount);
+  if (Number.isFinite(rollover) && rollover > 0) return rollover;
+
+  return 0;
+});
+
+const heroWinnerAmount = computed(() => {
+  const summaryAmount = Number(summary.value?.amount);
+  if (Number.isFinite(summaryAmount) && summaryAmount > 0) return summaryAmount;
+
+  const prizePot = Number(selectedCompetition.value?.prize_pot);
+  if (Number.isFinite(prizePot) && prizePot > 0) return prizePot;
+
+  return 0;
+});
+
 const syncSelectedCompetition = () => {
   const seasonCompetitions = competitionsForSeason.value;
   if (!seasonCompetitions.length) {
@@ -240,29 +284,20 @@ watch(
             </template>
           </span>
           <template v-if="leadingRows.length">
-            <template v-if="summary.winner_type === 'rollover'">
+            <template
+              v-if="
+                summary.winner_type === 'rollover' ||
+                summary.winner_type === 'tie'
+              "
+            >
               <span>
                 A rollover with
-                <template
-                  v-if="summary.winner_names && summary.winner_names.length"
-                >
-                  {{
-                    " " +
-                    (summary.winner_names.length === 1
-                      ? summary.winner_names[0]
-                      : summary.winner_names.length === 2
-                        ? summary.winner_names.join(" and ")
-                        : summary.winner_names.slice(0, -1).join(", ") +
-                          " and " +
-                          summary.winner_names.slice(-1))
-                  }}
-                </template>
+                {{ ` ${formattedHeroWinnerNames}` }}
                 all scoring
                 <template v-if="leadingRows.length">
                   {{ " " + leadingRows[0].score }}
                 </template>
-                , £{{ Number(summary.amount).toFixed(2) }} rolled over to next
-                week.
+                , £{{ heroRolloverAmount.toFixed(2) }} rolled over to next week.
               </span>
             </template>
             <template
@@ -277,7 +312,7 @@ watch(
                 <template v-if="leadingRows.length">
                   with {{ leadingRows[0].score }} points
                 </template>
-                , adding £{{ Number(summary.amount).toFixed(2) }} to his season
+                , adding £{{ heroWinnerAmount.toFixed(2) }} to his season
                 winnings.
               </span>
             </template>
@@ -290,12 +325,16 @@ watch(
             >
               <span>
                 {{ summary.winner_names.join(", ") }} tied for the win, adding
-                £{{ Number(summary.amount).toFixed(2) }} to their season
-                winnings.
+                £{{ heroWinnerAmount.toFixed(2) }} to their season winnings.
               </span>
             </template>
             <template v-else-if="!loading && !detailsLoading">
-              No results yet.
+              <span>
+                {{ formattedHeroWinnerNames }}
+                <template v-if="leadingRows.length">
+                  scored {{ leadingRows[0].score }} points.
+                </template>
+              </span>
             </template>
             <p class="home-hero-sublabel home-hero-subtext">
               {{ summary.num_players }} played, {{ summary.snakes }} snakes,
