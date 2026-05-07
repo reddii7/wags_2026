@@ -142,13 +142,23 @@ const loadHomeData = async () => {
   }
   error.value = "";
   try {
-    // Prefer the latest completed competition that has result/summary data.
+    // Prefer the latest competition from the active season first.
+    // This ensures a fresh new season (e.g. open Week 01) is shown by default.
     const competitions = props.metadata.competitions || [];
+    const seasons = props.metadata.seasons || [];
+    const activeSeason = seasons.find((s) => s.is_active) || null;
     const allResults = props.metadata.results || [];
     const allSummaries = props.metadata.summaries || [];
     const sortedComps = [...competitions].sort(
       (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
     );
+    const activeSeasonComps = activeSeason
+      ? sortedComps.filter(
+          (comp) =>
+            String(comp?.season) === String(activeSeason.id) ||
+            String(comp?.season) === String(activeSeason.start_year),
+        )
+      : [];
     const latestCompWithData = sortedComps.find((comp) => {
       if (!comp?.id || comp.status === "open") return false;
       const hasResults = allResults.some(
@@ -166,7 +176,11 @@ const loadHomeData = async () => {
       (comp) => comp?.status === "closed" && comp.competition_date,
     );
     const latestComp =
-      latestCompWithData || latestClosedComp || sortedComps[0] || null;
+      activeSeasonComps[0] ||
+      latestCompWithData ||
+      latestClosedComp ||
+      sortedComps[0] ||
+      null;
     latestCompetition.value = latestComp;
     latestCompetitionDetails.value = latestComp;
     if (!latestComp) {
