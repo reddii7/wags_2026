@@ -286,8 +286,8 @@ const selectRound = (idx) => {
   color: #858585;
   font-family: inherit;
   text-align: left;
+  margin: 0 -1rem;
   padding: 1rem 1rem 0.75rem;
-  margin: 0;
 }
 
 .matches-divider {
