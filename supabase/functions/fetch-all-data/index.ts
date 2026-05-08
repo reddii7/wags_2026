@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
+const BUILD_ID = "20240508-v1";
+
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
   return value
@@ -181,6 +183,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         api_version: "contract-v1",
+        build_id: BUILD_ID,
         defaults: {
           results_season_id: shellDefaultResultsSeasonId,
         },
@@ -1023,6 +1026,7 @@ Deno.serve(async (req) => {
   return new Response(
     JSON.stringify({
       api_version: "contract-v1",
+      build_id: BUILD_ID,
       defaults: {
         results_season_id: preferredResultsSeasonId,
       },

@@ -129,6 +129,16 @@ async function loadGlobalMetadata(silent = false) {
       return;
     }
 
+    // Compare the server's reported build against the client build.
+    // Ensure your Supabase Edge Function returns a 'build_id' field.
+    if (data.build_id && data.build_id !== CLIENT_BUILD_ID) {
+      console.warn(
+        `Build mismatch: server=${data.build_id}, client=${CLIENT_BUILD_ID}. Forcing update...`,
+      );
+      hardRefresh();
+      return;
+    }
+
     Object.assign(globalMetadata.value, data);
   } catch (err) {
     globalMetadata.value.loadError =
@@ -142,6 +152,10 @@ async function loadGlobalMetadata(silent = false) {
 async function hardRefresh() {
   globalMetadata.value.loading = true;
   globalMetadata.value.loadError = "Updating to latest version...";
+
+  // Store a flag to prevent reload loops
+  sessionStorage.setItem("forced-refreshing", "1");
+
   // Unregister all service workers to clear cache
   if ("serviceWorker" in navigator) {
     try {
@@ -164,9 +178,10 @@ async function hardRefresh() {
   }
   // Hard reload by appending a cache-busting timestamp to the URL.
   // This is the only way to force iOS Safari to fetch a fresh index.html for a Home Screen icon.
-  const url = new URL(window.location.href.split("#")[0]);
+  const url = new URL(window.location.origin);
   url.searchParams.set("t", Date.now().toString());
-  window.location.replace(url.toString());
+  // Using href instead of replace is often more effective at breaking the standalone cache
+  window.location.href = url.toString();
 }
 
 // ...existing code...
@@ -320,9 +335,16 @@ const handleVisibilityChange = () => {
 const handlePageShow = (e) => {
   // e.persisted means restored from bfcache (common on iOS)
   if (e.persisted) {
-    window.location.reload();
+    // If we just did a hard refresh, clear the flag and don't reload immediately
+    if (sessionStorage.getItem("forced-refreshing")) {
+      sessionStorage.removeItem("forced-refreshing");
+      return;
+    }
+    // Instead of reload(), just check metadata. If it's stale, hardRefresh() handles the rest.
+    scheduleGlobalMetadataReload();
     return;
   }
+
   // Only refresh after initial load is done
   if (globalMetadata.value.api_version) {
     scheduleGlobalMetadataReload();
