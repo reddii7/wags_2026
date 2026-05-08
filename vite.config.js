@@ -55,6 +55,18 @@ export default defineConfig({
                 clientsClaim: true,
                 navigateFallback: '/index.html',
                 navigateFallbackDenylist: [/^\/api\//],
+                // Always fetch index.html from network so version-check script
+                // gets the latest BUILD string and can bust stale caches.
+                runtimeCaching: [
+                    {
+                        urlPattern: ({ request }) => request.mode === 'navigate',
+                        handler: 'NetworkFirst',
+                        options: {
+                            cacheName: 'pages',
+                            networkTimeoutSeconds: 5,
+                        },
+                    },
+                ],
                 additionalManifestEntries: [
                     {
                         url: '/',
