@@ -396,6 +396,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <main class="app-main">
+      <!-- Spinner overlays the view — RouterView stays mounted always -->
       <div v-if="globalMetadata.loading" class="app-boot-loader">
         <div class="loader-content">
           <div class="spinner"></div>
@@ -403,7 +404,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="view-frame" v-if="!globalMetadata.loading">
+      <div class="view-frame">
         <RouterView v-slot="{ Component }">
           <transition name="page-fade" mode="out-in">
             <component
