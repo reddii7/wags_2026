@@ -326,13 +326,6 @@ onMounted(() => {
   handleScroll();
   loadGlobalMetadata();
 
-  // Force reload when service worker updates (fixes stale PWA cache)
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      window.location.reload();
-    });
-  }
-
   // Subscribe to relevant tables for realtime updates
   const tables = [
     "competitions",
