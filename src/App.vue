@@ -270,6 +270,8 @@ const handleVisibilityChange = () => {
   if (document.visibilityState === "hidden") {
     hiddenAt = Date.now();
   } else if (document.visibilityState === "visible") {
+    // Skip if the initial load hasn't completed yet.
+    if (!globalMetadata.value.api_version) return;
     if (hiddenAt && Date.now() - hiddenAt > STALE_THRESHOLD_MS) {
       window.location.reload();
       return;
