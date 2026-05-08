@@ -285,11 +285,17 @@ const handlePageShow = (e) => {
     window.location.reload();
     return;
   }
-  scheduleGlobalMetadataReload();
+  // Skip on the very first page load — the direct call in onMounted handles it.
+  if (globalMetadata.value.api_version) {
+    scheduleGlobalMetadataReload();
+  }
 };
 
 const handleWindowFocus = () => {
-  scheduleGlobalMetadataReload();
+  // Skip if the initial load hasn't completed yet.
+  if (globalMetadata.value.api_version) {
+    scheduleGlobalMetadataReload();
+  }
 };
 
 onMounted(() => {
