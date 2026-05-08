@@ -295,6 +295,8 @@ const handleVisibilityChange = () => {
   if (document.visibilityState === "hidden") {
     hiddenAt = Date.now();
   } else if (document.visibilityState === "visible") {
+    // Only refresh after initial load is done
+    if (!globalMetadata.value.api_version) return;
     if (hiddenAt && Date.now() - hiddenAt > STALE_THRESHOLD_MS) {
       window.location.reload();
       return;
@@ -310,11 +312,17 @@ const handlePageShow = (e) => {
     window.location.reload();
     return;
   }
-  scheduleGlobalMetadataReload();
+  // Only refresh after initial load is done
+  if (globalMetadata.value.api_version) {
+    scheduleGlobalMetadataReload();
+  }
 };
 
 const handleWindowFocus = () => {
-  scheduleGlobalMetadataReload();
+  // Only refresh after initial load is done
+  if (globalMetadata.value.api_version) {
+    scheduleGlobalMetadataReload();
+  }
 };
 
 onMounted(() => {
