@@ -78,12 +78,12 @@ function scheduleGlobalMetadataReload() {
   if (reloadDebounceTimer) clearTimeout(reloadDebounceTimer);
   reloadDebounceTimer = setTimeout(() => {
     reloadDebounceTimer = null;
-    loadGlobalMetadata();
+    loadGlobalMetadata(true);
   }, 450);
 }
 
-async function loadGlobalMetadata() {
-  globalMetadata.value.loading = true;
+async function loadGlobalMetadata(silent = false) {
+  if (!silent) globalMetadata.value.loading = true;
   globalMetadata.value.loadError = "";
   try {
     const requestUrl = FETCH_ALL_DATA_URL;
@@ -270,8 +270,6 @@ const handleVisibilityChange = () => {
   if (document.visibilityState === "hidden") {
     hiddenAt = Date.now();
   } else if (document.visibilityState === "visible") {
-    // Skip if the initial load hasn't completed yet.
-    if (!globalMetadata.value.api_version) return;
     if (hiddenAt && Date.now() - hiddenAt > STALE_THRESHOLD_MS) {
       window.location.reload();
       return;
@@ -287,17 +285,11 @@ const handlePageShow = (e) => {
     window.location.reload();
     return;
   }
-  // Skip on the very first page load — the direct call in onMounted handles it.
-  if (globalMetadata.value.api_version) {
-    scheduleGlobalMetadataReload();
-  }
+  scheduleGlobalMetadataReload();
 };
 
 const handleWindowFocus = () => {
-  // Skip if the initial load hasn't completed yet.
-  if (globalMetadata.value.api_version) {
-    scheduleGlobalMetadataReload();
-  }
+  scheduleGlobalMetadataReload();
 };
 
 onMounted(() => {
