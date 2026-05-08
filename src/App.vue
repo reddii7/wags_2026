@@ -334,6 +334,22 @@ onMounted(() => {
   handleScroll();
   loadGlobalMetadata();
 
+  // Force SW update check immediately — if a new SW takes control, reload.
+  // This gets the kill-switch SW activated on the first open, not second.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (!reg) return;
+      // When new SW takes over, do one reload (loop-guarded by sessionStorage)
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (sessionStorage.getItem("sw-killed")) return;
+        sessionStorage.setItem("sw-killed", "1");
+        window.location.reload();
+      });
+      // Trigger update check immediately rather than waiting up to 24h
+      reg.update();
+    });
+  }
+
   // Subscribe to relevant tables for realtime updates
   const tables = [
     "competitions",
