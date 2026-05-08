@@ -90,7 +90,8 @@ async function loadGlobalMetadata(silent = false) {
   if (!silent) globalMetadata.value.loading = true;
   globalMetadata.value.loadError = "";
   try {
-    const requestUrl = FETCH_ALL_DATA_URL;
+    const season = await getPreferredSeasonParam();
+    const requestUrl = buildFetchAllDataUrl(FETCH_ALL_DATA_URL, season);
 
     const response = await fetch(requestUrl, {
       cache: "no-store",
@@ -132,13 +133,27 @@ async function loadGlobalMetadata(silent = false) {
     // Compare the server's reported build against the client build.
     // Ensure your Supabase Edge Function returns a 'build_id' field.
     if (data.build_id && data.build_id !== CLIENT_BUILD_ID) {
+      const refreshCount = parseInt(
+        sessionStorage.getItem("pwa-refresh-count") || "0",
+      );
+      if (refreshCount >= 2) {
+        console.error(
+          "Build ID mismatch persists after hard refresh. Update failed or server-side cache is stale.",
+        );
+        return;
+      }
       console.warn(
         `Build mismatch: server=${data.build_id}, client=${CLIENT_BUILD_ID}. Forcing update...`,
+      );
+      sessionStorage.setItem(
+        "pwa-refresh-count",
+        (refreshCount + 1).toString(),
       );
       hardRefresh();
       return;
     }
 
+    sessionStorage.removeItem("pwa-refresh-count");
     Object.assign(globalMetadata.value, data);
   } catch (err) {
     globalMetadata.value.loadError =
