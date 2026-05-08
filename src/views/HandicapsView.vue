@@ -124,7 +124,7 @@ const getLatestCompetitionChangeMap = (history, competitions) => {
 const loadPlayers = async () => {
   loading.value = true;
   try {
-    const profiles = props.metadata?.profiles || [];
+    const profiles = props.metadata?.profiles || props.metadata?.players || [];
     const history = props.metadata?.handicap_history || [];
     const competitions = props.metadata?.competitions || [];
     const latestChangeByUser = getLatestCompetitionChangeMap(

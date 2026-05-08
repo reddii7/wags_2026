@@ -14,6 +14,10 @@ const showSignIn = ref(false);
 const route = useRoute();
 const router = useRouter();
 
+// Increment this whenever you deploy a version that MUST force old icons to update
+// This acts as a 'kill-switch' for stale Home Screen versions.
+const CLIENT_BUILD_ID = "20240508-v1";
+
 const { theme } = useTheme();
 const chromeHidden = ref(false);
 const globalMetadata = ref({
@@ -114,13 +118,15 @@ async function loadGlobalMetadata(silent = false) {
     }
 
     if (!data || typeof data !== "object" || !Array.isArray(data.seasons)) {
-      throw new Error(
-        "Server contract invalid: missing required payload sections.",
-      );
+      throw new Error("Server contract invalid.");
     }
 
+    // If the API version or a specific build ID from the server doesn't match,
+    // trigger an automatic hard refresh to bust the stale iOS Web Clip cache.
     if (data.api_version && data.api_version !== "contract-v1") {
-      throw new Error(`Unsupported API contract: ${data.api_version}`);
+      console.warn("Client out of date. Forcing update...");
+      hardRefresh();
+      return;
     }
 
     Object.assign(globalMetadata.value, data);
@@ -134,6 +140,8 @@ async function loadGlobalMetadata(silent = false) {
 }
 
 async function hardRefresh() {
+  globalMetadata.value.loading = true;
+  globalMetadata.value.loadError = "Updating to latest version...";
   // Unregister all service workers to clear cache
   if ("serviceWorker" in navigator) {
     try {
@@ -154,8 +162,11 @@ async function hardRefresh() {
       console.error("Failed to clear caches:", err);
     }
   }
-  // Hard reload (bypasses cache)
-  window.location.href = window.location.href.split("#")[0];
+  // Hard reload by appending a cache-busting timestamp to the URL.
+  // This is the only way to force iOS Safari to fetch a fresh index.html for a Home Screen icon.
+  const url = new URL(window.location.href.split("#")[0]);
+  url.searchParams.set("t", Date.now().toString());
+  window.location.replace(url.toString());
 }
 
 // ...existing code...
@@ -339,14 +350,35 @@ onMounted(() => {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.getRegistration().then((reg) => {
       if (!reg) return;
+
+      // If there is a worker already waiting (common on iOS), force it to activate
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      }
+
       // When new SW takes over, do one reload (loop-guarded by sessionStorage)
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (sessionStorage.getItem("sw-killed")) return;
         sessionStorage.setItem("sw-killed", "1");
         window.location.reload();
       });
-      // Trigger update check immediately rather than waiting up to 24h
+
+      // Check for updates whenever the app is opened
       reg.update();
+
+      // Listen for the 'updatefound' event to catch updates in progress
+      reg.addEventListener("updatefound", () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", () => {
+          if (
+            newWorker.state === "installed" &&
+            navigator.serviceWorker.controller
+          ) {
+            newWorker.postMessage({ type: "SKIP_WAITING" });
+          }
+        });
+      });
     });
   }
 
@@ -393,7 +425,7 @@ onBeforeUnmount(() => {
       role="alert"
     >
       <span>{{ globalMetadata.loadError }}</span>
-      <div style="display: flex; gap: 8px; margin-top: 8px;">
+      <div style="display: flex; gap: 8px; margin-top: 8px">
         <button
           type="button"
           class="app-load-error__retry"
@@ -405,7 +437,7 @@ onBeforeUnmount(() => {
           type="button"
           class="app-load-error__retry"
           @click="hardRefresh"
-          style="opacity: 0.7;"
+          style="opacity: 0.7"
         >
           Clear Cache & Reload
         </button>
@@ -420,7 +452,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="view-frame">
+      <div v-if="globalMetadata.api_version" class="view-frame">
         <RouterView v-slot="{ Component }">
           <transition name="page-fade" mode="out-in">
             <component
