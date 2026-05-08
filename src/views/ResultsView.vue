@@ -23,16 +23,55 @@ const loading = ref(false);
 const detailsLoading = ref(false);
 const competitions = computed(() => props.metadata?.competitions || []);
 const results = computed(() => props.metadata?.results || []);
+const rounds = computed(() => props.metadata?.rounds || []);
+const profiles = computed(() => props.metadata?.profiles || []);
 const summaries = computed(() => props.metadata?.summaries || []);
 const rows = computed(() => {
-  return results.value
-    .filter((r) => r.competition_id === selectedCompetitionId.value)
-    .map((row) => {
-      return {
-        ...row,
-        position: row.position ?? row.pos ?? row.rank_no ?? row.rank ?? "",
-      };
-    });
+  const selectedId = selectedCompetitionId.value;
+  if (!selectedId) return [];
+
+  const directRows = results.value
+    .filter((r) => r.competition_id === selectedId)
+    .map((row) => ({
+      ...row,
+      position: row.position ?? row.pos ?? row.rank_no ?? row.rank ?? "",
+    }));
+
+  if (directRows.length > 0) return directRows;
+
+  const nameById = new Map(
+    profiles.value.map((profile) => [profile.id, profile.full_name]),
+  );
+
+  return rounds.value
+    .filter((r) => r.competition_id === selectedId)
+    .map((row) => ({
+      id: row.id,
+      competition_id: row.competition_id,
+      user_id: row.user_id,
+      player: nameById.get(row.user_id) || row.player || "Unknown",
+      score: row.stableford_score ?? row.score ?? 0,
+      snake: Boolean(row.snake ?? row.has_snake),
+      camel: Boolean(row.camel ?? row.has_camel),
+      position: row.position ?? row.pos ?? row.rank_no ?? row.rank ?? "",
+    }))
+    .sort((a, b) => {
+      const pa = Number(a.position);
+      const pb = Number(b.position);
+      if (Number.isFinite(pa) && Number.isFinite(pb) && pa !== pb) {
+        return pa - pb;
+      }
+      const sa = Number(a.score);
+      const sb = Number(b.score);
+      if (Number.isFinite(sa) && Number.isFinite(sb) && sa !== sb) {
+        return sb - sa;
+      }
+      return String(a.player).localeCompare(String(b.player));
+    })
+    .map((row, index) => ({
+      ...row,
+      position: row.position || index + 1,
+    }));
 });
 
 const columns = [
