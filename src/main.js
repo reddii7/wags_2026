@@ -63,6 +63,18 @@ if ('serviceWorker' in navigator) {
         // Prevent stale app shell during local network/mobile testing.
         clearServiceWorkerAndCaches();
     } else {
+        // When a new SW takes over (skipWaiting + clientsClaim), reload once
+        // so users get the new JS bundle instead of running stale code.
+        // sessionStorage guards against a reload loop.
+        let swReloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (swReloading) return;
+            if (sessionStorage.getItem('sw-reload-done') === APP_VERSION) return;
+            swReloading = true;
+            sessionStorage.setItem('sw-reload-done', APP_VERSION);
+            window.location.reload();
+        });
+
         const updateSW = registerSW({
             immediate: true,
             onNeedRefresh() {
