@@ -6,205 +6,68 @@ const props = defineProps({
   metadata: { type: Object, required: true },
 });
 
-// Backend-driven summary for Results card
-const summary = ref({
-  winner_type: "",
-  winner_names: [],
-  amount: 0,
-  num_players: 0,
-  snakes: 0,
-  camels: 0,
-});
-
 const loading = ref(true);
 const error = ref("");
-const latestCompetition = ref(null);
-const latestResults = ref([]);
 const best14Leaders = ref([]);
 const leagueLeaders = ref([]);
 const handicapMovements = ref([]);
-const latestCompetitionDetails = ref(null);
-
-const formatDate = (value) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-  }).format(date);
-};
-
-// Format league label for display (fallback: capitalize, replace underscores)
-function formatLeagueLabel(name) {
-  if (!name) return "Division";
-  return String(name)
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-const latestTopRows = computed(() => {
-  if (!Array.isArray(latestResults.value)) return [];
-  const numericScores = latestResults.value
-    .map((row) => Number(row.score))
-    .filter((score) => Number.isFinite(score));
-  if (!numericScores.length) return [];
-  const topScore = Math.max(...numericScores);
-  return latestResults.value.filter((row) => Number(row.score) === topScore);
+const homePayload = ref({
+  week_label: "WEEK — , —",
+  hero_message: "No results yet.",
+  no_results: true,
+  stats: {
+    players: 0,
+    snakes: 0,
+    camels: 0,
+  },
+  handicap_changes: [],
 });
 
-const latestSummary = computed(() => {
-  const winners = latestTopRows.value;
-  if (!winners.length) return "No results yet.";
+const homeContract = computed(() => {
+  const dashboard = props.metadata?.dashboard || {};
+  const defaults = props.metadata?.defaults || {};
 
-  if (winners.length > 1) {
-    const names = winners.map((row) => row.player).join(", ");
-    return `${names} tied on ${winners[0].score} points, with the pot rolling over.`;
+  const seasons = Array.isArray(props.metadata?.seasons)
+    ? props.metadata.seasons
+    : [];
+
+  // Always prefer latest active/current season for initial home rendering.
+  const currentSeason =
+    seasons.find((season) => season?.is_current) ||
+    seasons.find((season) => season?.is_active) ||
+    null;
+  if (currentSeason) {
+    const byId = dashboard?.[String(currentSeason.id)];
+    if (byId && typeof byId === "object") return byId;
+    const byYear = dashboard?.[String(currentSeason.start_year)];
+    if (byYear && typeof byYear === "object") return byYear;
   }
 
-  return `${winners[0].player} won on ${winners[0].score} points.`;
-});
+  const preferredIds = [
+    defaults.home_season_id,
+    defaults.results_season_id,
+  ].filter(Boolean);
 
-const latestWinnerName = computed(() => {
-  if (latestTopRows.value.length > 1) {
-    return latestTopRows.value.map((row) => row.player).join(", ");
-  }
-
-  return (
-    latestCompetitionDetails.value?.profiles?.full_name ||
-    latestResults.value[0]?.player ||
-    "No winner"
-  );
-});
-
-const latestTopScore = computed(() => latestResults.value[0]?.score ?? "-");
-
-const latestCompetitionDate = computed(() => {
-  if (!latestCompetition.value || !latestCompetition.value.competition_date)
-    return null;
-  const date = new Date(latestCompetition.value.competition_date);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "2-digit",
-  });
-});
-
-const latestSideGames = computed(() => {
-  const snakes = latestResults.value.filter((row) => row.snake).length;
-  const camels = latestResults.value.filter((row) => row.camel).length;
-  if (!snakes && !camels) return "None";
-  return `${snakes} snake${snakes === 1 ? "" : "s"} · ${camels} camel${camels === 1 ? "" : "s"}`;
-});
-
-const latestStats = computed(() => {
-  const players =
-    Number(summary.value?.num_players) > 0
-      ? Number(summary.value.num_players)
-      : latestResults.value.length;
-  const snakes =
-    Number(summary.value?.snakes) > 0
-      ? Number(summary.value.snakes)
-      : latestResults.value.filter((row) => row.snake).length;
-  const camels =
-    Number(summary.value?.camels) > 0
-      ? Number(summary.value.camels)
-      : latestResults.value.filter((row) => row.camel).length;
-  return { players, snakes, camels };
-});
-
-const isRolloverHero = computed(() => {
-  const winnerType = String(summary.value?.winner_type || "").toLowerCase();
-  if (winnerType === "rollover" || winnerType === "tie") return true;
-  return latestTopRows.value.length > 1;
-});
-
-const rolloverMessage = computed(() => {
-  const amount = Number(summary.value?.amount || 0);
-  const amountText = `£${amount.toFixed(2)}`;
-  const topScore = latestTopRows.value?.[0]?.score;
-  if (topScore !== null && topScore !== undefined && topScore !== "") {
-    return `A rollover with ${topScore} points leading, carrying ${amountText} into the next week.`;
-  }
-  return `A rollover with ${amountText} carried into the next week.`;
-});
-
-const getSeasonBest14Fallback = (seasonKey, allSeasons) => {
-  const altSeasonKey =
-    allSeasons?.find((s) => String(s.start_year) === String(seasonKey))?.id ||
-    allSeasons?.find((s) => s.id === seasonKey)?.start_year;
-
-  const best14 =
-    props.metadata.best14?.[seasonKey] ||
-    (altSeasonKey ? props.metadata.best14?.[altSeasonKey] : []) ||
-    [];
-
-  const sortedBest14 = best14
-    .map((player) => ({
-      ...player,
-      position: player.position ?? player.pos ?? player.rank_no ?? "",
-      total_score: player.best_total ?? player.total_score ?? 0,
-      id: `${seasonKey}-${player.user_id || player.full_name}`,
-    }))
-    .sort((a, b) => Number(b.total_score) - Number(a.total_score));
-
-  const hasRankData = sortedBest14.some((p) => Number.isFinite(Number(p.position)));
-  if (hasRankData) {
-    return sortedBest14.filter((p) => {
-      const rank = Number(p.position);
-      return Number.isFinite(rank) && rank <= 3;
-    });
-  }
-
-  const uniqueScores = [
-    ...new Set(
-      sortedBest14
-        .map((p) => Number(p.total_score))
-        .filter((score) => Number.isFinite(score)),
-    ),
-  ];
-  const top3Scores = uniqueScores.slice(0, 3);
-  return sortedBest14.filter((p) =>
-    top3Scores.includes(Number(p.total_score)),
-  );
-};
-
-const getSeasonLeagueLeadersFallback = (seasonKey, allSeasons) => {
-  const altSeasonKey =
-    allSeasons?.find((s) => String(s.start_year) === String(seasonKey))?.id ||
-    allSeasons?.find((s) => s.id === seasonKey)?.start_year;
-
-  const leagues =
-    props.metadata.leagues?.[seasonKey] ||
-    (altSeasonKey ? props.metadata.leagues?.[altSeasonKey] : []) ||
-    [];
-
-  const divisionMap = new Map();
-  for (const row of leagues) {
-    const key = row.league_name || row.division || "Division";
-    const current = divisionMap.get(key);
-    const rowPos = Number(row.position ?? row.pos ?? row.rank_no ?? 1);
-    const currentPos = current
-      ? Number(current.position ?? current.pos ?? current.rank_no ?? 1)
-      : Infinity;
-    if (!current || rowPos < currentPos) {
-      divisionMap.set(key, {
-        ...row,
-        position: rowPos,
-        total_score: row.total_score ?? row.points ?? 0,
-      });
+  for (const seasonId of preferredIds) {
+    const seasonDashboard = dashboard?.[String(seasonId)];
+    if (seasonDashboard && typeof seasonDashboard === "object") {
+      return seasonDashboard;
     }
   }
 
-  return Array.from(divisionMap.values())
-    .sort((a, b) =>
-      String(a.league_name || a.division).localeCompare(
-        String(b.league_name || b.division),
-      ),
-    )
-    .slice(0, 4);
-};
+  const activeSeason = seasons.find((season) => season?.is_active);
+  if (activeSeason) {
+    const byId = dashboard?.[String(activeSeason.id)];
+    if (byId && typeof byId === "object") return byId;
+    const byYear = dashboard?.[String(activeSeason.start_year)];
+    if (byYear && typeof byYear === "object") return byYear;
+  }
+
+  const dashboardEntries = Object.values(dashboard).filter(
+    (value) => value && typeof value === "object",
+  );
+  return dashboardEntries[0] || null;
+});
 
 const loadHomeData = async () => {
   if (props.metadata.loading) {
@@ -218,114 +81,51 @@ const loadHomeData = async () => {
   }
   error.value = "";
   try {
-    // Prefer the latest competition from the active season first.
-    // This ensures a fresh new season (e.g. open Week 01) is shown by default.
-    const competitions = props.metadata.competitions || [];
-    const seasons = props.metadata.seasons || [];
-    const activeSeason = seasons.find((s) => s.is_active) || null;
-    const allResults = props.metadata.results || [];
-    const allSummaries = props.metadata.summaries || [];
-    const sortedComps = [...competitions].sort(
-      (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
-    );
-    const activeSeasonComps = activeSeason
-      ? sortedComps.filter(
-          (comp) =>
-            String(comp?.season) === String(activeSeason.id) ||
-            String(comp?.season) === String(activeSeason.start_year),
-        )
-      : [];
-    const latestCompWithData = sortedComps.find((comp) => {
-      if (!comp?.id || comp.status === "open") return false;
-      const hasResults = allResults.some(
-        (row) =>
-          row.competition_id === comp.id &&
-          row.score !== null &&
-          row.score !== undefined,
-      );
-      const hasSummary = allSummaries.some(
-        (row) => row.competition_id === comp.id,
-      );
-      return hasResults || hasSummary;
-    });
-    const latestClosedComp = sortedComps.find(
-      (comp) => comp?.status === "closed" && comp.competition_date,
-    );
-    const latestComp =
-      activeSeasonComps[0] ||
-      latestCompWithData ||
-      latestClosedComp ||
-      sortedComps[0] ||
-      null;
-    latestCompetition.value = latestComp;
-    latestCompetitionDetails.value = latestComp;
-    if (!latestComp) {
-      loading.value = false;
-      return;
-    }
-    // Robust dashboard lookup for this competition's season
-    let dash = null;
-    const dashboardObj = props.metadata.dashboard || {};
-    let seasonKey = latestComp.season;
-    // If seasonKey is a year, map to season UUID
-    const seasonsArr = props.metadata.seasons || [];
-    let foundSeason = seasonsArr.find(
-      (s) =>
-        String(s.start_year) === String(seasonKey) ||
-        s.id === seasonKey ||
-        String(s.id) === String(seasonKey),
-    );
-    if (foundSeason) {
-      seasonKey = foundSeason.id;
-    }
-    if (dashboardObj[seasonKey]) {
-      dash = dashboardObj[seasonKey];
+    if (props.metadata?.api_version !== "contract-v1") {
+      throw new Error("Unsupported API contract version.");
     }
 
-    const summaryForComp = allSummaries.find(
-      (row) => row.competition_id === latestComp.id,
-    );
-    const dashSummary = dash?.summary || null;
-    summary.value = dashSummary ||
-      summaryForComp || {
-        winner_type: "",
-        winner_names: [],
-        amount: 0,
-        num_players: 0,
-        snakes: 0,
-        camels: 0,
-      };
-    summary.value.week_number =
-      dash?.week_count || summary.value.week_number || null;
-    if (
-      (summary.value.week_number === null ||
-        summary.value.week_number === undefined) &&
-      latestComp?.name
-    ) {
-      const weekMatch = String(latestComp.name).match(/\bweek\s*0*(\d+)\b/i);
-      if (weekMatch) summary.value.week_number = Number(weekMatch[1]);
+    const dash = homeContract.value;
+    if (!dash) {
+      throw new Error("Missing dashboard contract data.");
     }
 
-    // Prefer dashboard results when available, else raw metadata results.
-    const fallbackResults = allResults.filter(
-      (row) => row.competition_id === latestComp.id,
-    );
-    const sourceResults =
-      dash?.results && Array.isArray(dash.results) && dash.results.length
-        ? dash.results
-        : fallbackResults;
-    latestResults.value = sourceResults.map((row) => ({
-      id: `${row.competition_id}-${row.user_id}`,
-      competition_id: row.competition_id,
-      user_id: row.user_id,
-      player: row.player || row.full_name || "Unknown player",
-      score: row.score ?? row.stableford_score ?? row.total_score ?? "—",
-      snake: Boolean(row.snake ?? row.has_snake),
-      camel: Boolean(row.camel ?? row.has_camel),
-      position: row.position ?? row.pos ?? row.rank_no ?? "999",
-    }));
+    const dashHome =
+      dash &&
+      typeof dash === "object" &&
+      dash.home &&
+      typeof dash.home === "object"
+        ? dash.home
+        : null;
+    if (!dashHome) {
+      throw new Error("Missing dashboard.home contract payload.");
+    }
 
-    // Backend-prepared home card leaders with frontend fallback.
+    const weekLabel =
+      typeof dashHome.week_label === "string" && dashHome.week_label.trim()
+        ? dashHome.week_label
+        : "WEEK — , —";
+    const heroMessage =
+      typeof dashHome.hero_message === "string" && dashHome.hero_message.trim()
+        ? dashHome.hero_message
+        : "No results yet.";
+
+    homePayload.value = {
+      week_label: weekLabel,
+      hero_message: heroMessage,
+      no_results:
+        typeof dashHome?.no_results === "boolean" ? dashHome.no_results : false,
+      stats: {
+        players: Number(dashHome?.stats?.players) || 0,
+        snakes: Number(dashHome?.stats?.snakes) || 0,
+        camels: Number(dashHome?.stats?.camels) || 0,
+      },
+      handicap_changes: Array.isArray(dashHome?.handicap_changes)
+        ? dashHome.handicap_changes
+        : [],
+    };
+
+    // Backend-prepared home card leaders.
     const dashboardBest14 = Array.isArray(dash?.best14_leaders)
       ? dash.best14_leaders
       : [];
@@ -333,59 +133,13 @@ const loadHomeData = async () => {
       ? dash.league_leaders
       : [];
 
-    best14Leaders.value =
-      dashboardBest14.length > 0
-        ? dashboardBest14
-        : getSeasonBest14Fallback(seasonKey, seasonsArr);
+    best14Leaders.value = dashboardBest14;
 
-    leagueLeaders.value =
-      dashboardLeagues.length > 0
-        ? dashboardLeagues
-        : getSeasonLeagueLeadersFallback(seasonKey, seasonsArr);
+    leagueLeaders.value = dashboardLeagues;
 
-    // Use the same logic as HandicapsView to get the latest change for each player
-    const history = props.metadata?.handicap_history || [];
-    const allCompetitions = props.metadata?.competitions || [];
-    // Find the latest competition by date to ensure the comparison is correct
-    const nonOpen = (allCompetitions || []).filter((c) => c.status !== "open");
-    const latestCompetitionId =
-      nonOpen
-        .slice()
-        .sort(
-          (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
-        )[0]?.id ||
-      (allCompetitions || [])
-        .slice()
-        .sort(
-          (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
-        )[0]?.id;
-
-    // Find all players whose rounded handicap changed in the latest competition
-    const latestChanges = (history || [])
-      .filter((item) => item.competition_id === latestCompetitionId)
-      .map((item) => {
-        if (item.old_handicap == null || item.new_handicap == null) return null;
-        const oldRounded = Math.round(item.old_handicap);
-        const newRounded = Math.round(item.new_handicap);
-        if (oldRounded === newRounded) return null;
-        return {
-          user_id: item.user_id,
-          old_handicap: item.old_handicap,
-          new_handicap: item.new_handicap,
-          oldRounded,
-          newRounded,
-        };
-      })
-      .filter(Boolean);
-    // Join with player profiles for display
-    const profiles = props.metadata?.profiles || [];
-    handicapMovements.value = latestChanges.map((change) => {
-      const player = profiles.find((p) => p.id === change.user_id);
-      return {
-        ...change,
-        full_name: player ? player.full_name : "Unknown",
-      };
-    });
+    handicapMovements.value = Array.isArray(homePayload.value.handicap_changes)
+      ? homePayload.value.handicap_changes
+      : [];
   } catch (err) {
     console.error("Dashboard mapping error:", err);
   } finally {
@@ -399,14 +153,10 @@ watch(
   [
     () => props.metadata.loading,
     () => props.metadata.loadError,
-    () => props.metadata.competitions,
-    () => props.metadata.results,
-    () => props.metadata.summaries,
     () => props.metadata.dashboard,
-    () => props.metadata.best14,
-    () => props.metadata.leagues,
-    () => props.metadata.handicap_history,
-    () => props.metadata.profiles,
+    () => props.metadata.defaults,
+    () => props.metadata.seasons,
+    () => props.metadata.api_version,
   ],
   () => {
     if (props.metadata.loading) {
@@ -432,55 +182,14 @@ watch(
         <div class="wags-headline">
           <span class="home-hero-sublabel2 wags-body">
             LATEST UPDATES -
-            <template v-if="summary.week_number && latestCompetitionDate">
-              <span
-                >WEEK {{ summary.week_number }},
-                {{ latestCompetitionDate }}</span
-              >
-            </template>
-            <template v-else>
-              <span style="opacity: 0.5">WEEK &mdash; , &mdash;</span>
-            </template>
+            <span>{{ homePayload.week_label }}</span>
           </span>
-          <template v-if="latestTopRows.length">
-            <span v-if="isRolloverHero">
-              {{ rolloverMessage }}
-            </span>
-            <template
-              v-if="
-                summary.winner_type === 'winner' &&
-                summary.winner_names &&
-                summary.winner_names.length === 1
-              "
-            >
-              <span>
-                A win for {{ summary.winner_names[0] }}
-                <template v-if="latestTopRows.length">
-                  with {{ latestTopRows[0].score }} points
-                </template>
-                , adding £{{ Number(summary.amount).toFixed(2) }} to his season
-                winnings.
-              </span>
-            </template>
-            <template
-              v-else-if="
-                summary.winner_type === 'winner' &&
-                summary.winner_names &&
-                summary.winner_names.length > 1
-              "
-            >
-              <span>
-                {{ summary.winner_names.join(", ") }} tied for the win, adding
-                £{{ Number(summary.amount).toFixed(2) }} to their season
-                winnings.
-              </span>
-            </template>
-            <template v-else-if="!loading">
-              <span>{{ latestSummary }}</span>
-            </template>
+          <template v-if="!homePayload.no_results">
+            <span>{{ homePayload.hero_message }}</span>
             <p class="home-hero-sublabel home-hero-subtext">
-              {{ summary.num_players }} played, {{ summary.snakes }} snakes,
-              {{ summary.camels }} camels.
+              {{ homePayload.stats.players }} played,
+              {{ homePayload.stats.snakes }} snakes,
+              {{ homePayload.stats.camels }} camels.
             </p>
           </template>
           <template v-else-if="!loading && !metadata.loading">

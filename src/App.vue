@@ -1,23 +1,26 @@
 <script setup>
-import { ref, computed, onBeforeUnmount, onMounted, markRaw } from "vue";
+import { ref, computed, onBeforeUnmount, onMounted } from "vue";
 import { useTheme } from "./composables/useTheme";
 import { useSession } from "./composables/useSession";
+import { useRoute, useRouter } from "vue-router";
 import NavIcon from "./components/NavIcon.vue";
 import AppDialog from "./components/AppDialog.vue";
 import SignInForm from "./components/SignInForm.vue";
 import { triggerHapticFeedback } from "./utils/haptics";
 import { supabase } from "./lib/supabase";
 import { FETCH_ALL_DATA_URL, SUPABASE_ANON_KEY } from "./lib/supabaseConfig.js";
-import HomeView from "./views/HomeView.vue";
-import HandicapsView from "./views/HandicapsView.vue";
-import StatsHubView from "./views/StatsHubView.vue";
-import RSCupView from "./views/RSCupView.vue";
 const { user, loading: sessionLoading, signOut } = useSession();
 const showSignIn = ref(false);
+const route = useRoute();
+const router = useRouter();
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
 const globalMetadata = ref({
+  api_version: null,
+  defaults: {
+    results_season_id: null,
+  },
   season: null,
   seasons: [],
   latestComp: null,
@@ -109,6 +112,17 @@ async function loadGlobalMetadata() {
     if (!response.ok) {
       throw new Error(`Could not load data (${response.status}).`);
     }
+
+    if (!data || typeof data !== "object" || !Array.isArray(data.seasons)) {
+      throw new Error(
+        "Server contract invalid: missing required payload sections.",
+      );
+    }
+
+    if (data.api_version && data.api_version !== "contract-v1") {
+      throw new Error(`Unsupported API contract: ${data.api_version}`);
+    }
+
     Object.assign(globalMetadata.value, data);
   } catch (err) {
     globalMetadata.value.loadError =
@@ -122,47 +136,116 @@ async function loadGlobalMetadata() {
 // ...existing code...
 
 const sections = [
-  { name: "home", label: "Home", icon: "home", component: markRaw(HomeView) },
-  {
-    name: "stats",
-    label: "Stats",
-    icon: "results",
-    component: markRaw(StatsHubView),
-  },
-  {
-    name: "handicaps",
-    label: "Handicaps",
-    icon: "users",
-    component: markRaw(HandicapsView),
-  },
-  {
-    name: "rscup",
-    label: "RS CUP",
-    icon: "trophy",
-    component: markRaw(RSCupView),
-  },
-  // ...existing code...
+  { name: "home", label: "Home", icon: "home", path: "/" },
+  { name: "stats", label: "Stats", icon: "results", path: "/stats" },
+  { name: "handicaps", label: "Handicaps", icon: "users", path: "/handicaps" },
+  { name: "rscup", label: "RS CUP", icon: "trophy", path: "/rscup" },
 ];
 
-const currentSection = ref(sections[0]);
+const statsRouteNames = new Set(["stats", "results", "leagues", "best14"]);
 const selectedCompetitionId = ref(null);
 
-// Ensure currentSection is always a valid section object
+const selectedSeason = computed(() => {
+  const seasons = Array.isArray(globalMetadata.value?.seasons)
+    ? globalMetadata.value.seasons
+    : [];
+  if (seasons.length === 0) return null;
+  return (
+    seasons.find((season) => season?.is_current) ||
+    seasons.find((season) => season?.is_active) ||
+    seasons[0]
+  );
+});
+
+const seasonHasResultsView = (season) => {
+  if (!season) return false;
+  const dashboard = globalMetadata.value?.dashboard || {};
+  const byId = dashboard?.[String(season.id)];
+  const byYear = dashboard?.[String(season.start_year)];
+  const dash = byId && typeof byId === "object" ? byId : byYear;
+  const resultsView =
+    dash && typeof dash === "object" ? dash.results_view : null;
+  if (!resultsView || typeof resultsView !== "object") return false;
+  const comps = Array.isArray(resultsView.competitions)
+    ? resultsView.competitions
+    : [];
+  return comps.length > 0;
+};
+
+const selectedResultsSeason = computed(() => {
+  const seasons = Array.isArray(globalMetadata.value?.seasons)
+    ? globalMetadata.value.seasons
+    : [];
+  if (seasons.length === 0) return null;
+
+  // Default to the latest active/current season whenever it has usable results.
+  if (seasonHasResultsView(selectedSeason.value)) {
+    return selectedSeason.value;
+  }
+
+  const preferredId = String(
+    globalMetadata.value?.defaults?.results_season_id || "",
+  );
+  if (preferredId) {
+    const preferred = seasons.find(
+      (season) => String(season?.id) === preferredId,
+    );
+    if (preferred) return preferred;
+  }
+
+  return selectedSeason.value;
+});
+
+const currentNavName = computed(() => {
+  const routeName = String(route.name || "home");
+  return statsRouteNames.has(routeName) ? "stats" : routeName;
+});
+
+const currentViewProps = computed(() => {
+  const routeName = String(route.name || "home");
+  const props = {
+    metadata: globalMetadata.value,
+  };
+
+  if (statsRouteNames.has(routeName)) {
+    props.season =
+      routeName === "results"
+        ? selectedResultsSeason.value
+        : selectedSeason.value;
+  }
+
+  if (routeName === "results" || routeName === "rscup") {
+    props.selectedCompetitionId = selectedCompetitionId.value;
+  }
+
+  return props;
+});
+
 function switchSection(section) {
   triggerHapticFeedback();
-  currentSection.value = section || sections[0];
+  const targetPath = section?.path || "/";
+  if (route.path !== targetPath) {
+    router.push(targetPath);
+  }
 }
 
-function handleNavigate(competitionId) {
-  selectedCompetitionId.value = competitionId;
-}
+function handleNavigate(target) {
+  if (typeof target === "string") {
+    const normalized = target.toLowerCase();
+    const targetSection = sections.find(
+      (section) => section.name === normalized,
+    );
+    if (targetSection) {
+      switchSection(targetSection);
+      return;
+    }
+  }
 
-const currentSectionComponent = computed(
-  () => currentSection.value?.component || sections[0].component,
-);
-const currentSectionName = computed(
-  () => currentSection.value?.name || sections[0].name,
-);
+  selectedCompetitionId.value = target || null;
+  if (route.path !== "/results") {
+    router.push("/results");
+  }
+}
 
 const handleScroll = () => {
   const currentY = window.scrollY || 0;
@@ -278,15 +361,16 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="view-frame" v-if="!globalMetadata.loading">
-        <transition name="page-fade" mode="out-in">
-          <component
-            :is="currentSectionComponent"
-            :key="currentSectionName"
-            :metadata="globalMetadata"
-            :selected-competition-id="selectedCompetitionId"
-            @navigate="handleNavigate"
-          ></component>
-        </transition>
+        <RouterView v-slot="{ Component }">
+          <transition name="page-fade" mode="out-in">
+            <component
+              :is="Component"
+              :key="route.fullPath"
+              v-bind="currentViewProps"
+              @navigate="handleNavigate"
+            ></component>
+          </transition>
+        </RouterView>
       </div>
     </main>
 
@@ -295,7 +379,7 @@ onBeforeUnmount(() => {
         v-for="section in sections"
         :key="section.name"
         class="bottom-nav-link"
-        :class="{ active: currentSectionName === section.name }"
+        :class="{ active: currentNavName === section.name }"
         @click="switchSection(section)"
       >
         <NavIcon :name="section.icon" />

@@ -34,8 +34,18 @@ watch(
   (meta) => {
     if (meta && Array.isArray(meta.seasons)) {
       seasons.value = meta.seasons;
-      // Always set default season to current or first if not set or if id is missing
-      const current = meta.seasons.find((s) => s.is_current) || meta.seasons[0];
+      // Prefer latest active/current season on initial load.
+      const preferredResultsSeasonId = String(
+        meta?.defaults?.results_season_id || "",
+      );
+      const preferred = preferredResultsSeasonId
+        ? meta.seasons.find((s) => String(s?.id) === preferredResultsSeasonId)
+        : null;
+      const current =
+        meta.seasons.find((s) => s.is_current) ||
+        meta.seasons.find((s) => s.is_active) ||
+        preferred ||
+        meta.seasons[0];
       if (
         !selectedSeasonId.value ||
         !meta.seasons.some((s) => s.id === selectedSeasonId.value)

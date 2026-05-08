@@ -311,6 +311,54 @@
                 </div>
             </div>
 
+            <!-- Season Cutover -->
+            <div class="bg-white rounded-xl shadow p-5 mt-6">
+                <h3 class="font-bold text-base mb-1">Season Cutover Control</h3>
+                <p class="text-sm text-gray-600 mb-4">Atomically set the active season and default results season, then
+                    verify the fetch-all-data contract state.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Active Season</label>
+                        <select x-model="seasonCutover.activeSeasonId"
+                            class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">— select active season —</option>
+                            <template x-for="s in seasons" :key="'cut-active-' + s.id">
+                                <option :value="s.id" x-text="s.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Default Results Season</label>
+                        <select x-model="seasonCutover.defaultResultsSeasonId"
+                            class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">— select default results season —</option>
+                            <template x-for="s in seasons" :key="'cut-default-' + s.id">
+                                <option :value="s.id" x-text="s.label"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center gap-3 flex-wrap">
+                    <button @click="applySeasonCutover()"
+                        :disabled="seasonCutover.running || !seasonCutover.activeSeasonId || !seasonCutover.defaultResultsSeasonId"
+                        class="bg-emerald-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <span x-text="seasonCutover.running ? 'Applying…' : 'Apply Season Cutover'"></span>
+                    </button>
+                    <button @click="verifySeasonCutover()" :disabled="seasonCutover.running"
+                        class="border rounded-lg px-4 py-2 text-sm font-semibold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Re-Verify</button>
+                </div>
+                <div x-show="seasonCutover.verify"
+                    class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+                    <div class="font-semibold mb-1">Verification</div>
+                    <div x-text="'API: ' + seasonCutover.verify.apiVersion"></div>
+                    <div x-text="'Active season: ' + seasonCutover.verify.activeSeasonLabel"></div>
+                    <div x-text="'Default results season: ' + seasonCutover.verify.defaultResultsLabel"></div>
+                    <div x-text="'Default rows: ' + seasonCutover.verify.defaultRowsCount"></div>
+                    <div class="mt-1" :class="seasonCutover.verify.ok ? 'text-emerald-700' : 'text-red-700'"
+                        x-text="seasonCutover.verify.message"></div>
+                </div>
+            </div>
+
             <!-- Season Modal -->
             <div x-show="seasonModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-40">
                 <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
@@ -651,7 +699,7 @@
                     <span x-text="saving ? 'Saving…' : '💾 Save Scores'"></span>
                 </button>
                 <button x-show="getRoundStatus() !== 'finalized'" @click="finalizeRound()"
-                    :disabled="saving || !allScoresEntered()"
+                    :disabled="saving"
                     class="bg-green-600 text-white rounded-lg px-5 py-2 text-sm font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed">
                     <span x-text="saving ? 'Finalizing…' : '✅ Save & Finalize Round'"></span>
                 </button>
@@ -659,9 +707,8 @@
                     class="bg-orange-500 text-white rounded-lg px-5 py-2 text-sm font-semibold hover:bg-orange-600">
                     🔓 Reopen Round
                 </button>
-                <span x-show="!allScoresEntered() && getRoundStatus() !== 'finalized'" class="text-xs text-orange-500">
-                    Enter all scores before finalizing
-                </span>
+                <span x-show="missingScoreEntries().length > 0 && getRoundStatus() !== 'finalized'" class="text-xs text-orange-500"
+                    x-text="missingScoreEntries().length + ' player(s) have no score and will be excluded on finalize'"></span>
             </div>
 
             <!-- Outcome card -->
@@ -756,7 +803,7 @@
             <div x-show="selectedRoundId && selectedRoundId !== '__new__' && roundDetail.length > 0" class="mt-4">
                 <div class="mb-3 flex items-center gap-3">
                     <button x-show="getRoundStatus() !== 'finalized'" @click="finalizeRound()"
-                        :disabled="saving || !allScoresEntered()"
+                        :disabled="saving"
                         class="bg-green-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed">
                         <span x-text="saving ? 'Finalizing…' : '✅ Finalize Round'"></span>
                     </button>
@@ -1029,6 +1076,15 @@
                     running: false,
                     lastCount: null,
                 },
+                appDefaults: {
+                    defaultResultsSeasonId: '',
+                },
+                seasonCutover: {
+                    activeSeasonId: '',
+                    defaultResultsSeasonId: '',
+                    running: false,
+                    verify: null,
+                },
 
                 init() {
                     const saved = localStorage.getItem('wags_admin_config');
@@ -1063,7 +1119,13 @@
                 },
 
                 async loadAll() {
-                    await Promise.all([this.loadPlayers(), this.loadSeasons(), this.loadRuleSets()]);
+                    await Promise.all([
+                        this.loadPlayers(),
+                        this.loadSeasons(),
+                        this.loadRuleSets(),
+                        this.loadAdminDefaults(),
+                    ]);
+                    this.hydrateSeasonCutoverDefaults();
                 },
 
                 async loadPlayers() {
@@ -1082,6 +1144,35 @@
                     }
                     if (this.activeSeason && !this.seasonMovement.fromSeasonId) {
                         this.seasonMovement.fromSeasonId = this.activeSeason.id;
+                    }
+                    this.hydrateSeasonCutoverDefaults();
+                },
+
+                async loadAdminDefaults() {
+                    try {
+                        const data = await this.rpc('admin_get_app_defaults');
+                        const row = Array.isArray(data) ? (data[0] || null) : data;
+                        this.appDefaults.defaultResultsSeasonId = String(row?.default_results_season_id || '');
+                    } catch {
+                        // Keep admin usable if cutover RPC migration is not yet applied.
+                        this.appDefaults.defaultResultsSeasonId = '';
+                    }
+                    this.hydrateSeasonCutoverDefaults();
+                },
+
+                hydrateSeasonCutoverDefaults() {
+                    if (this.activeSeason && !this.seasonCutover.activeSeasonId) {
+                        this.seasonCutover.activeSeasonId = this.activeSeason.id;
+                    }
+
+                    const fallbackDefaultId =
+                        this.appDefaults.defaultResultsSeasonId ||
+                        this.activeSeason?.id ||
+                        this.seasons[0]?.id ||
+                        '';
+
+                    if (!this.seasonCutover.defaultResultsSeasonId) {
+                        this.seasonCutover.defaultResultsSeasonId = fallbackDefaultId;
                     }
                 },
 
@@ -1175,6 +1266,14 @@
                     return this.selectedRound?.status || '';
                 },
 
+                getSelectedCompetitionEntryFee() {
+                    const comp = this.competitions.find(c => c.id === this.selectedCompetitionId);
+                    if (!comp) return 0;
+                    const rule = this.ruleSets.find(r => r.id === comp.rule_set_id);
+                    const fee = Number(rule?.entry_fee ?? 0);
+                    return Number.isFinite(fee) && fee > 0 ? fee : 0;
+                },
+
                 get playersNotInRound() {
                     const inRound = new Set(this.roundDetail.map(e => e.player_id));
                     return this.players.filter(p => !inRound.has(p.id));
@@ -1196,6 +1295,13 @@
                     return this.roundDetail.every(e => {
                         const s = this.scores[e.player_id];
                         return s && (s.stableford !== '' && s.stableford !== null && s.stableford !== undefined);
+                    });
+                },
+
+                missingScoreEntries() {
+                    return this.roundDetail.filter(e => {
+                        const s = this.scores[e.player_id];
+                        return !s || s.stableford === '' || s.stableford === null || s.stableford === undefined;
                     });
                 },
 
@@ -1229,9 +1335,17 @@
                 async saveScores() {
                     this.saving = true;
                     try {
+                        const entryFee = this.getSelectedCompetitionEntryFee();
                         for (const entry of this.roundDetail) {
                             const s = this.scores[entry.player_id];
                             if (s && (s.stableford !== '' && s.stableford !== null)) {
+                                if (entryFee > 0 && Number(entry.entry_fee_paid || 0) <= 0) {
+                                    await this.rpc('admin_set_round_entry', {
+                                        p_round_id: this.selectedRoundId,
+                                        p_player_id: entry.player_id,
+                                        p_entry_fee_paid: entryFee,
+                                    });
+                                }
                                 await this.rpc('admin_upsert_score', {
                                     p_round_id: this.selectedRoundId,
                                     p_player_id: entry.player_id,
@@ -1249,15 +1363,40 @@
                 },
 
                 async finalizeRound() {
-                    if (!this.allScoresEntered()) { this.showToast('Enter all scores first', 'error'); return; }
-                    if (!confirm('Save all scores and finalize this round? This calculates winners and handicap changes.')) return;
+                    const missing = this.missingScoreEntries();
+                    if (this.roundDetail.length === 0 || missing.length === this.roundDetail.length) {
+                        this.showToast('Enter at least one score before finalizing', 'error');
+                        return;
+                    }
+                    const msg = missing.length > 0
+                        ? `Save scores and finalize this round? ${missing.length} unscored player(s) will be excluded.`
+                        : 'Save all scores and finalize this round? This calculates winners and handicap changes.';
+                    if (!confirm(msg)) return;
                     this.saving = true;
                     try {
-                        await this.saveScores();
-                        await this.rpc('admin_finalize_round', { p_round_id: this.selectedRoundId });
+                        const scores = this.roundDetail.map(entry => {
+                            const s = this.scores[entry.player_id] || {};
+                            return {
+                                player_id: entry.player_id,
+                                stableford: s.stableford === '' || s.stableford === null || s.stableford === undefined
+                                    ? null
+                                    : Number(s.stableford),
+                                snake: !!s.snake,
+                                camel: !!s.camel,
+                            };
+                        });
+                        const excludedPlayerIds = missing.map(entry => entry.player_id);
+                        await this.rpc('admin_save_and_finalize_round', {
+                            p_round_id: this.selectedRoundId,
+                            p_scores: scores,
+                            p_excluded_player_ids: excludedPlayerIds,
+                        });
                         // Reload
+                        const finalizedRoundId = this.selectedRoundId;
                         await this.loadRounds();
-                        this.selectedRoundId = this.rounds.find(r => r.status === 'finalized')?.id || this.selectedRoundId;
+                        this.selectedRoundId = this.rounds.some(r => r.id === finalizedRoundId)
+                            ? finalizedRoundId
+                            : (this.rounds.find(r => r.status === 'finalized')?.id || this.selectedRoundId);
                         await this.loadRoundDetail();
                         const outcomes = await this.rpc('admin_get_round_outcome', { p_round_id: this.selectedRoundId });
                         this.roundOutcome = Array.isArray(outcomes) ? outcomes[0] : outcomes;
@@ -1478,6 +1617,142 @@
                         this.seasonModal = false;
                         this.showToast('Season saved');
                     } catch (e) { this.showToast(e.message, 'error'); }
+                },
+
+                getFetchAllDataUrl() {
+                    const baseUrl = String(this.config.url || '').trim();
+                    if (!baseUrl) return '';
+                    return baseUrl.replace('.supabase.co', '.functions.supabase.co') + '/fetch-all-data';
+                },
+
+                async fetchContractSnapshot() {
+                    const endpoint = this.getFetchAllDataUrl();
+                    if (!endpoint || !this.config.key) {
+                        throw new Error('Missing Supabase URL or service key');
+                    }
+
+                    const response = await fetch(endpoint, {
+                        headers: {
+                            Accept: 'application/json',
+                            Authorization: `Bearer ${this.config.key}`,
+                            apikey: this.config.key,
+                        },
+                        cache: 'no-store',
+                    });
+                    if (!response.ok) {
+                        throw new Error(`fetch-all-data failed (${response.status})`);
+                    }
+
+                    const payload = await response.json();
+                    if (!payload || typeof payload !== 'object') {
+                        throw new Error('Invalid contract payload');
+                    }
+                    return payload;
+                },
+
+                async verifySeasonCutover(expectedActiveId = '', expectedDefaultResultsId = '', throwOnFail = false) {
+                    const payload = await this.fetchContractSnapshot();
+                    const seasons = Array.isArray(payload.seasons) ? payload.seasons : [];
+                    const active = seasons.find(s => s && s.is_active) || null;
+                    const defaultResultsId = String(payload?.defaults?.results_season_id || '');
+                    const defaultSeason = seasons.find(s => String(s?.id || '') === defaultResultsId) || null;
+                    const dashboard = payload?.dashboard && typeof payload.dashboard === 'object'
+                        ? payload.dashboard
+                        : {};
+                    const defaultDash = defaultSeason
+                        ? (dashboard[String(defaultSeason.id)] || dashboard[String(defaultSeason.start_year)] || null)
+                        : null;
+                    const resultsView = defaultDash && typeof defaultDash === 'object'
+                        ? defaultDash.results_view
+                        : null;
+                    const defaultCompId = String(resultsView?.default_competition_id || '');
+                    const rowsByCompetition = resultsView?.rows_by_competition && typeof resultsView.rows_by_competition === 'object'
+                        ? resultsView.rows_by_competition
+                        : {};
+                    const defaultRows = Array.isArray(rowsByCompetition[defaultCompId])
+                        ? rowsByCompetition[defaultCompId]
+                        : [];
+
+                    let ok = true;
+                    const problems = [];
+
+                    if (payload.api_version !== 'contract-v1') {
+                        ok = false;
+                        problems.push('api_version is not contract-v1');
+                    }
+                    if (!active) {
+                        ok = false;
+                        problems.push('No active season in payload');
+                    }
+                    if (!defaultResultsId) {
+                        ok = false;
+                        problems.push('defaults.results_season_id missing');
+                    }
+                    if (!defaultSeason) {
+                        ok = false;
+                        problems.push('Default results season not found in seasons list');
+                    }
+
+                    if (expectedActiveId && String(active?.id || '') !== String(expectedActiveId)) {
+                        ok = false;
+                        problems.push('Active season mismatch');
+                    }
+                    if (expectedDefaultResultsId && String(defaultResultsId) !== String(expectedDefaultResultsId)) {
+                        ok = false;
+                        problems.push('Default results season mismatch');
+                    }
+
+                    const verify = {
+                        ok,
+                        apiVersion: String(payload.api_version || ''),
+                        activeSeasonLabel: active ? `${active.label || active.start_year} (${active.id})` : 'none',
+                        activeSeasonId: String(active?.id || ''),
+                        defaultResultsLabel: defaultSeason
+                            ? `${defaultSeason.label || defaultSeason.start_year} (${defaultSeason.id})`
+                            : 'none',
+                        defaultResultsSeasonId: defaultResultsId,
+                        defaultRowsCount: defaultRows.length,
+                        message: ok
+                            ? 'Cutover verification passed'
+                            : `Verification failed: ${problems.join('; ')}`,
+                    };
+
+                    this.seasonCutover.verify = verify;
+                    if (!ok && throwOnFail) {
+                        throw new Error(verify.message);
+                    }
+                    return verify;
+                },
+
+                async applySeasonCutover() {
+                    const activeId = String(this.seasonCutover.activeSeasonId || '');
+                    const defaultResultsId = String(this.seasonCutover.defaultResultsSeasonId || '');
+
+                    if (!activeId || !defaultResultsId) {
+                        this.showToast('Select active and default results seasons', 'error');
+                        return;
+                    }
+
+                    const activeLabel = this.seasons.find(s => s.id === activeId)?.label || activeId;
+                    const defaultLabel = this.seasons.find(s => s.id === defaultResultsId)?.label || defaultResultsId;
+                    if (!confirm(`Apply cutover now?\nActive season: ${activeLabel}\nDefault results season: ${defaultLabel}`)) return;
+
+                    this.seasonCutover.running = true;
+                    try {
+                        await this.rpc('admin_apply_season_cutover', {
+                            p_active_season_id: activeId,
+                            p_default_results_season_id: defaultResultsId,
+                        });
+                        await this.loadSeasons();
+                        await this.loadPlayers();
+                        await this.loadAdminDefaults();
+                        await this.verifySeasonCutover(activeId, defaultResultsId, true);
+                        this.showToast('Season cutover applied and verified');
+                    } catch (e) {
+                        this.showToast(e.message, 'error');
+                    } finally {
+                        this.seasonCutover.running = false;
+                    }
                 },
 
                 // Rule Sets

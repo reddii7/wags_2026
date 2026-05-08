@@ -8,10 +8,29 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>WAGS</title>
+  <!-- Auto-unregister stale service workers so users never get a blank page after a deploy -->
+  <script>
+    (function () {
+      var BUILD = '1778241303776';
+      var stored = localStorage.getItem('sw_build');
+      if (stored !== BUILD) {
+        localStorage.setItem('sw_build', BUILD);
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            if (regs.length) {
+              Promise.all(regs.map(function (r) { return r.unregister(); })).then(function () {
+                location.reload();
+              });
+            }
+          });
+        }
+      }
+    })();
+  </script>
   <!-- Vite/Vue standard entry -->
-  <script type="module" crossorigin src="/assets/index-CQIr5ZYH.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CGsOgASy.css">
-<link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
+  <script type="module" crossorigin src="/assets/index-BL6M2QZB.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BQc0WBnS.css">
+<link rel="manifest" href="/manifest.webmanifest"></head>
 
 <body>
   <div id="app"></div>

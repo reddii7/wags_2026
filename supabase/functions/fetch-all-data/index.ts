@@ -131,6 +131,7 @@ Deno.serve(async (req) => {
       historyRes,
       tournamentsRes,
       matchesRes,
+      defaultsRes,
     ] = await Promise.all([
       supabase
         .from("seasons")
@@ -158,7 +159,16 @@ Deno.serve(async (req) => {
         .select("*")
         .order("round_number", { ascending: true })
         .order("id", { ascending: true }),
+      supabase.rpc("admin_get_app_defaults"),
     ]);
+
+    const shellDefaults = Array.isArray(defaultsRes.data)
+      ? defaultsRes.data[0]
+      : defaultsRes.data;
+    const shellDefaultResultsSeasonId =
+      shellDefaults && typeof shellDefaults === "object"
+        ? (shellDefaults as any).default_results_season_id || null
+        : null;
 
     const shellHistory = (historyRes.data || [])
       .slice()
@@ -170,6 +180,10 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
+        api_version: "contract-v1",
+        defaults: {
+          results_season_id: shellDefaultResultsSeasonId,
+        },
         seasons: seasonsRes.data || [],
         competitions: compsRes.data || [],
         profiles: profilesRes.data || [],
@@ -210,6 +224,15 @@ Deno.serve(async (req) => {
 
   const seasonIds = resolveSeasonIds(seasons, seasonParam);
 
+  const defaultsRes = await supabase.rpc("admin_get_app_defaults");
+  const defaultsRow = Array.isArray(defaultsRes.data)
+    ? defaultsRes.data[0]
+    : defaultsRes.data;
+  const configuredDefaultResultsSeasonId =
+    defaultsRow && typeof defaultsRow === "object"
+      ? String((defaultsRow as any).default_results_season_id || "")
+      : "";
+
   // 2. Fetch competitions (optionally scoped by season)
   let competitionsQuery = supabase
     .from("competitions")
@@ -245,7 +268,7 @@ Deno.serve(async (req) => {
           p_season_id: seasonId,
         });
         if (adminCompRes.error || !Array.isArray(adminCompRes.data)) return;
-        const names = new Set(
+        const names = new Set<string>(
           adminCompRes.data
             .map((row: any) => String(row?.name || "").trim())
             .filter(Boolean),
@@ -264,7 +287,42 @@ Deno.serve(async (req) => {
     }
   }
 
-  const competitionIds = scopedCompetitions.map((c) => c.id);
+  const competitionIds = scopedCompetitions.map((c: any) => c.id);
+
+  const fetchAllPublicResults = async () => {
+    const pageSize = 1000;
+    let from = 0;
+    const rows: any[] = [];
+
+    while (true) {
+      const { data, error } = await supabase
+        .from("public_results_view")
+        .select("*")
+        .in("competition_id", competitionIds)
+        .order("competition_id", { ascending: false })
+        .order("position", { ascending: true })
+        .order("player", { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        return { data: rows, error };
+      }
+
+      const page = Array.isArray(data) ? data : [];
+      if (page.length === 0) {
+        break;
+      }
+
+      rows.push(...page);
+      if (page.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
+    }
+
+    return { data: rows, error: null };
+  };
 
   // 3. Fetch all related data (flat arrays)
   const [
@@ -277,19 +335,13 @@ Deno.serve(async (req) => {
     matchesRes,
   ] = await Promise.all([
     competitionIds.length
-      ? supabase
-          .from("public_results_view")
-          .select("*")
-          .in("competition_id", competitionIds)
-          .order("competition_id", { ascending: false })
-          .order("position", { ascending: true })
-          .order("player", { ascending: true })
+      ? fetchAllPublicResults()
       : { data: [], error: null },
     competitionIds.length
       ? supabase
           .from("results_summary")
           .select(
-            "competition_id, winner_names, amount, winner_type, num_players, snakes, camels, week_number, week_date, second_names",
+            "competition_id, winner_names, winner_ids, amount, winner_type, num_players, snakes, camels, week_number, week_date, second_names",
           )
           .in("competition_id", competitionIds)
       : { data: [], error: null },
@@ -323,6 +375,12 @@ Deno.serve(async (req) => {
   const profiles = profilesRes.data || [];
   const matchplay_tournaments = tournamentsRes.data || [];
   const matchplay_matches = matchesRes.data || [];
+  const profileNameById = new Map(
+    profiles.map((profile: any) => [
+      String(profile.id),
+      String(profile.full_name || ""),
+    ]),
+  );
 
   // Check for tournament query errors
   if (tournamentsRes.error) {
@@ -385,10 +443,9 @@ Deno.serve(async (req) => {
   );
   const validResultUsersByCompetition = new Map<string, Set<string>>();
   Object.entries(resultsByComp).forEach(([competitionId, rows]) => {
-    const users = new Set(
-      (rows || [])
-        .map((row: any) => String(row?.user_id || ""))
-        .filter(Boolean),
+    const rowList = Array.isArray(rows) ? rows : [];
+    const users = new Set<string>(
+      rowList.map((row: any) => String(row?.user_id || "")).filter(Boolean),
     );
     validResultUsersByCompetition.set(competitionId, users);
   });
@@ -417,9 +474,10 @@ Deno.serve(async (req) => {
       const seasonYear = String(season.start_year);
 
       // Parallelize RPC calls for this season
-      const [best14Res, leaguesRes] = await Promise.all([
+      const [best14Res, leaguesRes, resultsViewRes] = await Promise.all([
         supabase.rpc("get_best_14_scores_by_season", { p_season: seasonYear }),
         supabase.rpc("get_league_standings_best10", { p_season_id: season.id }),
+        supabase.rpc("get_results_view_contract", { p_season_id: season.id }),
       ]);
 
       best14[season.id] = !best14Res.error ? best14Res.data || [] : [];
@@ -430,6 +488,19 @@ Deno.serve(async (req) => {
             ? [leaguesRes.data]
             : []
         : [];
+      const resultsViewContract =
+        !resultsViewRes.error &&
+        resultsViewRes.data &&
+        typeof resultsViewRes.data === "object" &&
+        !Array.isArray(resultsViewRes.data)
+          ? (resultsViewRes.data as Record<string, unknown>)
+          : null;
+      if (resultsViewRes.error) {
+        console.error(
+          `[fetch-all-data] get_results_view_contract RPC failed for season ${season.id} — falling back to JS assembly. Error:`,
+          resultsViewRes.error.message ?? JSON.stringify(resultsViewRes.error),
+        );
+      }
 
       // 5. Dashboard Logic (Optimized for precision)
       const seasonComps = scopedCompetitions.filter(
@@ -461,7 +532,23 @@ Deno.serve(async (req) => {
 
         if (!dash) dash = {};
         const rows = resultsByComp[latestComp.id] || [];
-        dash.results = rows;
+        const normalizedRows = rows
+          .map((row: any) => ({
+            ...row,
+            score: Number(
+              row?.score ??
+                row?.stableford_score ??
+                row?.points ??
+                row?.total_score,
+            ),
+            snake: Boolean(row?.snake ?? row?.has_snake),
+            camel: Boolean(row?.camel ?? row?.has_camel),
+            position: Number(
+              row?.position ?? row?.pos ?? row?.rank_no ?? 999999,
+            ),
+          }))
+          .filter((row: any) => Number.isFinite(row.score));
+        dash.results = normalizedRows;
 
         // HomeView consumes dashboard leader cards from these keys.
         // Build them directly from DB-backed season RPC datasets.
@@ -504,7 +591,205 @@ Deno.serve(async (req) => {
           }),
         );
 
-        const compSummary = summariesMapGlobal.get(latestComp.id);
+        if (resultsViewContract) {
+          (dash as Record<string, unknown>).results_view = resultsViewContract;
+        } else {
+          const seasonCompsChronological = [...seasonComps].sort(
+            (a: any, b: any) =>
+              new Date(a.competition_date).getTime() -
+              new Date(b.competition_date).getTime(),
+          );
+          const weekNumberByComp = new Map<string, number>();
+          seasonCompsChronological.forEach((comp: any, idx: number) => {
+            weekNumberByComp.set(String(comp.id), idx + 1);
+          });
+
+          const rowsByCompetition: Record<string, any[]> = {};
+          const summaryByCompetition: Record<string, any> = {};
+
+          for (const comp of seasonCompsChronological) {
+            const compId = String(comp.id);
+            const rawRows = resultsByComp[compId] || [];
+            const normalizedCompRows = rawRows
+              .map((row: any) => ({
+                id:
+                  row?.id || `${compId}-${row?.user_id || row?.player || "row"}`,
+                competition_id: compId,
+                user_id: row?.user_id,
+                player: row?.player || "Unknown",
+                score: Number(
+                  row?.score ??
+                    row?.stableford_score ??
+                    row?.points ??
+                    row?.total_score,
+                ),
+                snake: Boolean(row?.snake ?? row?.has_snake),
+                camel: Boolean(row?.camel ?? row?.has_camel),
+                position: Number(
+                  row?.position ?? row?.pos ?? row?.rank_no ?? 999999,
+                ),
+              }))
+              .filter((row: any) => Number.isFinite(row.score))
+              .sort((a: any, b: any) => {
+                const pa = Number(a?.position ?? 999999);
+                const pb = Number(b?.position ?? 999999);
+                if (pa !== pb) return pa - pb;
+                const sa = Number(a?.score ?? 0);
+                const sb = Number(b?.score ?? 0);
+                if (sa !== sb) return sb - sa;
+                return String(a?.player || "").localeCompare(
+                  String(b?.player || ""),
+                );
+              });
+            rowsByCompetition[compId] = normalizedCompRows;
+
+            const baseSummary: any = summariesMapGlobal.get(compId) || {
+              competition_id: compId,
+              winner_type: "",
+              winner_names: [],
+              amount: 0,
+              num_players: normalizedCompRows.length,
+              snakes: normalizedCompRows.filter((r: any) => r.snake).length,
+              camels: normalizedCompRows.filter((r: any) => r.camel).length,
+              week_number: weekNumberByComp.get(compId) || null,
+              week_date: comp?.competition_date || null,
+              second_names: [],
+            };
+
+            const winnerType = String(
+              baseSummary?.winner_type || "",
+            ).toLowerCase();
+            const winnerNames = Array.isArray(baseSummary?.winner_names)
+              ? baseSummary.winner_names.filter(Boolean)
+              : [];
+            const topScore = normalizedCompRows.length
+              ? Math.max(
+                  ...normalizedCompRows.map((row: any) => Number(row.score)),
+                )
+              : null;
+            const topRowsForComp =
+              topScore == null
+                ? []
+                : normalizedCompRows.filter(
+                    (row: any) => Number(row.score) === topScore,
+                  );
+            const heroWinnerNames = winnerNames.length
+              ? winnerNames
+              : topRowsForComp
+                  .map((row: any) => String(row.player || ""))
+                  .filter(Boolean);
+            let summaryAmount = Number(baseSummary?.amount || 0);
+
+            if (
+              winnerType === "tie" &&
+              Number.isFinite(summaryAmount) &&
+              summaryAmount > 0
+            ) {
+              const idx = seasonCompsChronological.findIndex(
+                (item: any) => String(item.id) === compId,
+              );
+              if (idx !== -1) {
+                let rolloverTotal = 0;
+                for (let i = idx; i >= 0; i -= 1) {
+                  const prevCompId = String(
+                    seasonCompsChronological[i]?.id || "",
+                  );
+                  const prevSummary: any = summariesMapGlobal.get(prevCompId);
+                  if (
+                    !prevSummary ||
+                    String(prevSummary?.winner_type || "") !== "tie"
+                  )
+                    break;
+                  const prevAmount = Number(prevSummary?.amount || 0);
+                  if (Number.isFinite(prevAmount) && prevAmount > 0)
+                    rolloverTotal += prevAmount;
+                }
+                if (rolloverTotal > 0) {
+                  summaryAmount = rolloverTotal;
+                }
+              }
+            }
+
+            let heroMessage = "No results yet.";
+            const amountText = `£${Number(summaryAmount || 0).toFixed(2)}`;
+            if (topRowsForComp.length > 0) {
+              if (winnerType === "rollover" || winnerType === "tie") {
+                heroMessage = `A rollover with ${heroWinnerNames.join(", ")} all scoring ${topRowsForComp[0].score}, ${amountText} rolled over to next week.`;
+              } else if (
+                winnerType === "winner" &&
+                heroWinnerNames.length === 1
+              ) {
+                heroMessage = `A win for ${heroWinnerNames[0]} with ${topRowsForComp[0].score} points, adding ${amountText} to his season winnings.`;
+              } else if (winnerType === "winner" && heroWinnerNames.length > 1) {
+                heroMessage = `${heroWinnerNames.join(", ")} tied for the win, adding ${amountText} to their season winnings.`;
+              } else {
+                heroMessage = `${heroWinnerNames.join(", ")} scored ${topRowsForComp[0].score} points.`;
+              }
+            }
+
+            summaryByCompetition[compId] = {
+              ...baseSummary,
+              amount: summaryAmount,
+              week_number:
+                baseSummary?.week_number ?? weekNumberByComp.get(compId) ?? null,
+              stats: {
+                players:
+                  Number(baseSummary?.num_players) > 0
+                    ? Number(baseSummary.num_players)
+                    : normalizedCompRows.length,
+                snakes:
+                  Number(baseSummary?.snakes) > 0
+                    ? Number(baseSummary.snakes)
+                    : normalizedCompRows.filter((row: any) => row.snake).length,
+                camels:
+                  Number(baseSummary?.camels) > 0
+                    ? Number(baseSummary.camels)
+                    : normalizedCompRows.filter((row: any) => row.camel).length,
+              },
+              hero_message: heroMessage,
+            };
+          }
+
+          const latestCompWithRows = [...seasonCompsChronological]
+            .reverse()
+            .find(
+              (comp: any) =>
+                (rowsByCompetition[String(comp.id)] || []).length > 0,
+            );
+          const defaultResultsCompId = String(
+            latestCompWithRows?.id ||
+              latestComp?.id ||
+              seasonCompsChronological.at(-1)?.id ||
+              "",
+          );
+
+          const resultsViewCompetitions = [...seasonCompsChronological]
+            .reverse()
+            .map((comp: any) => {
+              const compId = String(comp.id);
+              const wk = weekNumberByComp.get(compId);
+              return {
+                id: compId,
+                name: comp?.name || "",
+                competition_date: comp?.competition_date || null,
+                status: comp?.status || "",
+                week_number: wk ?? null,
+                week_label: wk ? `WK${wk}` : "Week",
+              };
+            });
+
+          (dash as Record<string, unknown>).results_view = {
+            default_competition_id: defaultResultsCompId,
+            competitions: resultsViewCompetitions,
+            rows_by_competition: rowsByCompetition,
+            summary_by_competition: summaryByCompetition,
+          };
+        }
+
+        const compSummary =
+          (dash as any)?.results_view?.summary_by_competition?.[
+            String(latestComp.id)
+          ] || summariesMapGlobal.get(latestComp.id);
         dash.summary = compSummary || {
           competition_id: latestComp.id,
           winner_type: "",
@@ -516,6 +801,106 @@ Deno.serve(async (req) => {
           week_number: null,
           week_date: latestComp.competition_date,
           second_names: [],
+        };
+
+        const topScore = normalizedRows.length
+          ? Math.max(...normalizedRows.map((row: any) => Number(row.score)))
+          : null;
+        const topRows =
+          topScore == null
+            ? []
+            : normalizedRows.filter(
+                (row: any) => Number(row.score) === topScore,
+              );
+        const summaryWinnerNames = Array.isArray(
+          (dash.summary as any)?.winner_names,
+        )
+          ? (dash.summary as any).winner_names.filter(Boolean)
+          : [];
+        const heroWinnerNames = summaryWinnerNames.length
+          ? summaryWinnerNames
+          : topRows
+              .map((row: any) => String(row?.player || ""))
+              .filter(Boolean);
+        const winnerType = String(
+          (dash.summary as any)?.winner_type || "",
+        ).toLowerCase();
+        const summaryAmount = Number((dash.summary as any)?.amount || 0);
+        const amountText = `£${summaryAmount.toFixed(2)}`;
+
+        let heroMessage = "No results yet.";
+        if (topRows.length > 0) {
+          if (winnerType === "rollover" || winnerType === "tie") {
+            heroMessage = `A rollover with ${topRows[0].score} points leading, carrying ${amountText} into the next week.`;
+          } else if (winnerType === "winner" && heroWinnerNames.length === 1) {
+            heroMessage = `A win for ${heroWinnerNames[0]} with ${topRows[0].score} points, adding ${amountText} to his season winnings.`;
+          } else if (winnerType === "winner" && heroWinnerNames.length > 1) {
+            heroMessage = `${heroWinnerNames.join(", ")} tied for the win, adding ${amountText} to their season winnings.`;
+          } else {
+            heroMessage = `${heroWinnerNames.join(", ")} scored ${topRows[0].score} points.`;
+          }
+        }
+
+        const statsPlayers =
+          Number((dash.summary as any)?.num_players) > 0
+            ? Number((dash.summary as any).num_players)
+            : normalizedRows.length;
+        const statsSnakes =
+          Number((dash.summary as any)?.snakes) > 0
+            ? Number((dash.summary as any).snakes)
+            : normalizedRows.filter((row: any) => row.snake).length;
+        const statsCamels =
+          Number((dash.summary as any)?.camels) > 0
+            ? Number((dash.summary as any).camels)
+            : normalizedRows.filter((row: any) => row.camel).length;
+
+        const weekNumber = (dash.summary as any)?.week_number;
+        const weekDateRaw =
+          (dash.summary as any)?.week_date || latestComp.competition_date;
+        const weekDate = weekDateRaw
+          ? new Date(String(weekDateRaw)).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            })
+          : null;
+        const weekLabel =
+          weekNumber && weekDate
+            ? `WEEK ${weekNumber}, ${weekDate}`
+            : "WEEK — , —";
+
+        const handicapChanges = dedupedHandicapHistory
+          .filter(
+            (entry: any) =>
+              String(entry?.competition_id || "") === String(latestComp.id),
+          )
+          .map((entry: any) => {
+            const oldRounded = Math.round(Number(entry?.old_handicap));
+            const newRounded = Math.round(Number(entry?.new_handicap));
+            if (!Number.isFinite(oldRounded) || !Number.isFinite(newRounded))
+              return null;
+            if (oldRounded === newRounded) return null;
+            const userId = String(entry?.user_id || "");
+            return {
+              user_id: userId,
+              full_name: profileNameById.get(userId) || "Unknown",
+              oldRounded,
+              newRounded,
+            };
+          })
+          .filter(Boolean)
+          .slice(0, 8);
+
+        (dash as Record<string, unknown>).home = {
+          latest_competition_id: latestComp.id,
+          week_label: weekLabel,
+          hero_message: heroMessage,
+          no_results: topRows.length === 0,
+          stats: {
+            players: statsPlayers,
+            snakes: statsSnakes,
+            camels: statsCamels,
+          },
+          handicap_changes: handicapChanges,
         };
 
         if (!Array.isArray(dash.handicaps)) {
@@ -581,6 +966,7 @@ Deno.serve(async (req) => {
       competition_id: comp.id,
       winner_type: "",
       winner_names: [],
+      winner_ids: [],
       amount: 0,
       num_players: compResults.length,
       snakes: compResults.filter((r: any) => r.has_snake).length,
@@ -591,9 +977,55 @@ Deno.serve(async (req) => {
     };
   });
 
+  const preferredResultsSeasonId = (() => {
+    if (
+      configuredDefaultResultsSeasonId &&
+      seasons.some(
+        (season: any) =>
+          String(season?.id || "") === configuredDefaultResultsSeasonId,
+      )
+    ) {
+      return configuredDefaultResultsSeasonId;
+    }
+
+    for (const season of seasons) {
+      const dash: any = dashboard[season.id];
+      const resultsView = dash?.results_view;
+      if (!resultsView || !Array.isArray(resultsView.competitions)) continue;
+      if (!resultsView.competitions.length) continue;
+
+      const defaultCompId = String(resultsView.default_competition_id || "");
+      const rows = resultsView.rows_by_competition?.[defaultCompId] || [];
+      if (Array.isArray(rows) && rows.length > 0) {
+        return season.id;
+      }
+    }
+
+    for (const season of seasons) {
+      const dash: any = dashboard[season.id];
+      const resultsView = dash?.results_view;
+      if (
+        resultsView &&
+        Array.isArray(resultsView.competitions) &&
+        resultsView.competitions.length
+      ) {
+        return season.id;
+      }
+    }
+
+    return (
+      (seasons.find((season: any) => season?.is_active) || seasons[0] || null)
+        ?.id || null
+    );
+  })();
+
   // 8. Return all data
   return new Response(
     JSON.stringify({
+      api_version: "contract-v1",
+      defaults: {
+        results_season_id: preferredResultsSeasonId,
+      },
       seasons,
       competitions: scopedCompetitions,
       results,
