@@ -133,6 +133,31 @@ async function loadGlobalMetadata(silent = false) {
   }
 }
 
+async function hardRefresh() {
+  // Unregister all service workers to clear cache
+  if ("serviceWorker" in navigator) {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        await reg.unregister();
+      }
+    } catch (err) {
+      console.error("Failed to unregister SW:", err);
+    }
+  }
+  // Clear all caches
+  if ("caches" in window) {
+    try {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map((name) => caches.delete(name)));
+    } catch (err) {
+      console.error("Failed to clear caches:", err);
+    }
+  }
+  // Hard reload (bypasses cache)
+  window.location.href = window.location.href.split("#")[0];
+}
+
 // ...existing code...
 
 const sections = [
@@ -301,6 +326,13 @@ onMounted(() => {
   handleScroll();
   loadGlobalMetadata();
 
+  // Force reload when service worker updates (fixes stale PWA cache)
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      window.location.reload();
+    });
+  }
+
   // Subscribe to relevant tables for realtime updates
   const tables = [
     "competitions",
@@ -344,13 +376,23 @@ onBeforeUnmount(() => {
       role="alert"
     >
       <span>{{ globalMetadata.loadError }}</span>
-      <button
-        type="button"
-        class="app-load-error__retry"
-        @click="loadGlobalMetadata"
-      >
-        Retry
-      </button>
+      <div style="display: flex; gap: 8px; margin-top: 8px;">
+        <button
+          type="button"
+          class="app-load-error__retry"
+          @click="loadGlobalMetadata"
+        >
+          Retry
+        </button>
+        <button
+          type="button"
+          class="app-load-error__retry"
+          @click="hardRefresh"
+          style="opacity: 0.7;"
+        >
+          Clear Cache & Reload
+        </button>
+      </div>
     </div>
     <main class="app-main">
       <div v-if="globalMetadata.loading" class="app-boot-loader">
