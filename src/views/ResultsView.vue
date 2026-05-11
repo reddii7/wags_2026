@@ -119,7 +119,7 @@ const columns = [
     key: "position",
     label: "POS",
     className: "numeric narrow",
-    width: "2.35rem",
+    width: "3.5rem",
   },
   {
     key: "player",
@@ -127,7 +127,7 @@ const columns = [
     className: "player",
     width: "minmax(0, 1fr)",
   },
-  { key: "score", label: "PTS", className: "numeric", width: "3.1rem" },
+  { key: "score", label: "PTS", className: "numeric", width: "4.75rem" },
 ];
 
 const selectedCompetition = computed(
@@ -293,24 +293,26 @@ watch(
 <template>
   <section class="page-stack results-page">
     <header class="results-hero">
-      <p class="results-hero__weekline">
-        <template
-          v-if="
-            selectedCompetition && weekNumberMap.has(selectedCompetitionId)
-          "
-        >
-          <span class="results-hero__week-label">Round</span>
-          <span class="results-hero__week"
-            >{{ weekNumberMap.get(selectedCompetitionId) }} ·
-            {{ selectedCompetitionDate }}</span
+      <div class="results-hero__row">
+        <span class="results-hero__badge" aria-hidden="true">Results</span>
+        <div class="results-hero__weekline">
+          <template
+            v-if="
+              selectedCompetition && weekNumberMap.has(selectedCompetitionId)
+            "
           >
-        </template>
-        <template v-else>
-          <span class="results-hero__week results-hero__week--muted"
-            >Round —</span
-          >
-        </template>
-      </p>
+            <span class="results-hero__week"
+              >Week {{ weekNumberMap.get(selectedCompetitionId) }} ·
+              {{ selectedCompetitionDate }}</span
+            >
+          </template>
+          <template v-else>
+            <span class="results-hero__week results-hero__week--muted"
+              >Week —</span
+            >
+          </template>
+        </div>
+      </div>
       <div
         v-if="rows.length"
         class="results-hero__body"
@@ -429,36 +431,44 @@ watch(
 </template>
 <style scoped>
 .results-page {
-  gap: 0.2rem;
+  gap: 0.35rem;
 }
 
 .results-hero {
-  margin: 0;
-  padding: 0.35rem 0.15rem 0.45rem;
+  margin: 0 0 0.25rem;
+  padding: 0.65rem 0.85rem 0.75rem;
   background: transparent;
   border: none;
   box-shadow: none;
   border-radius: 0;
 }
 
-.results-hero__weekline {
-  margin: 0;
+.results-hero__row {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.35rem 0.55rem;
+  gap: 0.5rem 0.75rem;
 }
 
-.results-hero__week-label {
-  font-size: 0.58rem;
+.results-hero__badge {
+  flex: 0 0 auto;
+  font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.2rem 0.45rem;
+}
+
+.results-hero__weekline {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .results-hero__week {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text);
   letter-spacing: 0.02em;
@@ -470,43 +480,42 @@ watch(
 }
 
 .results-hero__body {
-  margin-top: 0.4rem;
-  padding-top: 0.45rem;
-  border-top: 0.5px solid var(--line);
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--line);
 }
 
 .results-hero__message {
   margin: 0;
-  font-size: 0.84rem;
-  line-height: 1.42;
-  color: color-mix(in srgb, var(--text) 92%, var(--muted));
-  font-weight: 500;
-  max-width: 36rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--text);
+  font-weight: 600;
 }
 
 .results-hero__counts {
-  margin: 0.28rem 0 0;
-  font-size: 0.72rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
   color: var(--muted);
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
 .results-hero__empty {
-  margin: 0.35rem 0 0;
-  font-size: 0.85rem;
+  margin: 0.45rem 0 0;
+  font-size: 0.88rem;
   color: var(--muted);
 }
 
 .wk-nav {
   display: flex;
   align-items: stretch;
-  gap: 0.1rem;
-  margin: 0 -0.15rem 0.15rem;
-  padding: 0.28rem 0.25rem;
-  background: color-mix(in srgb, var(--surface-2, var(--line)) 55%, transparent);
+  gap: 0.15rem;
+  margin: 0 -0.25rem 0.35rem;
+  padding: 0.4rem 0.35rem;
+  background: color-mix(in srgb, var(--bg-strong, var(--bg)) 88%, transparent);
   border-bottom: 1px solid var(--line);
-  border-radius: 12px;
+  border-top: 1px solid var(--line);
 }
 
 .wk-nav__arrow {
@@ -514,8 +523,8 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  min-width: 2.25rem;
+  width: 2.5rem;
+  min-width: 2.5rem;
   padding: 0;
   border: none;
   border-radius: 10px;
@@ -541,18 +550,18 @@ watch(
   min-width: 0;
   display: flex;
   align-items: stretch;
-  gap: 0.28rem;
+  gap: 0.35rem;
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x proximity;
-  padding: 0.06rem 0.1rem;
+  padding: 0.1rem 0.15rem;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   mask-image: linear-gradient(
     90deg,
     transparent 0,
-    #000 5px,
-    #000 calc(100% - 5px),
+    #000 6px,
+    #000 calc(100% - 6px),
     transparent 100%
   );
 }
@@ -568,12 +577,12 @@ watch(
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.06rem;
-  min-width: 2.65rem;
-  max-width: 3.1rem;
-  padding: 0.22rem 0.28rem 0.24rem;
+  gap: 0.08rem;
+  min-width: 2.85rem;
+  max-width: 3.35rem;
+  padding: 0.28rem 0.35rem 0.32rem;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 10px;
   background: transparent;
   color: var(--muted);
   font: inherit;
@@ -587,56 +596,31 @@ watch(
 
 .wk-nav__chip:hover {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--text) 28%, var(--line));
+  border-color: color-mix(in srgb, var(--text) 35%, var(--line));
 }
 
 .wk-nav__chip.is-active {
-  color: var(--text);
-  background: color-mix(in srgb, var(--accent) 24%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
-  font-weight: 700;
+  color: var(--bg, #0a0a0a);
+  background: var(--text);
+  border-color: var(--text);
+  font-weight: 800;
 }
 
 .wk-nav__chip-num {
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 
 .wk-nav__chip-date {
-  font-size: 0.54rem;
+  font-size: 0.58rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  opacity: 0.88;
+  opacity: 0.92;
 }
 
 .wk-nav__chip:not(.is-active) .wk-nav__chip-date {
-  opacity: 0.72;
-}
-
-.results-page :deep(.quiet-list-row) {
-  gap: 0.42rem;
-  align-items: center;
-}
-
-.results-page :deep(.quiet-list-row--head) {
-  padding: 0 0 0.38rem;
-  margin-bottom: 0.05rem;
-  border-bottom: 0.5px solid var(--line);
-}
-
-.results-page :deep(.quiet-list-body .quiet-list-row) {
-  padding: 0.58rem 0;
-}
-
-.results-page :deep(.quiet-list-cell.player) {
-  min-width: 0;
-}
-
-.results-page .results-shell {
-  gap: 0.3rem;
-  padding-top: 0;
+  opacity: 0.75;
 }
 </style>
