@@ -60,19 +60,65 @@ function scheduleGlobalMetadataReload() {
   }, 450);
 }
 
-/** Collapses visibility + pageshow + focus into one network round-trip (iOS fires several). */
+/** When the document was last hidden (lock / background); iOS often skips visibility, so pagehide backs this up. */
+let resumeBaselineMs = 0;
 let lastResumeMetadataRefreshMs = 0;
+let lastFetchCompletedAt = 0;
+let appMountTime = 0;
 const RESUME_METADATA_DEBOUNCE_MS = 1200;
+const RESUME_LONG_AWAY_MS = 2000;
+const RESUME_STALE_FETCH_MS = 120_000;
 
-function refreshGlobalMetadataAfterResume() {
+function markDocumentSuspended() {
+  resumeBaselineMs = Date.now();
+}
+
+/**
+ * Refetch after sleep / multitask. `explicitAwayMs` is used when visibility just
+ * cleared resumeBaselineMs (ms since hide). Pass null to consume resumeBaselineMs here.
+ */
+function runResumeMetadataRefresh(explicitAwayMs = null) {
+  if (globalMetadata.value.loading) return;
+
+  let awayMs = explicitAwayMs;
+  if (awayMs == null) {
+    if (resumeBaselineMs) {
+      awayMs = Date.now() - resumeBaselineMs;
+      resumeBaselineMs = 0;
+    } else {
+      awayMs = 0;
+    }
+  }
+
   const now = Date.now();
-  if (now - lastResumeMetadataRefreshMs < RESUME_METADATA_DEBOUNCE_MS) return;
+  const lastFetch = lastFetchCompletedAt || now;
+  const stale = now - lastFetch > RESUME_STALE_FETCH_MS;
+  const longAway = awayMs >= RESUME_LONG_AWAY_MS;
+  const sinceBoot = now - (appMountTime || now);
+
+  // Ignore spurious "visible" right after cold start (no prior hide).
+  if (awayMs === 0 && sinceBoot < 3500) return;
+
+  if (
+    !longAway &&
+    !stale &&
+    now - lastResumeMetadataRefreshMs < RESUME_METADATA_DEBOUNCE_MS
+  ) {
+    return;
+  }
+
   lastResumeMetadataRefreshMs = now;
   if (reloadDebounceTimer) {
     clearTimeout(reloadDebounceTimer);
     reloadDebounceTimer = null;
   }
   void loadGlobalMetadata(true, true);
+}
+
+function scheduleResumeMetadataRefresh(explicitAwayMs = null) {
+  requestAnimationFrame(() => {
+    setTimeout(() => runResumeMetadataRefresh(explicitAwayMs), 45);
+  });
 }
 
 async function loadGlobalMetadata(silent = false, bustCache = false) {
@@ -92,6 +138,8 @@ async function loadGlobalMetadata(silent = false, bustCache = false) {
       headers: {
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         apikey: SUPABASE_ANON_KEY,
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
       },
     });
     const text = await response.text();
@@ -162,6 +210,7 @@ async function loadGlobalMetadata(silent = false, bustCache = false) {
     console.error("Failed to load global metadata:", err);
   } finally {
     globalMetadata.value.loading = false;
+    lastFetchCompletedAt = Date.now();
   }
 }
 
@@ -380,37 +429,66 @@ const handleScroll = () => {
 let supabaseChannels = [];
 
 const handleVisibilityChange = () => {
-  if (document.visibilityState !== "visible") return;
-  // Avoid racing the initial boot fetch.
+  if (document.visibilityState === "hidden") {
+    markDocumentSuspended();
+    return;
+  }
   if (globalMetadata.value.loading) return;
-  refreshGlobalMetadataAfterResume();
+  const awayMs =
+    resumeBaselineMs > 0 ? Date.now() - resumeBaselineMs : 0;
+  resumeBaselineMs = 0;
+  scheduleResumeMetadataRefresh(awayMs);
 };
 
-// iOS home screen / Web Clip: visibilitychange is unreliable; pageshow covers bfcache resume.
+// iOS home screen / Web Clip: bfcache restores and some wake paths only hit pageshow.
 const handlePageShow = (e) => {
   if (e.persisted) {
     if (sessionStorage.getItem("forced-refreshing")) {
       sessionStorage.removeItem("forced-refreshing");
       return;
     }
-    refreshGlobalMetadataAfterResume();
+    scheduleResumeMetadataRefresh(null);
     return;
   }
   if (globalMetadata.value.loading) return;
-  refreshGlobalMetadataAfterResume();
+  scheduleResumeMetadataRefresh(null);
 };
 
 const handleWindowFocus = () => {
   if (globalMetadata.value.loading) return;
-  refreshGlobalMetadataAfterResume();
+  scheduleResumeMetadataRefresh(null);
+};
+
+const handlePageHide = () => {
+  markDocumentSuspended();
+};
+
+const handleDocumentFreeze = () => {
+  markDocumentSuspended();
+};
+
+const handleDocumentResume = () => {
+  if (globalMetadata.value.loading) return;
+  scheduleResumeMetadataRefresh(null);
+};
+
+const handleWindowOnline = () => {
+  if (globalMetadata.value.loading) return;
+  scheduleResumeMetadataRefresh(null);
 };
 
 onMounted(() => {
+  appMountTime = Date.now();
+  lastFetchCompletedAt = Date.now();
   lastScrollY = window.scrollY || 0;
   window.addEventListener("scroll", handleScroll, { passive: true });
-  document.addEventListener("visibilitychange", handleVisibilityChange);
+  document.addEventListener("visibilitychange", handleVisibilityChange, false);
+  window.addEventListener("pagehide", handlePageHide);
   window.addEventListener("pageshow", handlePageShow);
-  window.addEventListener("focus", handleWindowFocus);
+  window.addEventListener("focus", handleWindowFocus, true);
+  window.addEventListener("online", handleWindowOnline);
+  document.addEventListener("freeze", handleDocumentFreeze);
+  document.addEventListener("resume", handleDocumentResume);
   handleScroll();
   loadGlobalMetadata();
 
@@ -440,8 +518,12 @@ onBeforeUnmount(() => {
   supabaseChannels.forEach((ch) => supabase.removeChannel(ch));
   window.removeEventListener("scroll", handleScroll);
   document.removeEventListener("visibilitychange", handleVisibilityChange);
+  window.removeEventListener("pagehide", handlePageHide);
   window.removeEventListener("pageshow", handlePageShow);
-  window.removeEventListener("focus", handleWindowFocus);
+  window.removeEventListener("focus", handleWindowFocus, true);
+  window.removeEventListener("online", handleWindowOnline);
+  document.removeEventListener("freeze", handleDocumentFreeze);
+  document.removeEventListener("resume", handleDocumentResume);
 });
 </script>
 
