@@ -13,7 +13,10 @@
     "verify:release": "npm run build && npm run check:contract && npm run season:verify",
     "backup": "node backup-supabase.js",
     "backup:list": "node restore-supabase.js list",
-    "restore": "node restore-supabase.js restore"
+    "restore": "node restore-supabase.js restore",
+    "admin:dev": "npm --prefix admin run dev",
+    "admin:build": "npm --prefix admin run build",
+    "admin:preview": "npm --prefix admin run preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.0",
