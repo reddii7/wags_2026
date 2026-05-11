@@ -20,9 +20,8 @@ const routerViewComponentKey = computed(() =>
   String(route.name) === "stats" ? route.path : route.fullPath,
 );
 
-// Increment this whenever you deploy a version that MUST force old icons to update
-// This acts as a 'kill-switch' for stale Home Screen versions.
-const CLIENT_BUILD_ID = "20260212-v1";
+// Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
+const CLIENT_BUILD_ID = "20240508-v1";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -121,95 +120,128 @@ function scheduleResumeMetadataRefresh(explicitAwayMs = null) {
   });
 }
 
+let silentMetadataRefreshPromise = null;
+
 async function loadGlobalMetadata(silent = false, bustCache = false) {
-  if (!silent) globalMetadata.value.loading = true;
-  globalMetadata.value.loadError = "";
-  try {
-    // Do not pass ?season= here: that scopes fetch-all-data competitions to one
-    // season only, which drops prior seasons from `dashboard` (e.g. no 2025 results).
-    const requestUrl = buildFetchAllDataUrl(
-      FETCH_ALL_DATA_URL,
-      "",
-      bustCache,
-    );
+  if (silent && silentMetadataRefreshPromise) {
+    return silentMetadataRefreshPromise;
+  }
 
-    const response = await fetch(requestUrl, {
-      cache: "no-store",
-      headers: {
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        apikey: SUPABASE_ANON_KEY,
-      },
-    });
-    const text = await response.text();
-    let data;
+  const run = async () => {
+    if (!silent) {
+      globalMetadata.value.loading = true;
+      globalMetadata.value.loadError = "";
+    }
     try {
-      data = text ? JSON.parse(text) : {};
-    } catch {
-      throw new Error("Server returned invalid data.");
-    }
-    if (data?.error) {
-      const msg =
-        typeof data.error === "string"
-          ? data.error
-          : data.error?.message || "Server error";
-      throw new Error(msg);
-    }
-    if (!response.ok) {
-      throw new Error(`Could not load data (${response.status}).`);
-    }
-
-    if (!data || typeof data !== "object" || !Array.isArray(data.seasons)) {
-      throw new Error("Server contract invalid.");
-    }
-
-    // If the API version or a specific build ID from the server doesn't match,
-    // trigger an automatic hard refresh to bust the stale iOS Web Clip cache.
-    if (data.api_version && data.api_version !== "contract-v1") {
-      console.warn("Client out of date. Forcing update...");
-      hardRefresh();
-      return;
-    }
-
-    // Compare the server's reported build against the client build.
-    // Ensure your Supabase Edge Function returns a 'build_id' field.
-    if (data.build_id && data.build_id !== CLIENT_BUILD_ID) {
-      const refreshCount = parseInt(
-        sessionStorage.getItem("pwa-refresh-count") || "0",
+      // Do not pass ?season= here: that scopes fetch-all-data competitions to one
+      // season only, which drops prior seasons from `dashboard` (e.g. no 2025 results).
+      const requestUrl = buildFetchAllDataUrl(
+        FETCH_ALL_DATA_URL,
+        "",
+        bustCache,
       );
-      if (refreshCount >= 2) {
-        console.warn(
-          "Build ID mismatch persists; loading data without another hard reload.",
-        );
-        sessionStorage.removeItem("pwa-refresh-count");
-      } else {
-        console.warn(
-          `Build mismatch: server=${data.build_id}, client=${CLIENT_BUILD_ID}. Forcing update...`,
-        );
-        sessionStorage.setItem(
-          "pwa-refresh-count",
-          (refreshCount + 1).toString(),
-        );
+
+      const response = await fetch(requestUrl, {
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          apikey: SUPABASE_ANON_KEY,
+        },
+      });
+      const text = await response.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error("Server returned invalid data.");
+      }
+      if (data?.error) {
+        const msg =
+          typeof data.error === "string"
+            ? data.error
+            : data.error?.message || "Server error";
+        throw new Error(msg);
+      }
+      if (!response.ok) {
+        throw new Error(`Could not load data (${response.status}).`);
+      }
+
+      if (!data || typeof data !== "object" || !Array.isArray(data.seasons)) {
+        throw new Error("Server contract invalid.");
+      }
+
+      // Never hard-reload the page on background refresh — causes white flashes and
+      // retry UI loops when the network stack is not ready yet.
+      if (
+        !silent &&
+        data.api_version &&
+        data.api_version !== "contract-v1"
+      ) {
+        console.warn("Client out of date. Forcing update...");
         hardRefresh();
         return;
       }
-    } else {
-      sessionStorage.removeItem("pwa-refresh-count");
+
+      if (!silent && data.build_id && data.build_id !== CLIENT_BUILD_ID) {
+        const refreshCount = parseInt(
+          sessionStorage.getItem("pwa-refresh-count") || "0",
+        );
+        if (refreshCount >= 2) {
+          console.warn(
+            "Build ID mismatch persists; loading data without another hard reload.",
+          );
+          sessionStorage.removeItem("pwa-refresh-count");
+        } else {
+          console.warn(
+            `Build mismatch: server=${data.build_id}, client=${CLIENT_BUILD_ID}. Forcing update...`,
+          );
+          sessionStorage.setItem(
+            "pwa-refresh-count",
+            (refreshCount + 1).toString(),
+          );
+          hardRefresh();
+          return;
+        }
+      } else {
+        sessionStorage.removeItem("pwa-refresh-count");
+      }
+
+      if (silent && data.build_id && data.build_id !== CLIENT_BUILD_ID) {
+        console.info(
+          "[metadata] build_id differs on silent refresh; applying payload without reload.",
+          { server: data.build_id, client: CLIENT_BUILD_ID },
+        );
+      }
+
+      const payload =
+        data.api_version != null && String(data.api_version).trim() !== ""
+          ? data
+          : { ...data, api_version: "contract-v1" };
+
+      Object.assign(globalMetadata.value, payload);
+      globalMetadata.value.loadError = "";
+    } catch (err) {
+      if (!silent) {
+        globalMetadata.value.loadError =
+          err?.message || "Could not load data. Try again.";
+      } else {
+        console.warn("Silent metadata refresh failed:", err?.message || err);
+      }
+      console.error("Failed to load global metadata:", err);
+    } finally {
+      globalMetadata.value.loading = false;
+      lastFetchCompletedAt = Date.now();
     }
+  };
 
-    const payload =
-      data.api_version != null && String(data.api_version).trim() !== ""
-        ? data
-        : { ...data, api_version: "contract-v1" };
-
-    Object.assign(globalMetadata.value, payload);
-  } catch (err) {
-    globalMetadata.value.loadError =
-      err?.message || "Could not load data. Try again.";
-    console.error("Failed to load global metadata:", err);
-  } finally {
-    globalMetadata.value.loading = false;
-    lastFetchCompletedAt = Date.now();
+  if (silent) {
+    silentMetadataRefreshPromise = run().finally(() => {
+      silentMetadataRefreshPromise = null;
+    });
+    return silentMetadataRefreshPromise;
   }
+
+  await run();
 }
 
 async function hardRefresh() {
