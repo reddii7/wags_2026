@@ -237,38 +237,45 @@ watch(
 </script>
 
 <template>
-  <section class="page-stack">
-    <section class="hero-block home-hero">
-      <div class="home-hero__intro">
-        <div class="wags-headline">
-          <span class="home-hero-sublabel wags-body">
-            <template
-              v-if="
-                selectedCompetition && weekNumberMap.has(selectedCompetitionId)
-              "
+  <section class="page-stack results-page">
+    <header class="results-hero">
+      <div class="results-hero__row">
+        <span class="results-hero__badge" aria-hidden="true">Results</span>
+        <div class="results-hero__weekline">
+          <template
+            v-if="
+              selectedCompetition && weekNumberMap.has(selectedCompetitionId)
+            "
+          >
+            <span class="results-hero__week"
+              >Week {{ weekNumberMap.get(selectedCompetitionId) }} ·
+              {{ selectedCompetitionDate }}</span
             >
-              WEEK {{ weekNumberMap.get(selectedCompetitionId) }},
-              {{ selectedCompetitionDate }}
-            </template>
-            <template v-else
-              ><span style="opacity: 0.5"
-                >WEEK &mdash; , &mdash;</span
-              ></template
-            >
-          </span>
-          <template v-if="rows.length">
-            <span>{{ heroMessage }}</span>
-            <p class="home-hero-sublabel home-hero-subtext">
-              {{ heroStats.players }} played, {{ heroStats.snakes }} snakes,
-              {{ heroStats.camels }} camels.
-            </p>
           </template>
-          <template v-else-if="!metadata.loading && !contractError">
-            No results yet.
+          <template v-else>
+            <span class="results-hero__week results-hero__week--muted"
+              >Week —</span
+            >
           </template>
         </div>
       </div>
-    </section>
+      <div
+        v-if="rows.length"
+        class="results-hero__body"
+      >
+        <p class="results-hero__message">{{ heroMessage }}</p>
+        <p class="results-hero__counts">
+          {{ heroStats.players }} played · {{ heroStats.snakes }} snakes ·
+          {{ heroStats.camels }} camels
+        </p>
+      </div>
+      <p
+        v-else-if="!metadata.loading && !contractError"
+        class="results-hero__empty"
+      >
+        No results yet.
+      </p>
+    </header>
 
     <nav v-if="competitionsForSeason.length > 1" class="f1-round-nav">
       <div class="f1-round-scroll">
@@ -326,6 +333,82 @@ watch(
   </section>
 </template>
 <style scoped>
+.results-page {
+  gap: 0.35rem;
+}
+
+.results-hero {
+  margin: 0 0 0.25rem;
+  padding: 0.65rem 0.85rem 0.75rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+}
+
+.results-hero__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+}
+
+.results-hero__badge {
+  flex: 0 0 auto;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.2rem 0.45rem;
+}
+
+.results-hero__weekline {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.results-hero__week {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.results-hero__week--muted {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.results-hero__body {
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--line);
+}
+
+.results-hero__message {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.results-hero__counts {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.results-hero__empty {
+  margin: 0.45rem 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
 .f1-round-nav {
   background: var(--bg);
   border-bottom: 1px solid var(--line);

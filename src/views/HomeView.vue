@@ -222,7 +222,7 @@ watch(
       <button
         class="home-card row-button"
         type="button"
-        @click="$emit('navigate', 'handicaps')"
+        @click="$emit('navigate', { section: 'handicaps' })"
       >
         <div class="home-card__header">
           <span class="home-hero-sublabel">Handicap changes</span>
@@ -267,7 +267,7 @@ watch(
       <button
         class="home-card row-button"
         type="button"
-        @click="$emit('navigate', 'stats')"
+        @click="$emit('navigate', { section: 'stats', tab: 'best14' })"
       >
         <div class="home-card__header">
           <span class="home-hero-sublabel">Best 14 LEADERS</span>
@@ -288,7 +288,7 @@ watch(
       <button
         class="home-card row-button"
         type="button"
-        @click="$emit('navigate', 'stats')"
+        @click="$emit('navigate', { section: 'stats', tab: 'leagues' })"
       >
         <div class="home-card__header">
           <span class="home-hero-sublabel">Division leaders</span>

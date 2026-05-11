@@ -1,10 +1,16 @@
 <script setup>
 import { ref, computed, markRaw, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { triggerHapticFeedback } from "../utils/haptics";
 import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
 import ResultsView from "./ResultsView.vue";
 import WinnersTable from "./WinnersTable.vue";
+
+const route = useRoute();
+const router = useRouter();
+
+const STATS_TAB_IDS = ["results", "leagues", "best14", "winners"];
 
 const props = defineProps({
   metadata: { type: Object, required: true },
@@ -27,6 +33,20 @@ const activeTabId = ref(tabs[0].id);
 const activeComponent = computed(
   () => tabs.find((t) => t.id === activeTabId.value)?.component,
 );
+
+function applyTabFromRoute() {
+  const raw = route.query.tab;
+  if (typeof raw === "string" && STATS_TAB_IDS.includes(raw)) {
+    activeTabId.value = raw;
+    return;
+  }
+  activeTabId.value = "results";
+  if (typeof raw === "string" && raw && !STATS_TAB_IDS.includes(raw)) {
+    router.replace("/stats");
+  }
+}
+
+watch(() => route.query.tab, applyTabFromRoute, { immediate: true });
 
 // Hydrate seasons from metadata and set default selected season robustly
 watch(
@@ -81,6 +101,11 @@ watch(selectedSeasonId, (newVal, oldVal) => {
 function setTab(id) {
   triggerHapticFeedback();
   activeTabId.value = id;
+  if (id === "results") {
+    router.replace("/stats");
+  } else {
+    router.replace({ path: "/stats", query: { tab: id } });
+  }
 }
 </script>
 

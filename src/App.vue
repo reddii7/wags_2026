@@ -317,14 +317,62 @@ const currentViewProps = computed(() => {
 function switchSection(section) {
   triggerHapticFeedback();
   const targetPath = section?.path || "/";
+  if (section?.name === "stats" && route.path === "/stats") {
+    if (route.query.tab) {
+      router.replace("/stats");
+    }
+    return;
+  }
   if (route.path !== targetPath) {
     router.push(targetPath);
   }
 }
 
+const STATS_HUB_TAB_IDS = new Set([
+  "results",
+  "leagues",
+  "best14",
+  "winners",
+]);
+
 function handleNavigate(target) {
+  if (target && typeof target === "object" && !Array.isArray(target)) {
+    const section = String(target.section || "").toLowerCase();
+    const tab = String(target.tab || "").toLowerCase();
+    if (section === "stats") {
+      if (tab && STATS_HUB_TAB_IDS.has(tab)) {
+        if (tab === "results") {
+          router.push("/stats");
+        } else {
+          router.push({ path: "/stats", query: { tab } });
+        }
+      } else {
+        router.push("/stats");
+      }
+      return;
+    }
+    const targetSection = sections.find((s) => s.name === section);
+    if (targetSection) {
+      switchSection(targetSection);
+      return;
+    }
+  }
+
   if (typeof target === "string") {
     const normalized = target.toLowerCase();
+    const colon = normalized.indexOf(":");
+    if (colon > 0) {
+      const base = normalized.slice(0, colon);
+      const rest = normalized.slice(colon + 1);
+      if (base === "stats" && STATS_HUB_TAB_IDS.has(rest)) {
+        if (rest === "results") {
+          router.push("/stats");
+        } else {
+          router.push({ path: "/stats", query: { tab: rest } });
+        }
+        return;
+      }
+    }
     const targetSection = sections.find(
       (section) => section.name === normalized,
     );
@@ -334,7 +382,8 @@ function handleNavigate(target) {
     }
   }
 
-  selectedCompetitionId.value = target || null;
+  const compId = typeof target === "string" ? target : null;
+  selectedCompetitionId.value = compId || null;
   if (route.path !== "/results") {
     router.push("/results");
   }
