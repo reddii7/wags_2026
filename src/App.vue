@@ -71,10 +71,11 @@ async function getPreferredSeasonParam() {
   return "";
 }
 
-function buildFetchAllDataUrl(baseUrl, seasonParam) {
-  if (!seasonParam) return baseUrl;
+function buildFetchAllDataUrl(baseUrl, seasonParam, bustCache = false) {
+  if (!seasonParam && !bustCache) return baseUrl;
   const url = new URL(baseUrl);
-  url.searchParams.set("season", seasonParam);
+  if (seasonParam) url.searchParams.set("season", seasonParam);
+  if (bustCache) url.searchParams.set("_", String(Date.now()));
   return url.toString();
 }
 
@@ -86,12 +87,31 @@ function scheduleGlobalMetadataReload() {
   }, 450);
 }
 
-async function loadGlobalMetadata(silent = false) {
+/** Collapses visibility + pageshow + focus into one network round-trip (iOS fires several). */
+let lastResumeMetadataRefreshMs = 0;
+const RESUME_METADATA_DEBOUNCE_MS = 1200;
+
+function refreshGlobalMetadataAfterResume() {
+  const now = Date.now();
+  if (now - lastResumeMetadataRefreshMs < RESUME_METADATA_DEBOUNCE_MS) return;
+  lastResumeMetadataRefreshMs = now;
+  if (reloadDebounceTimer) {
+    clearTimeout(reloadDebounceTimer);
+    reloadDebounceTimer = null;
+  }
+  void loadGlobalMetadata(true, true);
+}
+
+async function loadGlobalMetadata(silent = false, bustCache = false) {
   if (!silent) globalMetadata.value.loading = true;
   globalMetadata.value.loadError = "";
   try {
     const season = await getPreferredSeasonParam();
-    const requestUrl = buildFetchAllDataUrl(FETCH_ALL_DATA_URL, season);
+    const requestUrl = buildFetchAllDataUrl(
+      FETCH_ALL_DATA_URL,
+      season,
+      bustCache,
+    );
 
     const response = await fetch(requestUrl, {
       cache: "no-store",
@@ -329,48 +349,30 @@ const handleScroll = () => {
 
 let supabaseChannels = [];
 
-const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
-let hiddenAt = null;
-
 const handleVisibilityChange = () => {
-  if (document.visibilityState === "hidden") {
-    hiddenAt = Date.now();
-  } else if (document.visibilityState === "visible") {
-    // Only refresh after initial load is done
-    if (!globalMetadata.value.api_version) return;
-    if (hiddenAt && Date.now() - hiddenAt > STALE_THRESHOLD_MS) {
-      window.location.reload();
-      return;
-    }
-    scheduleGlobalMetadataReload();
-  }
+  if (document.visibilityState !== "visible") return;
+  // Avoid racing the initial boot fetch.
+  if (globalMetadata.value.loading) return;
+  refreshGlobalMetadataAfterResume();
 };
 
-// iOS PWA doesn't reliably fire visibilitychange — pageshow covers it
+// iOS home screen / Web Clip: visibilitychange is unreliable; pageshow covers bfcache resume.
 const handlePageShow = (e) => {
-  // e.persisted means restored from bfcache (common on iOS)
   if (e.persisted) {
-    // If we just did a hard refresh, clear the flag and don't reload immediately
     if (sessionStorage.getItem("forced-refreshing")) {
       sessionStorage.removeItem("forced-refreshing");
       return;
     }
-    // Instead of reload(), just check metadata. If it's stale, hardRefresh() handles the rest.
-    scheduleGlobalMetadataReload();
+    refreshGlobalMetadataAfterResume();
     return;
   }
-
-  // Only refresh after initial load is done
-  if (globalMetadata.value.api_version) {
-    scheduleGlobalMetadataReload();
-  }
+  if (globalMetadata.value.loading) return;
+  refreshGlobalMetadataAfterResume();
 };
 
 const handleWindowFocus = () => {
-  // Only refresh after initial load is done
-  if (globalMetadata.value.api_version) {
-    scheduleGlobalMetadataReload();
-  }
+  if (globalMetadata.value.loading) return;
+  refreshGlobalMetadataAfterResume();
 };
 
 onMounted(() => {
@@ -381,43 +383,6 @@ onMounted(() => {
   window.addEventListener("focus", handleWindowFocus);
   handleScroll();
   loadGlobalMetadata();
-
-  // Force SW update check immediately — if a new SW takes control, reload.
-  // This gets the kill-switch SW activated on the first open, not second.
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.getRegistration().then((reg) => {
-      if (!reg) return;
-
-      // If there is a worker already waiting (common on iOS), force it to activate
-      if (reg.waiting) {
-        reg.waiting.postMessage({ type: "SKIP_WAITING" });
-      }
-
-      // When new SW takes over, do one reload (loop-guarded by sessionStorage)
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (sessionStorage.getItem("sw-killed")) return;
-        sessionStorage.setItem("sw-killed", "1");
-        window.location.reload();
-      });
-
-      // Check for updates whenever the app is opened
-      reg.update();
-
-      // Listen for the 'updatefound' event to catch updates in progress
-      reg.addEventListener("updatefound", () => {
-        const newWorker = reg.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener("statechange", () => {
-          if (
-            newWorker.state === "installed" &&
-            navigator.serviceWorker.controller
-          ) {
-            newWorker.postMessage({ type: "SKIP_WAITING" });
-          }
-        });
-      });
-    });
-  }
 
   // Subscribe to relevant tables for realtime updates
   const tables = [

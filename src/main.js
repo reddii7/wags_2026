@@ -4,8 +4,8 @@ import router from './router';
 import './styles.css';
 import { initializeSession } from './composables/useSession';
 
-// Unregister any previously installed service workers so existing users
-// are not stuck on stale cached assets.
+// No service worker in normal operation — Web Clip / Safari should load this
+// SPA like a normal site. Unregister legacy workers so nothing intercepts fetch.
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then((regs) => {
         regs.forEach((reg) => reg.unregister());
