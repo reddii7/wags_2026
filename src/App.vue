@@ -37,39 +37,6 @@ const hasScrolled = ref(false);
 let lastScrollY = 0;
 
 let reloadDebounceTimer = null;
-let cachedSeasonParam = "";
-let lastSeasonParamLookupMs = 0;
-const SEASON_PARAM_CACHE_MS = 5 * 60 * 1000;
-
-async function getPreferredSeasonParam() {
-  const now = Date.now();
-  if (
-    cachedSeasonParam &&
-    now - lastSeasonParamLookupMs < SEASON_PARAM_CACHE_MS
-  ) {
-    return cachedSeasonParam;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("seasons")
-      .select("start_year, is_active")
-      .order("start_year", { ascending: false });
-
-    if (!error && Array.isArray(data) && data.length > 0) {
-      const active = data.find((s) => s.is_active) || data[0];
-      cachedSeasonParam = active?.start_year ? String(active.start_year) : "";
-      lastSeasonParamLookupMs = now;
-      return cachedSeasonParam;
-    }
-  } catch {
-    // Fallback to unscoped fetch when season lookup fails.
-  }
-
-  cachedSeasonParam = "";
-  lastSeasonParamLookupMs = now;
-  return "";
-}
 
 function buildFetchAllDataUrl(baseUrl, seasonParam, bustCache = false) {
   if (!seasonParam && !bustCache) return baseUrl;
@@ -106,10 +73,11 @@ async function loadGlobalMetadata(silent = false, bustCache = false) {
   if (!silent) globalMetadata.value.loading = true;
   globalMetadata.value.loadError = "";
   try {
-    const season = await getPreferredSeasonParam();
+    // Do not pass ?season= here: that scopes fetch-all-data competitions to one
+    // season only, which drops prior seasons from `dashboard` (e.g. no 2025 results).
     const requestUrl = buildFetchAllDataUrl(
       FETCH_ALL_DATA_URL,
-      season,
+      "",
       bustCache,
     );
 
