@@ -1,6 +1,9 @@
 # Local Netlify folder
 .netlify
 
+# Supabase CLI local state
+supabase/.temp/
+
 # Environment files
 .env
 .env.local
