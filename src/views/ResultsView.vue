@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
 import QuietList from "../components/QuietList.vue";
 
 const props = defineProps({
@@ -163,12 +163,66 @@ const weekNumberMap = computed(() => {
   return map;
 });
 
-const formatWeekLabel = (competition) => {
-  if (!competition) return "Week";
-  if (competition.week_label) return competition.week_label;
-  const num = weekNumberMap.value.get(competition.id);
-  return num ? `WK${num}` : formatDate(competition.competition_date);
-};
+const weekStripRef = ref(null);
+
+/** Chronological order for prev/next and the strip (contract list is often newest-first). */
+const orderedCompetitions = computed(() => {
+  const list = [...competitionsForSeason.value];
+  return list.sort((a, b) => {
+    const ta = new Date(a?.competition_date).getTime() || 0;
+    const tb = new Date(b?.competition_date).getTime() || 0;
+    if (ta !== tb) return ta - tb;
+    return String(a?.id || "").localeCompare(String(b?.id || ""));
+  });
+});
+
+const selectedRoundIndex = computed(() =>
+  orderedCompetitions.value.findIndex(
+    (c) => c.id === selectedCompetitionId.value,
+  ),
+);
+
+const canGoPrev = computed(() => selectedRoundIndex.value > 0);
+const canGoNext = computed(() => {
+  const i = selectedRoundIndex.value;
+  return i >= 0 && i < orderedCompetitions.value.length - 1;
+});
+
+function goPrevRound() {
+  const i = selectedRoundIndex.value;
+  if (i <= 0) return;
+  selectedCompetitionId.value = orderedCompetitions.value[i - 1].id;
+}
+
+function goNextRound() {
+  const i = selectedRoundIndex.value;
+  const list = orderedCompetitions.value;
+  if (i < 0 || i >= list.length - 1) return;
+  selectedCompetitionId.value = list[i + 1].id;
+}
+
+function chipWeekNumber(competition) {
+  const wk = Number(competition?.week_number);
+  if (Number.isFinite(wk) && wk > 0) return wk;
+  const fromMap = weekNumberMap.value.get(competition?.id);
+  if (Number.isFinite(fromMap) && fromMap > 0) return fromMap;
+  return null;
+}
+
+function scrollActiveChipIntoView() {
+  nextTick(() => {
+    const root = weekStripRef.value;
+    if (!root) return;
+    const el = root.querySelector(".wk-nav__chip.is-active");
+    el?.scrollIntoView({
+      inline: "center",
+      block: "nearest",
+      behavior: "smooth",
+    });
+  });
+}
+
+watch(selectedCompetitionId, scrollActiveChipIntoView);
 
 const heroMessage = computed(
   () => selectedSummary.value?.hero_message || "No results yet.",
@@ -277,23 +331,66 @@ watch(
       </p>
     </header>
 
-    <nav v-if="competitionsForSeason.length > 1" class="f1-round-nav">
-      <div class="f1-round-scroll">
+    <nav
+      v-if="competitionsForSeason.length > 1"
+      class="wk-nav"
+      aria-label="Round"
+    >
+      <button
+        type="button"
+        class="wk-nav__arrow"
+        :disabled="!canGoPrev"
+        aria-label="Previous round"
+        @click="goPrevRound"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M14 6l-6 6 6 6"
+          />
+        </svg>
+      </button>
+      <div ref="weekStripRef" class="wk-nav__strip">
         <button
-          v-for="comp in competitionsForSeason"
+          v-for="comp in orderedCompetitions"
           :key="comp.id"
           type="button"
-          class="f1-round-item"
-          :class="{ active: selectedCompetitionId === comp.id }"
+          class="wk-nav__chip"
+          :class="{ 'is-active': comp.id === selectedCompetitionId }"
+          :aria-current="comp.id === selectedCompetitionId ? 'true' : undefined"
+          :aria-label="`Round ${chipWeekNumber(comp) ?? ''} ${formatDate(comp.competition_date)}`"
           @click="selectedCompetitionId = comp.id"
         >
-          {{ formatWeekLabel(comp) }}
-          <span
-            v-if="selectedCompetitionId === comp.id"
-            class="f1-round-line"
-          ></span>
+          <span class="wk-nav__chip-num">{{
+            chipWeekNumber(comp) ?? "—"
+          }}</span>
+          <span class="wk-nav__chip-date">{{
+            formatDate(comp.competition_date)
+          }}</span>
         </button>
       </div>
+      <button
+        type="button"
+        class="wk-nav__arrow"
+        :disabled="!canGoNext"
+        aria-label="Next round"
+        @click="goNextRound"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M10 6l6 6-6 6"
+          />
+        </svg>
+      </button>
     </nav>
 
     <section class="results-shell">
@@ -340,9 +437,10 @@ watch(
 .results-hero {
   margin: 0 0 0.25rem;
   padding: 0.65rem 0.85rem 0.75rem;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--surface-1);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
 }
 
 .results-hero__row {
@@ -409,40 +507,120 @@ watch(
   color: var(--muted);
 }
 
-.f1-round-nav {
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-  padding: 0.25rem 0;
-}
-
-.f1-round-scroll {
+.wk-nav {
   display: flex;
-  overflow-x: auto;
-  padding: 0 1rem;
-  gap: 0.25rem;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  align-items: stretch;
+  gap: 0.15rem;
+  margin: 0 -0.25rem 0.35rem;
+  padding: 0.4rem 0.35rem;
+  background: color-mix(in srgb, var(--bg-strong, var(--bg)) 88%, transparent);
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
 }
 
-.f1-round-scroll::-webkit-scrollbar {
+.wk-nav__arrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  min-width: 2.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
+}
+
+.wk-nav__arrow:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.wk-nav__arrow:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.wk-nav__strip {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  padding: 0.1rem 0.15rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 6px,
+    #000 calc(100% - 6px),
+    transparent 100%
+  );
+}
+
+.wk-nav__strip::-webkit-scrollbar {
   display: none;
 }
 
-.f1-round-item {
-  position: relative;
-  background: var(--bg);
-  border: none;
+.wk-nav__chip {
+  flex: 0 0 auto;
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.08rem;
+  min-width: 2.85rem;
+  max-width: 3.35rem;
+  padding: 0.28rem 0.35rem 0.32rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
   color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: 700;
-  padding: 0.6rem 0.75rem;
-  min-width: 3.2rem;
+  font: inherit;
   cursor: pointer;
-  transition: color 0.2s;
+  line-height: 1.05;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    border-color 0.15s;
 }
 
-.f1-round-item.active {
+.wk-nav__chip:hover {
   color: var(--text);
-  background: var(--bg);
+  border-color: color-mix(in srgb, var(--text) 35%, var(--line));
+}
+
+.wk-nav__chip.is-active {
+  color: var(--bg, #0a0a0a);
+  background: var(--text);
+  border-color: var(--text);
+  font-weight: 800;
+}
+
+.wk-nav__chip-num {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.wk-nav__chip-date {
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.92;
+}
+
+.wk-nav__chip:not(.is-active) .wk-nav__chip-date {
+  opacity: 0.75;
 }
 </style>
