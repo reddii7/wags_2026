@@ -138,8 +138,6 @@ async function loadGlobalMetadata(silent = false, bustCache = false) {
       headers: {
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         apikey: SUPABASE_ANON_KEY,
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
       },
     });
     const text = await response.text();
