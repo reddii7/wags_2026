@@ -157,24 +157,31 @@ async function loadGlobalMetadata(silent = false, bustCache = false) {
         sessionStorage.getItem("pwa-refresh-count") || "0",
       );
       if (refreshCount >= 2) {
-        console.error(
-          "Build ID mismatch persists after hard refresh. Update failed or server-side cache is stale.",
+        console.warn(
+          "Build ID mismatch persists; loading data without another hard reload.",
         );
+        sessionStorage.removeItem("pwa-refresh-count");
+      } else {
+        console.warn(
+          `Build mismatch: server=${data.build_id}, client=${CLIENT_BUILD_ID}. Forcing update...`,
+        );
+        sessionStorage.setItem(
+          "pwa-refresh-count",
+          (refreshCount + 1).toString(),
+        );
+        hardRefresh();
         return;
       }
-      console.warn(
-        `Build mismatch: server=${data.build_id}, client=${CLIENT_BUILD_ID}. Forcing update...`,
-      );
-      sessionStorage.setItem(
-        "pwa-refresh-count",
-        (refreshCount + 1).toString(),
-      );
-      hardRefresh();
-      return;
+    } else {
+      sessionStorage.removeItem("pwa-refresh-count");
     }
 
-    sessionStorage.removeItem("pwa-refresh-count");
-    Object.assign(globalMetadata.value, data);
+    const payload =
+      data.api_version != null && String(data.api_version).trim() !== ""
+        ? data
+        : { ...data, api_version: "contract-v1" };
+
+    Object.assign(globalMetadata.value, payload);
   } catch (err) {
     globalMetadata.value.loadError =
       err?.message || "Could not load data. Try again.";
@@ -456,7 +463,8 @@ onBeforeUnmount(() => {
 
       <div v-if="globalMetadata.api_version" class="view-frame">
         <RouterView v-slot="{ Component }">
-          <transition name="page-fade" mode="out-in">
+          <!-- Avoid mode="out-in": iOS standalone/WebKit can leave the first enter stuck at opacity 0 until the next navigation. -->
+          <transition name="page-fade">
             <component
               :is="Component"
               :key="route.fullPath"

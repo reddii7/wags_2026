@@ -8,6 +8,24 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>WAGS</title>
+  <!-- Bust stale Web Clip HTML/JS when this value changes (injected at build). -->
+  <script>
+    (function () {
+      try {
+        var key = "wags-shell-build";
+        var cur = "__WAGS_SHELL_BUILD__";
+        var prev = sessionStorage.getItem(key);
+        if (prev && prev !== cur) {
+          sessionStorage.setItem(key, cur);
+          var u = new URL(location.href);
+          u.searchParams.set("v", String(Date.now()));
+          location.replace(u.toString());
+          return;
+        }
+        sessionStorage.setItem(key, cur);
+      } catch (e) {}
+    })();
+  </script>
   <!-- Vite/Vue standard entry -->
   <script type="module" src="/src/main.js"></script>
 </head>
