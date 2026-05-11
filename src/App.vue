@@ -14,6 +14,12 @@ const showSignIn = ref(false);
 const route = useRoute();
 const router = useRouter();
 
+// Stats hub uses ?tab= for sub-views; keying RouterView on fullPath remounted the
+// whole hub on every tab change and reset the season selector to defaults.
+const routerViewComponentKey = computed(() =>
+  String(route.name) === "stats" ? route.path : route.fullPath,
+);
+
 // Increment this whenever you deploy a version that MUST force old icons to update
 // This acts as a 'kill-switch' for stale Home Screen versions.
 const CLIENT_BUILD_ID = "20240508-v1";
@@ -484,7 +490,7 @@ onBeforeUnmount(() => {
           <transition name="page-fade">
             <component
               :is="Component"
-              :key="route.fullPath"
+              :key="routerViewComponentKey"
               v-bind="currentViewProps"
               @navigate="handleNavigate"
             ></component>
