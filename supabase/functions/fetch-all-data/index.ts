@@ -70,6 +70,20 @@ const resolveSeasonIds = (seasons: Season[], seasonParam: string | null) => {
   return ids.length ? ids : [];
 };
 
+/** Map competitions.season (UUID or start_year, etc.) to canonical season id. */
+const canonicalSeasonIdForCompetition = (
+  compSeason: unknown,
+  seasons: Season[],
+): string | null => {
+  if (compSeason == null || compSeason === "") return null;
+  const raw = String(compSeason).trim();
+  for (const s of seasons) {
+    if (String(s.id) === raw) return String(s.id);
+    if (String(s.start_year) === raw) return String(s.id);
+  }
+  return null;
+};
+
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
@@ -276,16 +290,29 @@ Deno.serve(async (req) => {
             .map((row: any) => String(row?.name || "").trim())
             .filter(Boolean),
         );
-        allowedNamesBySeason.set(seasonId, names);
+        allowedNamesBySeason.set(String(seasonId), names);
+        const seasonRow = seasons.find((s) => String(s.id) === String(seasonId));
+        if (seasonRow?.start_year != null) {
+          allowedNamesBySeason.set(String(seasonRow.start_year), names);
+        }
       }),
     );
 
     if (allowedNamesBySeason.size > 0) {
       scopedCompetitions = scopedCompetitions.filter((competition: any) => {
-        const seasonId = String(competition?.season || "");
         const name = String(competition?.name || "").trim();
-        const allowed = allowedNamesBySeason.get(seasonId);
-        return !!allowed && allowed.has(name);
+        const canon = canonicalSeasonIdForCompetition(
+          competition?.season,
+          seasons,
+        );
+        if (!canon) return true;
+        if (!allowedNamesBySeason.has(canon)) {
+          // Admin list failed or was not returned for this season — do not hide all rows.
+          return true;
+        }
+        const allowed = allowedNamesBySeason.get(canon)!;
+        if (allowed.size === 0) return false;
+        return allowed.has(name);
       });
     }
   }
@@ -508,7 +535,8 @@ Deno.serve(async (req) => {
       // 5. Dashboard Logic (Optimized for precision)
       const seasonComps = scopedCompetitions.filter(
         (c: any) =>
-          c.season === season.id ||
+          String(c.season) === String(season.id) ||
+          String(c.season) === String(season.start_year) ||
           (typeof c.season === "string" && c.season.includes(seasonYear)),
       );
       const latestComp =
