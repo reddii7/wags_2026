@@ -136,8 +136,10 @@ function setTab(id) {
             </option>
           </select>
         </div>
-        <span class="f1-year-text">{{ selectedSeason?.start_year }}</span>
-        <span class="f1-season-label">Season</span>
+        <div class="f1-season-titles">
+          <span class="f1-year-text">{{ selectedSeason?.start_year }}</span>
+          <span class="f1-season-label">Season</span>
+        </div>
       </div>
 
       <!-- Row 2: Tabs -->
@@ -182,8 +184,15 @@ function setTab(id) {
 .f1-season-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1.25rem 1rem 0.75rem;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem 0.55rem;
+}
+
+.f1-season-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
 }
 
 .f1-circle-trigger {
@@ -208,29 +217,39 @@ function setTab(id) {
 }
 
 .f1-year-text {
-  font-size: 1.4rem;
+  font-size: 1.12rem;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--text);
-  line-height: 1;
-  display: block;
+  line-height: 1.1;
 }
 
 .f1-season-label {
-  font-size: 1.4rem;
-  font-weight: 800;
+  font-size: 0.62rem;
+  font-weight: 700;
   text-transform: uppercase;
-  color: var(--text);
-  letter-spacing: -0.02em;
+  color: var(--muted);
+  letter-spacing: 0.14em;
   line-height: 1;
 }
 
 .f1-section-nav {
   display: flex;
-  gap: 1.1rem;
-  padding: 0 0.5rem;
-  margin-top: 0.5rem;
+  gap: 0.55rem;
+  padding: 0 0.35rem 0.05rem;
+  margin-top: 0.15rem;
   border-bottom: 1px solid var(--line);
-  justify-content: space-evenly;
+  justify-content: space-between;
+}
+
+.hub-content {
+  padding: 0.25rem 0 0.75rem;
+  min-height: 0;
+}
+
+.f1-section-tab {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.18rem 0.08rem 0.38rem;
 }
 </style>
