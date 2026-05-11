@@ -22,7 +22,7 @@ const routerViewComponentKey = computed(() =>
 
 // Increment this whenever you deploy a version that MUST force old icons to update
 // This acts as a 'kill-switch' for stale Home Screen versions.
-const CLIENT_BUILD_ID = "20240508-v1";
+const CLIENT_BUILD_ID = "20260212-v1";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);

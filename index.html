@@ -7,6 +7,9 @@
   <meta name="theme-color" content="#1C1C1E" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <!-- Per-deploy query busts CDN/Safari cache; iOS Home Screen tiles may still need remove + re-add once. -->
+  <link rel="icon" href="/favicon.ico?v=__WAGS_SHELL_BUILD__" sizes="any" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=__WAGS_SHELL_BUILD__" />
   <title>WAGS</title>
   <!-- Bust stale Web Clip HTML/JS when this value changes (injected at build). -->
   <script>
