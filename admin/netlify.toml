@@ -1,0 +1,14 @@
+# Admin SPA: create a second Netlify site with base directory "admin", or deploy from /admin with:
+#   Base directory: admin
+# Environment (Site settings):
+#   VITE_SUPABASE_URL           — same project as members (optional default from admin/.env.example)
+#   VITE_SUPABASE_SERVICE_ROLE_KEY — required for table CRUD (never commit; set only in Netlify UI)
+
+[build]
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

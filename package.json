@@ -12,13 +12,15 @@
     "restore": "node restore-supabase.js restore",
     "admin:dev": "npm --prefix admin run dev",
     "admin:build": "npm --prefix admin run build",
-    "admin:preview": "npm --prefix admin run preview"
+    "admin:preview": "npm --prefix admin run preview",
+    "build:all": "npm run build && npm run admin:build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.0",
     "@vueuse/core": "^14.2.1",
     "entities": "^8.0.0",
     "json2csv": "^6.0.0-alpha.2",
+    "magic-string": "^0.30.21",
     "picomatch": "2.3.2",
     "vue": "^3.5.33",
     "vue-router": "^4.5.1"

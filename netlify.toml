@@ -1,5 +1,12 @@
+# Member PWA (repo root). In Netlify → Site settings → Environment variables set:
+#   VITE_SUPABASE_URL       (e.g. https://<ref>.supabase.co)
+#   VITE_SUPABASE_ANON_KEY  (public anon key)
+# Optional:
+#   VITE_FETCH_ALL_DATA_URL (override edge function URL)
+# Builds use fallbacks from src/lib/supabaseConfig.js if unset, but set these for production rotation.
+
 [build]
-  command = "npm run build"
+  command = "npm ci && npm run build"
   publish = "dist"
 
 [[redirects]]
