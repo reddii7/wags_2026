@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20260513-campaign-standings-v1";
+const BUILD_ID = "20260513-greenfield-v1";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -205,6 +205,320 @@ const loadSummerBest14AndLeagues = async (
   return { best14, leagues };
 };
 
+/** Legacy DB has `seasons`; greenfield uses `campaigns` only. */
+function detectGreenfieldSeasonsMissing(seasonsProbe: { error: unknown }) {
+  const err = seasonsProbe.error as { message?: string; code?: string } | null;
+  if (!err) return false;
+  const msg = String(err.message || "");
+  const code = String(err.code || "");
+  if (code === "PGRST205") return true;
+  if (/Could not find the table.*\bseasons\b/i.test(msg)) return true;
+  if (/relation\s+"?public\.seasons"?\s+does not exist/i.test(msg)) return true;
+  return false;
+}
+
+/** Minimal contract-v1 snapshot for greenfield (iwzq) — maps campaigns/rounds/members into legacy-shaped keys. */
+async function greenfieldFetchAll(
+  supabase: ReturnType<typeof createClient>,
+  corsHeaders: Record<string, string>,
+  _url: URL,
+  view: string | null,
+  _seasonParam: string | null,
+): Promise<Response> {
+  const shellOnly = view === "shell";
+
+  const { data: campaigns, error: cErr } = await supabase
+    .from("campaigns")
+    .select("*")
+    .order("year", { ascending: false });
+  if (cErr) {
+    return new Response(JSON.stringify({ error: `campaigns: ${cErr.message}` }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const camps = campaigns ?? [];
+
+  const seasons = camps.map((c: any) => ({
+    id: String(c.id),
+    start_year:
+      Number(c.year) ||
+      new Date(String(c.start_date || "2000-01-01")).getFullYear(),
+    name: String(c.label || ""),
+    label: String(c.label || ""),
+    is_active: String(c.status || "").toLowerCase() === "open",
+  }));
+
+  const { data: membersData } = await supabase
+    .from("members")
+    .select("id, full_name");
+  const members = membersData ?? [];
+
+  const { data: roundsData, error: rErr } = await supabase
+    .from("rounds")
+    .select(
+      "id, campaign_id, name, play_order, round_date, finalized, round_type, course_par",
+    )
+    .order("round_date", { ascending: true });
+  if (rErr) {
+    return new Response(JSON.stringify({ error: `rounds: ${rErr.message}` }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const allRounds = (roundsData ?? []).slice().sort((a: any, b: any) => {
+    const ca = String(a.campaign_id || "");
+    const cb = String(b.campaign_id || "");
+    if (ca !== cb) return ca.localeCompare(cb);
+    const pa = Number(a.play_order) || 0;
+    const pb = Number(b.play_order) || 0;
+    return pa - pb;
+  });
+
+  const profileNameById = new Map(
+    members.map((m: any) => [String(m.id), String(m.full_name || "")]),
+  );
+
+  const roundIds = allRounds.map((r: any) => String(r.id));
+  const playersByRound = new Map<string, any[]>();
+  const chunkSize = 100;
+  for (let i = 0; i < roundIds.length; i += chunkSize) {
+    const slice = roundIds.slice(i, i + chunkSize);
+    if (!slice.length) break;
+    const { data: rp } = await supabase
+      .from("round_players")
+      .select(
+        "round_id, member_id, stableford_points, snake_count, camel_count, entered",
+      )
+      .in("round_id", slice);
+    for (const row of rp ?? []) {
+      const rid = String(row.round_id);
+      if (!playersByRound.has(rid)) playersByRound.set(rid, []);
+      playersByRound.get(rid)!.push(row);
+    }
+  }
+
+  const competitions = allRounds.map((r: any) => {
+    const d = r.round_date ? String(r.round_date).slice(0, 10) : "";
+    return {
+      id: String(r.id),
+      name: String(r.name || `Week ${r.play_order ?? ""}`),
+      competition_date: d,
+      status: r.finalized ? "finalized" : "open",
+      winner_id: null,
+      season: String(r.campaign_id),
+      prize_pot: 0,
+      rollover_amount: 0,
+    };
+  });
+
+  const openCamp =
+    camps.find((c: any) => String(c.status || "").toLowerCase() === "open") ||
+    camps[0];
+  const defaultCampId = openCamp ? String(openCamp.id) : null;
+
+  const { data: mhsRows } = defaultCampId
+    ? await supabase
+        .from("member_handicap_state")
+        .select("member_id, handicap")
+        .eq("campaign_id", defaultCampId)
+    : { data: [] };
+  const hciMap = new Map(
+    (mhsRows ?? []).map((h: any) => [String(h.member_id), h.handicap]),
+  );
+
+  const profiles = members.map((m: any) => ({
+    id: String(m.id),
+    full_name: String(m.full_name || ""),
+    role: "member",
+    league_name: null,
+    current_handicap: hciMap.get(String(m.id)) ?? null,
+  }));
+
+  const rounds: any[] = [];
+  for (const r of allRounds) {
+    const rplayers = playersByRound.get(String(r.id)) ?? [];
+    for (const p of rplayers) {
+      if (p.entered === false) continue;
+      rounds.push({
+        id: `${r.id}-${p.member_id}`,
+        competition_id: String(r.id),
+        user_id: String(p.member_id),
+        stableford_score: p.stableford_points,
+        has_snake: (Number(p.snake_count) || 0) > 0,
+        has_camel: (Number(p.camel_count) || 0) > 0,
+      });
+    }
+  }
+
+  const results = rounds.map((row: any) => ({
+    competition_id: row.competition_id,
+    user_id: row.user_id,
+    player: profileNameById.get(row.user_id) || "",
+    score: row.stableford_score,
+    stableford_score: row.stableford_score,
+    snake: row.has_snake ? 1 : 0,
+    camel: row.has_camel ? 1 : 0,
+    position: 0,
+  }));
+
+  const { data: snapRows } = await supabase
+    .from("handicap_snapshots")
+    .select("member_id, round_id, handicap_before, handicap_after, created_at")
+    .is("superseded_at", null)
+    .order("created_at", { ascending: false })
+    .limit(400);
+
+  const handicap_history = (snapRows ?? []).map((s: any) => ({
+    user_id: s.member_id,
+    competition_id: s.round_id,
+    old_handicap: s.handicap_before,
+    new_handicap: s.handicap_after,
+    adjustment: Number(
+      (Number(s.handicap_after) - Number(s.handicap_before)).toFixed(1),
+    ),
+    created_at: s.created_at,
+    competition_date: null,
+  }));
+
+  const defaultsRpc = await supabase.rpc("admin_get_app_defaults");
+  let defaultResultsSeasonId: string | null = defaultCampId;
+  if (!defaultsRpc.error && defaultsRpc.data) {
+    const shellDefaults = Array.isArray(defaultsRpc.data)
+      ? defaultsRpc.data[0]
+      : defaultsRpc.data;
+    if (
+      shellDefaults &&
+      typeof shellDefaults === "object" &&
+      (shellDefaults as any).default_results_season_id
+    ) {
+      defaultResultsSeasonId = String(
+        (shellDefaults as any).default_results_season_id,
+      );
+    }
+  }
+
+  const best14: Record<string, any[]> = {};
+  const leagues: Record<string, any[]> = {};
+  const dashboard: Record<string, any> = {};
+
+  for (const c of camps) {
+    const cid = String(c.id);
+    const yrRaw = c.year;
+    const yr = yrRaw != null && String(yrRaw).trim() !== "" ? String(yrRaw) : "";
+
+    let b14: any[] = [];
+    let lg: any[] = [];
+    if (!shellOnly && String(c.kind) === "summer_main") {
+      const res = await loadSummerBest14AndLeagues(
+        supabase,
+        cid,
+        yr || String(Number(c.year) || ""),
+        cid,
+      );
+      b14 = res.best14 || [];
+      lg = res.leagues || [];
+    }
+    best14[cid] = b14;
+    leagues[cid] = lg;
+    if (yr) {
+      best14[yr] = b14;
+      leagues[yr] = lg;
+    }
+
+    const campRounds = allRounds
+      .filter((r: any) => String(r.campaign_id) === cid)
+      .sort(
+        (a: any, b: any) =>
+          (toTime(b.round_date) || 0) - (toTime(a.round_date) || 0),
+      );
+    const lr = campRounds[0];
+    const weekLabel = lr
+      ? String(lr.name || `Week ${lr.play_order ?? ""}`)
+      : "—";
+    const hero = lr
+      ? lr.finalized
+        ? `${weekLabel} · completed`
+        : `${weekLabel} · in progress`
+      : "No rounds yet for this campaign.";
+    const pr = lr
+      ? (playersByRound.get(String(lr.id)) ?? []).filter(
+          (x: any) => x.entered !== false,
+        )
+      : [];
+    const stats = {
+      players: pr.length,
+      snakes: pr.reduce(
+        (a: number, x: any) => a + (Number(x.snake_count) || 0),
+        0,
+      ),
+      camels: pr.reduce(
+        (a: number, x: any) => a + (Number(x.camel_count) || 0),
+        0,
+      ),
+    };
+
+    const best14_leaders = (b14 || []).slice(0, 20).map((row: any, idx: number) => ({
+      user_id: row.user_id,
+      full_name: row.full_name,
+      position: Number(row.rank_no) || idx + 1,
+      total_score: Number(row.best_total) || 0,
+    }));
+    const league_leaders = (lg || []).map((row: any, idx: number) => ({
+      user_id: row.user_id,
+      league_name: row.league_name,
+      full_name: row.full_name,
+      position: Number(row.rank_no) || idx + 1,
+      total_score: Number(row.total_score) || 0,
+    }));
+
+    const dashBlock = {
+      home: {
+        week_label: weekLabel,
+        hero_message: hero,
+        no_results: !lr,
+        stats,
+        handicap_changes: [],
+      },
+      best14_leaders,
+      league_leaders,
+    };
+    dashboard[cid] = dashBlock;
+    if (yr) dashboard[yr] = dashBlock;
+  }
+
+  const payload: Record<string, unknown> = {
+    api_version: "contract-v1",
+    build_id: BUILD_ID,
+    defaults: {
+      results_season_id: defaultResultsSeasonId,
+    },
+    seasons,
+    competitions: shellOnly ? competitions.slice(0, 200) : competitions,
+    profiles,
+    handicap_history: shellOnly
+      ? (handicap_history || []).slice(0, 150)
+      : handicap_history,
+    results: shellOnly ? [] : results,
+    summaries: [],
+    rounds: shellOnly ? [] : rounds,
+    best14: shellOnly ? {} : best14,
+    leagues: shellOnly ? {} : leagues,
+    dashboard: shellOnly ? {} : dashboard,
+    winners: {},
+    matchplay_tournaments: [],
+    matchplay_matches: [],
+  };
+
+  return new Response(JSON.stringify(payload), {
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
@@ -256,6 +570,18 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const view = url.searchParams.get("view");
   const seasonParam = url.searchParams.get("season");
+
+  try {
+    const seasonsProbe = await supabase.from("seasons").select("id").limit(1);
+    if (detectGreenfieldSeasonsMissing(seasonsProbe)) {
+      return await greenfieldFetchAll(
+        supabase,
+        corsHeaders,
+        url,
+        view,
+        seasonParam,
+      );
+    }
 
   // ── SHELL VIEW ────────────────────────────────────────────────────────────────
   // Fast boot payload: seasons, competitions, profiles, handicap_history only.
@@ -356,7 +682,10 @@ Deno.serve(async (req) => {
   if (seasonsError || !seasons) {
     return new Response(
       JSON.stringify({ error: seasonsError?.message ?? "No seasons found" }),
-      { status: 500 },
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 
@@ -390,8 +719,13 @@ Deno.serve(async (req) => {
   const { data: competitions, error: compsError } = await competitionsQuery;
   if (compsError || !competitions) {
     return new Response(
-      JSON.stringify({ error: compsError?.message ?? "No competitions found" }),
-      { status: 500 },
+      JSON.stringify({
+        error: compsError?.message ?? "No competitions found",
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
   let scopedCompetitions = competitions;
@@ -1221,4 +1555,12 @@ Deno.serve(async (req) => {
       },
     },
   );
+  } catch (err: unknown) {
+    console.error("[fetch-all-data]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: msg }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 });
