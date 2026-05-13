@@ -1,2 +1,4 @@
+project_id = "iwzqzpzskawxrwhttufq"
+
 [functions.fetch-all-data]
 verify_jwt = false

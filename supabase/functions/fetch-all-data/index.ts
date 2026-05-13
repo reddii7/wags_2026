@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20240508-v1";
+const BUILD_ID = "20260513-campaign-standings-v1";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -82,6 +82,127 @@ const canonicalSeasonIdForCompetition = (
     if (String(s.start_year) === raw) return String(s.id);
   }
   return null;
+};
+
+/** Prefer open campaign when multiple summer_main rows share a calendar year. */
+const resolveSummerCampaignIdForSeason = (
+  season: Season,
+  summerCampaigns: any[] | null | undefined,
+): string | null => {
+  if (!Array.isArray(summerCampaigns) || !summerCampaigns.length) return null;
+  const y = Number(season?.start_year);
+  if (!Number.isFinite(y)) return null;
+  const matches = summerCampaigns.filter((c) => Number(c?.year) === y);
+  if (!matches.length) return null;
+  const open = matches.find(
+    (c) => String(c?.status || "").toLowerCase() === "open",
+  );
+  const pick = open ?? matches[0];
+  const id = pick?.id;
+  return id != null && String(id).trim() ? String(id) : null;
+};
+
+const TIER_TO_LEAGUE_NAME: Record<number, string> = {
+  1: "PREMIERSHIP",
+  2: "CHAMPIONSHIP",
+  3: "LEAGUE 1",
+  4: "LEAGUE 2",
+};
+
+const leagueNameForTier = (tier: unknown): string => {
+  const n = Number(tier);
+  if (Number.isFinite(n) && TIER_TO_LEAGUE_NAME[n]) {
+    return TIER_TO_LEAGUE_NAME[n];
+  }
+  if (Number.isFinite(n)) return `LEAGUE ${n}`;
+  return "LEAGUE";
+};
+
+/** Map v_summer_standings rows → legacy best14 + leagues contract shapes. */
+const buildBest14AndLeaguesFromSummerStandings = (
+  rows: any[],
+): { best14: any[]; leagues: any[] } => {
+  const sorted = [...(rows || [])].sort(
+    (a, b) =>
+      Number(b?.best_14_total ?? 0) - Number(a?.best_14_total ?? 0),
+  );
+  const best14 = sorted.map((row, idx) => ({
+    user_id: row.member_id,
+    full_name: String(row.full_name || ""),
+    best_total: Number(row.best_14_total) || 0,
+    rank_no: idx + 1,
+  }));
+
+  const byTier = new Map<number, any[]>();
+  for (const row of rows || []) {
+    const t = Number(row?.tier);
+    const key = Number.isFinite(t) ? t : 99;
+    if (!byTier.has(key)) byTier.set(key, []);
+    byTier.get(key)!.push(row);
+  }
+
+  const leagues: any[] = [];
+  const tierKeys = [...byTier.keys()].sort((a, b) => a - b);
+  for (const tier of tierKeys) {
+    const bucket = byTier.get(tier)!;
+    const leagueName = leagueNameForTier(tier);
+    const inLeague = [...bucket].sort(
+      (a, b) =>
+        Number(b?.best_14_total ?? 0) - Number(a?.best_14_total ?? 0),
+    );
+    inLeague.forEach((row, i) => {
+      leagues.push({
+        league_name: leagueName,
+        full_name: String(row.full_name || ""),
+        rank_no: i + 1,
+        total_score: Number(row.best_14_total) || 0,
+        user_id: row.member_id,
+      });
+    });
+  }
+
+  return { best14, leagues };
+};
+
+/** Campaign-scoped summer standings when v_summer_standings exists; else RPC. */
+const loadSummerBest14AndLeagues = async (
+  supabase: ReturnType<typeof createClient>,
+  campaignId: string | null,
+  seasonYear: string,
+  seasonId: string,
+): Promise<{ best14: any[]; leagues: any[] }> => {
+  if (campaignId) {
+    const { data, error } = await supabase
+      .from("v_summer_standings")
+      .select("member_id, full_name, tier, best_14_total")
+      .eq("campaign_id", campaignId)
+      .order("best_14_total", { ascending: false });
+    if (!error && Array.isArray(data)) {
+      return buildBest14AndLeaguesFromSummerStandings(data);
+    }
+    if (error) {
+      console.warn(
+        `[fetch-all-data] v_summer_standings campaign=${campaignId}:`,
+        error.message ?? JSON.stringify(error),
+      );
+    }
+  }
+
+  const [best14Res, leaguesRes] = await Promise.all([
+    supabase.rpc("get_best_14_scores_by_season", { p_season: seasonYear }),
+    supabase.rpc("get_league_standings_best10", { p_season_id: seasonId }),
+  ]);
+
+  const best14 = !best14Res.error ? best14Res.data || [] : [];
+  const leagues = !leaguesRes.error
+    ? Array.isArray(leaguesRes.data)
+      ? leaguesRes.data
+      : leaguesRes.data
+        ? [leaguesRes.data]
+        : []
+    : [];
+
+  return { best14, leagues };
 };
 
 Deno.serve(async (req) => {
@@ -493,6 +614,22 @@ Deno.serve(async (req) => {
     summaries.map((s: any) => [s.competition_id, s]),
   );
 
+  const { data: mainSummerCampaignRows, error: mainSummerCampaignErr } =
+    await supabase
+      .from("campaigns")
+      .select("id, year, kind, label, status")
+      .eq("kind", "summer_main")
+      .order("year", { ascending: false });
+
+  if (mainSummerCampaignErr) {
+    console.warn(
+      "[fetch-all-data] campaigns (summer_main) query failed — best14/leagues use RPC only:",
+      mainSummerCampaignErr.message ??
+        JSON.stringify(mainSummerCampaignErr),
+    );
+  }
+  const mainSummerCampaignList = mainSummerCampaignRows || [];
+
   // 4. Parallel fetch of Season-specific data (Professional optimization)
   const best14: Record<string, any[]> = {};
   const leagues: Record<string, any[]> = {};
@@ -503,21 +640,25 @@ Deno.serve(async (req) => {
     seasons.map(async (season: Season) => {
       const seasonYear = String(season.start_year);
 
-      // Parallelize RPC calls for this season
-      const [best14Res, leaguesRes, resultsViewRes] = await Promise.all([
-        supabase.rpc("get_best_14_scores_by_season", { p_season: seasonYear }),
-        supabase.rpc("get_league_standings_best10", { p_season_id: season.id }),
+      const campaignId = resolveSummerCampaignIdForSeason(
+        season,
+        mainSummerCampaignList,
+      );
+
+      const [standingsPack, resultsViewRes] = await Promise.all([
+        loadSummerBest14AndLeagues(
+          supabase,
+          campaignId,
+          seasonYear,
+          season.id,
+        ),
         supabase.rpc("get_results_view_contract", { p_season_id: season.id }),
       ]);
 
-      best14[season.id] = !best14Res.error ? best14Res.data || [] : [];
-      leagues[season.id] = !leaguesRes.error
-        ? Array.isArray(leaguesRes.data)
-          ? leaguesRes.data
-          : leaguesRes.data
-            ? [leaguesRes.data]
-            : []
-        : [];
+      best14[season.id] = standingsPack.best14;
+      best14[seasonYear] = standingsPack.best14;
+      leagues[season.id] = standingsPack.leagues;
+      leagues[seasonYear] = standingsPack.leagues;
       const resultsViewContract =
         !resultsViewRes.error &&
         resultsViewRes.data &&
