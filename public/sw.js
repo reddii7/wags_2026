@@ -8,17 +8,13 @@ self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) {}
 
-  const title = data.title || 'WAGS';
-  const options = {
-    body: data.body || '',
-    icon: '/apple-touch-icon.png',
-    badge: '/apple-touch-icon.png',
-    tag: data.tag || 'wags-notification',
-    renotify: true,
-    data: { url: data.url || '/' },
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'WAGS', {
+      body: data.body || '',
+      icon: '/apple-touch-icon.png',
+      data: { url: data.url || '/' },
+    })
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {
