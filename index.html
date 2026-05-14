@@ -11,12 +11,26 @@
   <link rel="icon" href="/favicon.ico?v=__WAGS_SHELL_BUILD__" sizes="any" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=__WAGS_SHELL_BUILD__" />
   <title>WAGS</title>
-  <!-- Bust stale Web Clip HTML/JS when this value changes (injected at build).
-       Uses localStorage so the check fires on the FIRST open after a new deploy,
-       not the second (sessionStorage is cleared between Web Clip sessions on iOS). -->
+  <!-- Catch stale Web Clip asset 404s (old hashed JS filename no longer on server).
+       Fires before the module script runs, so blank-screen on 404 is avoided.
+       Throttled to once per 10s to prevent reload loops. -->
   <script>
     (function () {
       try {
+        window.addEventListener('error', function (e) {
+          var t = e.target;
+          if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK') && t !== window) {
+            var lastKey = 'wags-asset-reload';
+            var last = parseInt(localStorage.getItem(lastKey) || '0', 10);
+            if (Date.now() - last > 10000) {
+              localStorage.setItem(lastKey, String(Date.now()));
+              localStorage.removeItem('wags-shell-build');
+              location.reload();
+            }
+          }
+        }, true);
+
+        // Build-ID check: catches stale HTML that survived the asset reload above.
         var key = "wags-shell-build";
         var cur = "__WAGS_SHELL_BUILD__";
         var prev = localStorage.getItem(key);
