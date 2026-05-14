@@ -45,10 +45,11 @@ function urlBase64ToUint8Array(base64String) {
 
 async function savePushSubscription(sub) {
   const json = sub.toJSON();
-  await supabase.from("push_subscriptions").upsert(
+  const { error } = await supabase.from("push_subscriptions").upsert(
     { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth },
     { onConflict: "endpoint" },
   );
+  if (error) console.error("[push] failed to save subscription:", error);
 }
 
 async function subscribeToPush() {
@@ -62,7 +63,10 @@ async function subscribeToPush() {
     pushBannerVisible.value = false;
     localStorage.setItem("wags-push-accepted", "1");
   } catch (err) {
-    console.warn("[push] subscribe failed:", err);
+    console.error("[push] subscribe failed:", err);
+    // Re-show banner so user can try again
+    pushBannerVisible.value = true;
+    localStorage.removeItem("wags-push-accepted");
   }
 }
 
