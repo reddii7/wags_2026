@@ -17,6 +17,9 @@
       <button class="topbar-menu-item" @click="onThemeToggle">
         Toggle Theme
       </button>
+      <button v-if="showNotifOption" class="topbar-menu-item" @click="onEnableNotifications">
+        {{ notifLabel }}
+      </button>
     </div>
   </div>
 </template>
@@ -27,7 +30,22 @@ import { useTheme } from "../composables/useTheme";
 
 const { toggleTheme } = useTheme();
 
+const emit = defineEmits(["enable-notifications"]);
+
 const open = ref(false);
+
+// Only show if running as installed PWA and push is supported
+const isStandalone =
+  window.matchMedia("(display-mode: standalone)").matches ||
+  window.navigator.standalone === true;
+const pushSupported = "PushManager" in window && isStandalone;
+
+const showNotifOption = computed(() => pushSupported);
+const notifLabel = computed(() => {
+  if (Notification.permission === "granted") return "Notifications on ✓";
+  if (Notification.permission === "denied") return "Notifications blocked";
+  return "Enable Notifications";
+});
 
 function toggleMenu(e) {
   e.stopPropagation();
@@ -35,6 +53,12 @@ function toggleMenu(e) {
 }
 function onThemeToggle() {
   toggleTheme();
+  open.value = false;
+}
+function onEnableNotifications() {
+  localStorage.removeItem("wags-push-dismissed");
+  localStorage.removeItem("wags-push-accepted");
+  emit("enable-notifications");
   open.value = false;
 }
 function closeMenu() {

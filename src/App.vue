@@ -34,6 +34,7 @@ const chromeHidden = ref(false);
 
 // ── Push notifications ────────────────────────────────────────────────────────
 const pushBannerVisible = ref(false);
+const pushReEnableVisible = ref(false);
 let swRegistration = null;
 
 function urlBase64ToUint8Array(base64String) {
@@ -72,7 +73,15 @@ async function subscribeToPush() {
 
 async function dismissPushBanner() {
   pushBannerVisible.value = false;
+  pushReEnableVisible.value = true;
   localStorage.setItem("wags-push-dismissed", "1");
+}
+
+async function reEnablePush() {
+  localStorage.removeItem("wags-push-dismissed");
+  localStorage.removeItem("wags-push-accepted");
+  pushReEnableVisible.value = false;
+  await initPush();
 }
 
 /** Called from a URL param ?enablePush=1 so admin can force re-prompt for testing. */
@@ -101,12 +110,15 @@ async function initPush() {
       await savePushSubscription(existing);
       return;
     }
-    // Only prompt if not previously dismissed and not already denied
-    if (
-      Notification.permission === "denied" ||
-      localStorage.getItem("wags-push-dismissed") ||
-      localStorage.getItem("wags-push-accepted")
-    ) return;
+    // Previously accepted — already saved above, nothing to show
+    if (localStorage.getItem("wags-push-accepted")) return;
+    // Denied by OS — nothing we can do
+    if (Notification.permission === "denied") return;
+    // Previously dismissed — show the small re-enable link instead
+    if (localStorage.getItem("wags-push-dismissed")) {
+      pushReEnableVisible.value = true;
+      return;
+    }
     pushBannerVisible.value = true;
   } catch (err) {
     console.warn("[push] init failed:", err);
@@ -708,6 +720,11 @@ onBeforeUnmount(() => {
       </div>
     </transition>
 
+    <!-- Re-enable notifications link (shows after dismiss, standalone only) -->
+    <div v-if="pushReEnableVisible" class="push-reenable">
+      <button class="push-reenable__btn" @click="reEnablePush">Enable notifications</button>
+    </div>
+
     <nav class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
@@ -836,5 +853,23 @@ onBeforeUnmount(() => {
 .push-banner-slide-leave-to {
   transform: translateY(20px);
   opacity: 0;
+}
+
+/* Small re-enable link that sits above the bottom nav after dismissal */
+.push-reenable {
+  position: fixed;
+  bottom: 68px;
+  right: 14px;
+  z-index: 190;
+}
+.push-reenable__btn {
+  background: transparent;
+  border: none;
+  color: var(--muted, #888);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 4px 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 </style>
