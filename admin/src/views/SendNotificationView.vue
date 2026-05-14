@@ -45,9 +45,10 @@ async function send() {
     if (!res.ok) {
       result.value = { ok: false, message: json.error || `HTTP ${res.status}` };
     } else {
+      const errDetail = json.errors?.length ? ` — ${json.errors.join("; ")}` : "";
       result.value = {
-        ok: true,
-        message: `Sent to ${json.sent} device${json.sent !== 1 ? "s" : ""}${json.stale_removed ? ` (${json.stale_removed} stale removed)` : ""}.`,
+        ok: json.sent > 0,
+        message: `Sent to ${json.sent} of ${json.total} device${json.total !== 1 ? "s" : ""}${json.stale_removed ? `, ${json.stale_removed} stale removed` : ""}${errDetail}.`,
       };
       title.value = "";
       body.value = "";

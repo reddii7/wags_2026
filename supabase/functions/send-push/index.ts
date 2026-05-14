@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
 
     const payload = JSON.stringify({ title, body, url, tag });
     const staleIds: string[] = [];
+    const errors: string[] = [];
     let sent = 0;
 
     await Promise.allSettled(
@@ -82,12 +83,14 @@ Deno.serve(async (req) => {
           );
           sent++;
         } catch (err: any) {
+          const status = err.statusCode ?? err.status ?? "unknown";
+          const msg = err.body ?? err.message ?? String(err);
+          errors.push(`[${status}] ${msg}`);
           // 404 / 410 = subscription expired or unsubscribed — clean up
-          if (err.statusCode === 404 || err.statusCode === 410) {
+          if (status === 404 || status === 410) {
             staleIds.push(sub.id);
-          } else {
-            console.warn("[send-push] delivery error:", sub.endpoint, err.message);
           }
+          console.warn("[send-push] delivery error:", status, msg);
         }
       }),
     );
@@ -98,7 +101,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ sent, stale_removed: staleIds.length, total: subs.length }),
+      JSON.stringify({ sent, stale_removed: staleIds.length, total: subs.length, errors }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err: any) {
