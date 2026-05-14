@@ -15,6 +15,14 @@ export const ENUMS = {
     "finals_chumps",
     "away_day",
   ],
+  competition_type: [
+    "summer_series",
+    "rs_cup",
+    "winter_series",
+    "finals_medal",
+    "away_day",
+  ],
+  cup_stage: ["prelim", "r1", "r2", "qf", "sf", "final"],
 };
 
 /**
@@ -701,6 +709,139 @@ export const ENTITY_ADMIN_PAGES = [
         { key: "total_bank_balance_pence", label: "Total (p)" },
       ],
       formFields: [],
+    },
+  },
+
+  // ── 13. COMPETITIONS ──────────────────────────────────────────────────────
+  {
+    path: "/manage/13-competitions",
+    name: "manage-competitions",
+    title: "13 · Competitions",
+    step: 13,
+    entity: {
+      table: "competitions",
+      primaryKey: "id",
+      listSelect: "*, campaigns(label)",
+      order: [
+        { column: "type", ascending: true },
+        { column: "name", ascending: true },
+      ],
+      listColumns: [
+        { key: "name", label: "Name" },
+        { key: "type", label: "Type" },
+        { key: "campaign_id", label: "Campaign" },
+        { key: "affects_handicap", label: "Affects HCP" },
+        { key: "affects_bank", label: "Affects bank" },
+        { key: "affects_leagues", label: "Affects leagues" },
+        { key: "starts_on", label: "Starts" },
+        { key: "ends_on", label: "Ends" },
+      ],
+      formFields: [
+        {
+          key: "campaign_id",
+          label: "Campaign",
+          type: "fk",
+          required: true,
+          fk: { table: "campaigns", valueKey: "id", labelKey: "label" },
+        },
+        { key: "name", label: "Name (e.g. RS Cup 2026)", type: "text", required: true },
+        {
+          key: "type",
+          label: "Competition type",
+          type: "enum",
+          enumKey: "competition_type",
+          required: true,
+        },
+        { key: "affects_handicap", label: "Affects handicap", type: "boolean", default: false },
+        { key: "affects_bank", label: "Affects bank", type: "boolean", default: false },
+        { key: "affects_leagues", label: "Affects leagues", type: "boolean", default: false },
+        { key: "starts_on", label: "Starts on", type: "datetime", required: false },
+        { key: "ends_on", label: "Ends on", type: "datetime", required: false },
+      ],
+    },
+  },
+
+  // ── 14. CUP MATCHES (RS Cup bracket) ──────────────────────────────────────
+  {
+    path: "/manage/14-cup-matches",
+    name: "manage-cup-matches",
+    title: "14 · Cup matches (RS Cup)",
+    step: 14,
+    entity: {
+      table: "cup_matches",
+      primaryKey: "id",
+      listSelect:
+        "*, competitions(name), home:members!home_member_id(full_name), away:members!away_member_id(full_name), winner:members!winner_member_id(full_name)",
+      order: [
+        { column: "stage_code", ascending: true },
+        { column: "slot_index", ascending: true },
+      ],
+      listColumns: [
+        { key: "competition_id", label: "Competition" },
+        { key: "stage_code", label: "Stage" },
+        { key: "slot_index", label: "Slot #" },
+        { key: "home_member_id", label: "Home" },
+        { key: "away_member_id", label: "Away" },
+        { key: "winner_member_id", label: "Winner" },
+        { key: "result_text", label: "Result" },
+      ],
+      formFields: [
+        {
+          key: "competition_id",
+          label: "Competition (RS Cup)",
+          type: "fk",
+          required: true,
+          fk: { table: "competitions", valueKey: "id", labelKey: "name" },
+        },
+        {
+          key: "stage_code",
+          label: "Stage (e.g. prelim, r1, r2, qf, sf, final)",
+          type: "text",
+          required: true,
+        },
+        {
+          key: "slot_index",
+          label: "Match # (auto-assigned)",
+          type: "number",
+          required: false,
+          hideOnCreate: true,
+          min: 1,
+          step: 1,
+        },
+        {
+          key: "home_member_id",
+          label: "Home player",
+          type: "fk",
+          required: false,
+          fk: { table: "members", valueKey: "id", labelKey: "full_name" },
+        },
+        {
+          key: "away_member_id",
+          label: "Away player",
+          type: "fk",
+          required: false,
+          fk: { table: "members", valueKey: "id", labelKey: "full_name" },
+        },
+        {
+          key: "winner_member_id",
+          label: "Winner (set after match played)",
+          type: "fk",
+          required: false,
+          fk: { table: "members", valueKey: "id", labelKey: "full_name" },
+        },
+        {
+          key: "play_by_date",
+          label: "Play by date (deadline shown in the app)",
+          type: "date",
+          required: false,
+        },
+        {
+          key: "result_text",
+          label: 'Result (e.g. "3&2", "2 up", "19th hole" — set after match played)',
+          type: "text",
+          required: false,
+        },
+      ],
     },
   },
 ];

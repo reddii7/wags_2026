@@ -5,7 +5,7 @@ import './styles.css';
 import { initializeSession } from './composables/useSession';
 
 // No service worker in normal operation — Web Clip / Safari should load this
-// SPA like a normal site. Unregister legacy workers so nothing intercepts fetch.
+// SPA like a normal site. Unregister old service workers so nothing intercepts fetch.
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then((regs) => {
         regs.forEach((reg) => reg.unregister());

@@ -3,7 +3,6 @@ import { ref, computed, watch } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
 import { triggerHapticFeedback } from "../utils/haptics";
-import { supabase } from "../lib/supabase";
 
 const props = defineProps({
   season: { type: Object, required: true },
@@ -300,22 +299,35 @@ const formatDate = (value) => {
 
 const formatLeagueTitle = (value) => {
   if (!value) return "LEAGUE";
-  // Map league names to new names
-  const leagueMap = canonicalLeagueNames;
-  // Try to match by number or order
-  const match = String(value).match(/\d+/);
-  if (match && leagueMap[Number(match[0]) - 1]) {
-    return leagueMap[Number(match[0]) - 1];
+  const s = String(value).trim();
+  const upper = s.toUpperCase().replace(/\s+/g, " ");
+
+  if (upper === "PREMIERSHIP") return "PREMIERSHIP";
+  if (upper === "CHAMPIONSHIP") return "CHAMPIONSHIP";
+  if (/^LEAGUE\s*1$/.test(upper) || upper === "LEAGUE1") return "LEAGUE ONE";
+  if (/^LEAGUE\s*2$/.test(upper) || upper === "LEAGUE2") return "LEAGUE TWO";
+
+  // Standalone numeric tier from API (1 = top tier … 4)
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    if (n === 1) return "PREMIERSHIP";
+    if (n === 2) return "CHAMPIONSHIP";
+    if (n === 3) return "LEAGUE ONE";
+    if (n === 4) return "LEAGUE TWO";
   }
-  // Try to match by order if value is 0-based or 1-based index
-  const idx = ["premiership", "championship", "league 1", "league 2"].findIndex(
-    (n) => String(value).toLowerCase().includes(n.toLowerCase()),
-  );
-  if (idx !== -1) return leagueMap[idx];
-  // Fallback: assign by order if possible
-  const fallbackIdx = ["A", "B", "C", "D"].indexOf(String(value).toUpperCase());
-  if (fallbackIdx !== -1) return leagueMap[fallbackIdx];
-  return String(value).toUpperCase();
+
+  const low = s.toLowerCase();
+  if (low.includes("premiership")) return "PREMIERSHIP";
+  if (low.includes("championship")) return "CHAMPIONSHIP";
+  if (/\bleague\s*1\b/.test(low) || /\bleague\s*one\b/.test(low)) return "LEAGUE ONE";
+  if (/\bleague\s*2\b/.test(low) || /\bleague\s*two\b/.test(low)) return "LEAGUE TWO";
+
+  const fallbackIdx = ["A", "B", "C", "D"].indexOf(upper);
+  if (fallbackIdx !== -1) {
+    return ["PREMIERSHIP", "CHAMPIONSHIP", "LEAGUE ONE", "LEAGUE TWO"][fallbackIdx];
+  }
+
+  return upper;
 };
 
 const normalizeCompetitionLabel = (label) =>
@@ -386,49 +398,20 @@ const buildLocalTopRounds = (player, take) => {
 // No-op: groups is now computed from metadata
 
 // Disable best 10 modal if not available in metadata
-const openBest10 = async (player) => {
+const openBest10 = (player) => {
   triggerHapticFeedback();
   error.value = "";
   selectedPlayer.value = player;
   detailLoading.value = true;
-  try {
-    const seasonId = props.season?.id;
-    const playerId = player.user_id || player.player_id || player.id;
-    if (!seasonId || !playerId) {
-      detailRows.value = [];
-      isDetailOpen.value = true;
-      return;
-    }
-
-    const { data, error: rpcError } = await supabase.rpc(
-      "get_player_top_rounds",
-      {
-        p_season_id: seasonId,
-        p_player_id: playerId,
-        p_take: 10,
-      },
-    );
-    if (rpcError) {
-      detailRows.value = buildLocalTopRounds(player, 10);
-    } else {
-      detailRows.value = Array.isArray(data)
-        ? data.map((row) => ({
-            ...row,
-            competition_name: normalizeCompetitionLabel(row.competition_name),
-            id: `${row.competition_id}-${playerId}`,
-          }))
-        : [];
-    }
-    isDetailOpen.value = true;
-  } catch (e) {
+  const seasonId = props.season?.id;
+  const playerId = player.user_id || player.player_id || player.id;
+  if (!seasonId || !playerId) {
+    detailRows.value = [];
+  } else {
     detailRows.value = buildLocalTopRounds(player, 10);
-    if (!detailRows.value.length) {
-      error.value = e?.message || "Could not load best 10 details.";
-    }
-    isDetailOpen.value = true;
-  } finally {
-    detailLoading.value = false;
   }
+  isDetailOpen.value = true;
+  detailLoading.value = false;
 };
 
 const closeBest10 = () => {
@@ -469,7 +452,7 @@ const closeBest10 = () => {
       <div class="league-round-scroll">
         <button
           v-for="(name, idx) in leagueNavList"
-          :key="name"
+          :key="`${idx}-${name}`"
           type="button"
           class="league-round-item"
           :class="{ active: leagueNavIdx === idx }"

@@ -23,6 +23,10 @@ const jsonDraft = reactive({});
 const rpcBusy = ref({});   // rowKey → true while running
 const rpcResult = ref(null); // last result/error message to show inline
 
+// Remember last-used create values per table so repeat adds are fast.
+// Keyed by table name; reset when navigating to a different entity.
+const lastCreateValues = ref({});
+
 /** When entity.filterByCampaign — scope standings-style views to one campaign */
 const campaignFilterId = ref("");
 const campaignFilterOptions = ref([]);
@@ -48,6 +52,8 @@ const displayRows = computed(() => {
 function flattenCell(row, key) {
   if (key === "campaign_id" && row.campaigns != null)
     return row.campaigns?.label ?? row.campaign_id;
+  if (key === "competition_id" && row.competitions != null)
+    return row.competitions?.name ?? row.competition_id;
   if (key === "member_id" && row.members != null)
     return row.members?.full_name ?? row.member_id;
   if (key === "round_id" && row.rounds != null) {
@@ -59,7 +65,7 @@ function flattenCell(row, key) {
   if (key === "winner_member_id") {
     if (row.members != null) return row.members?.full_name ?? "—";
     if (row.winner != null) return row.winner?.full_name ?? "—";
-    if (!row.winner_member_id) return "Tie";
+    if (!row.winner_member_id) return "—";
     return row.winner_member_id;
   }
   if (key === "home_member_id" && row.home != null)
@@ -264,8 +270,18 @@ function initJsonDraft() {
 
 function blankModel() {
   const m = {};
+  const last = lastCreateValues.value;
   for (const f of entity.value?.formFields ?? []) {
     if (f.hideOnCreate) continue;
+    // Pre-fill from last create if available, unless the field is a
+    // unique/sequential value (numbers default to null so user types fresh).
+    if (last[f.key] !== undefined) {
+      // Don't carry forward numeric fields — they're usually unique per row.
+      if (f.type !== "number") {
+        m[f.key] = last[f.key];
+        continue;
+      }
+    }
     if (f.default !== undefined) m[f.key] = f.default;
     else if (f.type === "boolean") m[f.key] = false;
     else if (f.type === "json")
@@ -448,6 +464,10 @@ async function save() {
         .select(selectCol)
         .maybeSingle();
       if (qerr) throw qerr;
+      // Remember values for the next add (skip nulls so blanks don't persist).
+      lastCreateValues.value = Object.fromEntries(
+        Object.entries(payload).filter(([, v]) => v !== null && v !== "" && v !== undefined),
+      );
 
       if (
         table === "members" &&
@@ -571,6 +591,7 @@ watch(
   async () => {
     closeDialog();
     error.value = "";
+    lastCreateValues.value = {}; // clear memory when switching entity
     try {
       if (entity.value?.filterByCampaign) {
         await loadCampaignFilterOptions();
@@ -690,9 +711,10 @@ const formFieldsVisible = computed(() => {
         pot {{ rpcResult.data?.pot_pence }}p ·
         fines {{ rpcResult.data?.fines_pence ?? 0 }}p ·
         bank {{ rpcResult.data?.bank_pence }}p ·
-        paid out {{ rpcResult.data?.paid_out }}p ·
+        paid out {{ rpcResult.data?.paid_out_pence }}p ·
         rollover out {{ rpcResult.data?.rollover_out }}p.
-        Handicaps updated. Round finalized ✓
+        {{ rpcResult.data?.affects_handicap ? "Handicaps updated. " : "No handicap changes (cup/finals/away). " }}
+        Round finalized ✓
       </span>
       <span v-else>{{ rpcResult.msg }}</span>
       <button type="button" class="link" style="margin-left:0.75rem" @click="rpcResult=null">✕</button>

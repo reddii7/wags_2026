@@ -8,7 +8,11 @@ import AppDialog from "./components/AppDialog.vue";
 import SignInForm from "./components/SignInForm.vue";
 import { triggerHapticFeedback } from "./utils/haptics";
 import { supabase } from "./lib/supabase";
-import { FETCH_ALL_DATA_URL, SUPABASE_ANON_KEY } from "./lib/supabaseConfig.js";
+import {
+  FETCH_ALL_DATA_URL,
+  SUPABASE_ANON_KEY,
+  REALTIME_METADATA_TABLES,
+} from "./lib/supabaseConfig.js";
 const { user, loading: sessionLoading, signOut } = useSession();
 const showSignIn = ref(false);
 const route = useRoute();
@@ -21,7 +25,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20260513-greenfield-v1";
+const CLIENT_BUILD_ID = "20260514-greenfield-v30";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -522,16 +526,8 @@ onMounted(() => {
   handleScroll();
   loadGlobalMetadata();
 
-  // Subscribe to relevant tables for realtime updates
-  const tables = [
-    "competitions",
-    "public_results_view",
-    "results_summary",
-    "handicap_history",
-    "profiles",
-    // add more if needed
-  ];
-  supabaseChannels = tables.map((table) =>
+  // Realtime: Postgres tables that should trigger a metadata refresh.
+  supabaseChannels = REALTIME_METADATA_TABLES.map((table) =>
     supabase
       .channel(`realtime:${table}`)
       .on("postgres_changes", { event: "*", schema: "public", table }, () => {

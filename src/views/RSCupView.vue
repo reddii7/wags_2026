@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from "vue";
+import { computed, watch } from "vue";
 import { triggerHapticFeedback } from "../utils/haptics";
 import QuietList from "../components/QuietList.vue";
 
@@ -43,7 +43,17 @@ const tournament = computed(() => {
 // Watch tournament changes
 watch(tournament, (newTournament) => {}, { immediate: true });
 
-// Group matches by round for display
+// Format play_by_date nicely e.g. "Wed 20 May 2026"
+const formatPlayBy = (dateStr) => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-GB", {
+    weekday: "short", day: "numeric", month: "long", year: "numeric",
+  });
+};
+
+// Group matches by stage_code for display (preserves the label the admin entered)
 const roundsWithMatches = computed(() => {
   if (!tournament.value) return [];
 
@@ -51,35 +61,44 @@ const roundsWithMatches = computed(() => {
     (m) => m.tournament_id === tournament.value.id,
   );
 
-  // Group matches by round
+  // Group by stage_code, preserve order by round_number then slot_index
   const groups = {};
   matches.forEach((m) => {
-    if (!groups[m.round_number]) groups[m.round_number] = [];
-    groups[m.round_number].push(m);
+    const key = m.stage_code || String(m.round_number);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(m);
   });
 
-  // Sort rounds and format for display
   return Object.keys(groups)
-    .sort((a, b) => Number(a) - Number(b))
-    .map((roundNumber) => {
-      const roundMatches = groups[roundNumber];
-      const roundLabel = getRoundName(roundNumber);
+    .sort((a, b) => {
+      const na = groups[a][0]?.round_number ?? 99;
+      const nb = groups[b][0]?.round_number ?? 99;
+      return na - nb;
+    })
+    .map((stageKey) => {
+      const stageMatches = groups[stageKey];
+      // Use stage_label from data; fall back to title-cased key
+      const roundLabel =
+        stageMatches[0]?.stage_label ||
+        stageKey.replace(/\b\w/g, (c) => c.toUpperCase());
+      // Use first non-null play_by_date in the group
+      const playByRaw = stageMatches.find((m) => m.play_by_date)?.play_by_date ?? null;
+      const playBy = formatPlayBy(playByRaw);
 
       return {
-        roundNumber: Number(roundNumber),
-        roundLabel: roundLabel,
-        matches: roundMatches
+        roundNumber: stageMatches[0]?.round_number ?? 99,
+        roundLabel,
+        playBy,
+        matches: stageMatches
+          .sort((a, b) => (a.slot_index ?? 0) - (b.slot_index ?? 0))
           .map((match) => {
             const player1 = getPlayer(match.player1_id);
             const player2 = getPlayer(match.player2_id);
-
             return {
               id: match.id,
-              players: `${player1.full_name} vs ${player2.full_name}`,
-              status: match.winner_id ? "Completed" : "Pending",
               player1: player1.full_name,
               player2: player2.full_name,
-              match: match,
+              match,
             };
           })
           .sort((a, b) => {
@@ -91,68 +110,6 @@ const roundsWithMatches = computed(() => {
     });
 });
 
-// Helper to get round name
-const getRoundName = (roundNumber) => {
-  const roundNames = {
-    1: "First Round",
-    2: "Second Round",
-    3: "Quarter Finals",
-    4: "Semi Finals",
-    5: "The Final",
-  };
-  return roundNames[roundNumber] || `Round ${roundNumber}`;
-};
-
-// Filter and group matches by round
-const rounds = computed(() => {
-  if (!tournament.value) return [];
-
-  const matches = (props.metadata.matchplay_matches || []).filter(
-    (m) => m.tournament_id === tournament.value.id,
-  );
-
-  const groups = {};
-  matches.forEach((m) => {
-    if (!groups[m.round_number]) groups[m.round_number] = [];
-    groups[m.round_number].push(m);
-  });
-
-  const result = Object.keys(groups)
-    .sort((a, b) => Number(a) - Number(b))
-    .map((num) => {
-      const matchCount = groups[num].length;
-      let label = `Round ${num}`;
-      if (matchCount === 1) label = "The Final";
-      else if (matchCount === 2) label = "Semi Finals";
-      else if (matchCount === 4) label = "Quarter Finals";
-
-      return {
-        number: Number(num),
-        label: label,
-        matches: groups[num],
-      };
-    });
-
-  return result;
-});
-
-const selectedRoundIdx = ref(0);
-const activeRound = computed(() => rounds.value[selectedRoundIdx.value]);
-
-watch(
-  rounds,
-  (newRounds) => {
-    if (newRounds.length > 0 && selectedRoundIdx.value >= newRounds.length) {
-      selectedRoundIdx.value = 0;
-    }
-  },
-  { immediate: true },
-);
-
-const selectRound = (idx) => {
-  triggerHapticFeedback();
-  selectedRoundIdx.value = idx;
-};
 </script>
 
 <template>
@@ -182,11 +139,11 @@ const selectRound = (idx) => {
           <h3 class="round-header round-header--left">{{ round.roundLabel }}</h3>
 
           <div class="matches-list">
-            <p v-if="round.matches.every(m => !m.match.winner_id)" class="pending-deadline">To be played by 20 May 2026</p>
+            <p v-if="round.playBy && round.matches.every(m => !m.match.winner_id)" class="pending-deadline">Play by {{ round.playBy }}</p>
             <template v-for="(match, idx) in round.matches" :key="match.id">
               <template v-if="idx > 0 && !match.match.winner_id && round.matches[idx - 1].match.winner_id">
                 <div class="matches-divider"></div>
-                <p class="pending-deadline">To be played by 20 May 2026</p>
+                <p v-if="round.playBy" class="pending-deadline">Play by {{ round.playBy }}</p>
               </template>
               <div class="match-item">
               <div class="match-players">

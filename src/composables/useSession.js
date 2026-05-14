@@ -15,8 +15,8 @@ const loadProfile = async (sessionUser) => {
 
     user.value = sessionUser;
     const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, role, league_name, current_handicap')
+        .from('members')
+        .select('id, full_name')
         .eq('id', sessionUser.id)
         .single();
 
@@ -25,8 +25,14 @@ const loadProfile = async (sessionUser) => {
         return null;
     }
 
-    profile.value = data;
-    return data;
+    profile.value = {
+        id: data.id,
+        full_name: data.full_name,
+        role: 'member',
+        league_name: null,
+        current_handicap: null,
+    };
+    return profile.value;
 };
 
 export const initializeSession = async () => {

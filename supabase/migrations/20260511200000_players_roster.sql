@@ -1,5 +1,5 @@
 -- =============================================================================
--- Upgrade: campaign_memberships → players (only if legacy table still exists).
+-- Upgrade path: migrate campaign_memberships → players when the old table exists.
 -- Fresh installs use 20260511100000_greenfield_core_schema.sql only.
 -- =============================================================================
 

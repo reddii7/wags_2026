@@ -19,3 +19,14 @@ export const FETCH_ALL_DATA_URL =
         ? `${SUPABASE_URL.replace(':54321', ':54321/functions/v1')}/fetch-all-data`
         : SUPABASE_URL.replace('.supabase.co', '.functions.supabase.co') + '/fetch-all-data'
     );
+
+/** PWA targets greenfield Postgres — realtime channel names (publication must include these). */
+export const REALTIME_METADATA_TABLES = [
+  "campaigns",
+  "rounds",
+  "round_players",
+  "members",
+  "member_handicap_state",
+  "handicap_snapshots",
+  "cup_matches",
+];

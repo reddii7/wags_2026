@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch, nextTick } from "vue";
+import { resolveHomeDashboardBlock } from "../composables/resolveHomeDashboard.js";
 
 const emit = defineEmits(["navigate"]);
 const props = defineProps({
@@ -23,51 +24,9 @@ const homePayload = ref({
   handicap_changes: [],
 });
 
-const homeContract = computed(() => {
-  const dashboard = props.metadata?.dashboard || {};
-  const defaults = props.metadata?.defaults || {};
-
-  const seasons = Array.isArray(props.metadata?.seasons)
-    ? props.metadata.seasons
-    : [];
-
-  // Always prefer latest active/current season for initial home rendering.
-  const currentSeason =
-    seasons.find((season) => season?.is_current) ||
-    seasons.find((season) => season?.is_active) ||
-    null;
-  if (currentSeason) {
-    const byId = dashboard?.[String(currentSeason.id)];
-    if (byId && typeof byId === "object") return byId;
-    const byYear = dashboard?.[String(currentSeason.start_year)];
-    if (byYear && typeof byYear === "object") return byYear;
-  }
-
-  const preferredIds = [
-    defaults.home_season_id,
-    defaults.results_season_id,
-  ].filter(Boolean);
-
-  for (const seasonId of preferredIds) {
-    const seasonDashboard = dashboard?.[String(seasonId)];
-    if (seasonDashboard && typeof seasonDashboard === "object") {
-      return seasonDashboard;
-    }
-  }
-
-  const activeSeason = seasons.find((season) => season?.is_active);
-  if (activeSeason) {
-    const byId = dashboard?.[String(activeSeason.id)];
-    if (byId && typeof byId === "object") return byId;
-    const byYear = dashboard?.[String(activeSeason.start_year)];
-    if (byYear && typeof byYear === "object") return byYear;
-  }
-
-  const dashboardEntries = Object.values(dashboard).filter(
-    (value) => value && typeof value === "object",
-  );
-  return dashboardEntries[0] || null;
-});
+const homeContract = computed(() =>
+  resolveHomeDashboardBlock(props.metadata),
+);
 
 const loadHomeData = async () => {
   if (props.metadata.loading) {

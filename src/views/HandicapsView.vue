@@ -1,9 +1,14 @@
 <script setup>
-import { computed, ref, watch, nextTick } from "vue";
-// Removed unused composable
+import { computed, ref, watch } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
 import QuietSparkline from "../components/QuietSparkline.vue";
+import { normId } from "../composables/resolveHomeDashboard.js";
+import {
+  buildCompetitionDateMap,
+  buildScoreMapsByUserNorm,
+  timelineForUser,
+} from "../composables/handicapHistoryTimeline.js";
 import { triggerHapticFeedback } from "../utils/haptics";
 
 const props = defineProps({
@@ -72,80 +77,68 @@ const normalizeCompetitionLabel = (label) =>
     .replace(/\s*-\s*week\s*1\s*$/i, "")
     .trim();
 
-const getLatestCompetitionChangeMap = (history, competitions) => {
-  // Find the latest competition by date to ensure the comparison is correct
-  const nonOpen = (competitions || []).filter((c) => c.status !== "open");
-  const latestCompetitionId =
-    nonOpen
-      .slice()
-      .sort(
-        (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
-      )[0]?.id ||
-    (competitions || [])
-      .slice()
-      .sort(
-        (a, b) => new Date(b.competition_date) - new Date(a.competition_date),
-      )[0]?.id;
-
-  if (!latestCompetitionId) {
-    return new Map();
-  }
-
-  const latestChangeByUser = new Map();
-
-  (history || []).forEach((item) => {
-    if (item.competition_id !== latestCompetitionId) return;
-    if (latestChangeByUser.has(item.user_id)) return;
-
-    const oldRaw = item.old_handicap;
-    const newRaw = item.new_handicap;
-
-    const oldN = oldRaw === null ? null : Number(oldRaw);
-    const newN = newRaw === null ? null : Number(newRaw);
-
-    const hasChange =
-      oldN !== null &&
-      newN !== null &&
-      !Number.isNaN(oldN) &&
-      !Number.isNaN(newN) &&
-      oldN !== newN;
-
-    latestChangeByUser.set(item.user_id, {
-      text: hasChange ? `${oldN}→${newN}` : "-",
-      improved: hasChange ? newN < oldN : false,
-    });
-  });
-
-  return latestChangeByUser;
-};
-
-// Removed unused composable
-
 const loadPlayers = async () => {
   loading.value = true;
   try {
     const profiles = props.metadata?.profiles || props.metadata?.players || [];
     const history = props.metadata?.handicap_history || [];
-    const competitions = props.metadata?.competitions || [];
-    const latestChangeByUser = getLatestCompetitionChangeMap(
-      history,
-      competitions,
-    );
+
+    // Find the round_id whose rows have the latest created_at, restricted to
+    // UUID-length competition_ids (real round rows, not manual adjustments) that
+    // have at least one real handicap delta. This means RS Cup / cup rounds with
+    // no handicap snapshots never displace the last weekly round.
+    let latestTs = -1;
+    let latestRoundId = null;
+    for (const h of history) {
+      const cid = String(h.competition_id || "");
+      if (cid.length < 30) continue; // skip manual / non-round entries
+      const oldN = h.old_handicap == null ? null : Number(h.old_handicap);
+      const newN = h.new_handicap == null ? null : Number(h.new_handicap);
+      const hasDelta =
+        oldN != null && newN != null &&
+        Number.isFinite(oldN) && Number.isFinite(newN) &&
+        Math.abs(newN - oldN) > 0.01;
+      if (!hasDelta) continue; // skip no-change snapshot rows
+      const t = new Date(h.created_at || 0).getTime();
+      if (Number.isFinite(t) && t > latestTs) {
+        latestTs = t;
+        latestRoundId = cid;
+      }
+    }
+
+    // Build one pill per member whose snapshot is in that round and has a real delta.
+    const latestRoundNorm = latestRoundId ? normId(latestRoundId) : null;
+    const changeByUser = new Map();
+    if (latestRoundNorm) {
+      const sorted = [...history].sort(
+        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+      );
+      for (const h of sorted) {
+        if (normId(h.competition_id) !== latestRoundNorm) continue;
+        const nk = normId(h.user_id);
+        if (!nk || changeByUser.has(nk)) continue;
+        const oldN = h.old_handicap == null ? null : Number(h.old_handicap);
+        const newN = h.new_handicap == null ? null : Number(h.new_handicap);
+        if (oldN == null || newN == null || !Number.isFinite(oldN) || !Number.isFinite(newN)) continue;
+        if (Math.abs(newN - oldN) > 0.01) {
+          changeByUser.set(nk, {
+            text: `${oldN.toFixed(1)}→${newN.toFixed(1)}`,
+            improved: newN < oldN,
+            hasDelta: true,
+          });
+        }
+      }
+    }
+
     players.value = (profiles || [])
       .map((player) => {
-        const latestChange = latestChangeByUser.get(player.id);
-        let change, improved;
-        if (!latestChange) {
-          change = "-";
-          improved = false;
-        } else {
-          change = latestChange.text;
-          improved = latestChange.improved;
-        }
+        const nk = normId(player.id ?? "");
+        const pill = changeByUser.get(nk);
         return {
           ...player,
-          change,
-          improved: Boolean(improved),
+          change: pill ? pill.text : "-",
+          improved: pill ? pill.improved : false,
+          hasDelta: Boolean(pill),
         };
       })
       .sort((a, b) => a.full_name.localeCompare(b.full_name));
@@ -174,6 +167,7 @@ const closeHistory = () => {
   error.value = "";
 };
 
+/** Per-player dialog: `metadata.handicap_history` + `competitions` + `rounds` + `results` → `timelineForUser` (no `focus_round_id` filter). */
 const loadHistory = async () => {
   if (!selectedPlayerId.value) {
     historyRows.value = [];
@@ -186,51 +180,17 @@ const loadHistory = async () => {
     const rounds = props.metadata?.rounds || [];
     const results = props.metadata?.results || [];
 
-    const compDateMap = new Map(
-      (competitions || []).map((c) => [c.id, c.competition_date]),
+    const compDateMap = buildCompetitionDateMap(competitions);
+    const scoreMapsByUser = buildScoreMapsByUserNorm(rounds, results);
+    const scoreMap =
+      scoreMapsByUser.get(normId(selectedPlayerId.value)) || new Map();
+
+    const playerHistory = timelineForUser(
+      selectedPlayerId.value,
+      allHistory,
+      compDateMap,
+      scoreMap,
     );
-
-    const scoreMap = new Map();
-    [...rounds, ...results].forEach((r) => {
-      const uid = r.user_id || r.player_id;
-      if (uid === selectedPlayerId.value) {
-        const s = r.stableford_score ?? r.score;
-        if (s !== undefined && s !== null) {
-          scoreMap.set(r.competition_id, s);
-        }
-      }
-    });
-
-    const playerHistory = [...allHistory]
-      .filter((item) => {
-        if (item.user_id !== selectedPlayerId.value) return false;
-
-        const hOld =
-          item.old_handicap != null ? Number(item.old_handicap) : null;
-        const hNew =
-          item.new_handicap != null ? Number(item.new_handicap) : null;
-
-        const compId = item.competition_id;
-        const isRoundId = compId && String(compId).length > 30;
-
-        // Professional Filter: Strictly require numeric delta between TWO valid numbers.
-        // This automatically hides "Initial Handicap" noise (hOld is null) and profile-save noise.
-        const hasHandicapChange =
-          hOld !== null && hNew !== null && Math.abs(hNew - hOld) > 0.01;
-
-        const hasScore = isRoundId && scoreMap.has(compId);
-
-        // If it's a competition round, show it if they played OR the handicap moved.
-        if (isRoundId) return hasHandicapChange || hasScore;
-
-        // If it's manual, strictly only show if there was a genuine numeric change.
-        return hasHandicapChange;
-      })
-      .sort((a, b) => {
-        const dateA = compDateMap.get(a.competition_id) || a.created_at;
-        const dateB = compDateMap.get(b.competition_id) || b.created_at;
-        return new Date(dateB) - new Date(dateA);
-      });
 
     const competitionMap = new Map(
       (competitions || []).map((competition) => [
@@ -335,7 +295,7 @@ watch(selectedPlayerId, async (playerId, previous) => {
         </template>
         <template #change="{ row }">
           <span
-            v-if="row.change"
+            v-if="row.hasDelta"
             class="mini-pill mini-pill--delta"
             :class="
               row.improved ? 'mini-pill--positive' : 'mini-pill--negative'
@@ -343,6 +303,7 @@ watch(selectedPlayerId, async (playerId, previous) => {
           >
             {{ row.change }}
           </span>
+          <span v-else class="hc-last-chg-none">-</span>
         </template>
       </QuietList>
     </section>
@@ -386,3 +347,10 @@ watch(selectedPlayerId, async (playerId, previous) => {
     </AppDialog>
   </section>
 </template>
+
+<style scoped>
+.hc-last-chg-none {
+  color: var(--muted, #888);
+  font-size: 0.95rem;
+}
+</style>

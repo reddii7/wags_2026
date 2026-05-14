@@ -3,7 +3,6 @@ import { ref, computed } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
 import { triggerHapticFeedback } from "../utils/haptics";
-import { supabase } from "../lib/supabase";
 
 const props = defineProps({
   season: { type: Object, required: true },
@@ -133,48 +132,20 @@ const buildLocalTopRounds = (player, take) => {
 // No-op: rows is now computed from metadata
 
 // Disable best 14 modal if not available in metadata
-const openBest14 = async (player) => {
+const openBest14 = (player) => {
   triggerHapticFeedback();
   error.value = "";
   selectedPlayer.value = player;
   detailLoading.value = true;
-  try {
-    const seasonId = props.season?.id;
-    const playerId = player.user_id || player.player_id || player.id;
-    if (!seasonId || !playerId) {
-      detailRows.value = [];
-      isDetailOpen.value = true;
-      return;
-    }
-
-    const { data, error: rpcError } = await supabase.rpc(
-      "get_player_top_rounds",
-      {
-        p_season_id: seasonId,
-        p_player_id: playerId,
-        p_take: 14,
-      },
-    );
-    if (rpcError) {
-      detailRows.value = buildLocalTopRounds(player, 14);
-    } else {
-      detailRows.value = Array.isArray(data)
-        ? data.map((row) => ({
-            ...row,
-            id: `${row.competition_id}-${playerId}`,
-          }))
-        : [];
-    }
-    isDetailOpen.value = true;
-  } catch (e) {
+  const seasonId = props.season?.id;
+  const playerId = player.user_id || player.player_id || player.id;
+  if (!seasonId || !playerId) {
+    detailRows.value = [];
+  } else {
     detailRows.value = buildLocalTopRounds(player, 14);
-    if (!detailRows.value.length) {
-      error.value = e?.message || "Could not load best 14 details.";
-    }
-    isDetailOpen.value = true;
-  } finally {
-    detailLoading.value = false;
   }
+  isDetailOpen.value = true;
+  detailLoading.value = false;
 };
 
 const closeBest14 = () => {

@@ -20,7 +20,7 @@ dev-dist/
 .DS_Store
 *.log
 
-# Generated SQL (regenerate with supabase/scripts/generate_2025_members_import_sql.py)
+# Optional: regenerated SQL output directory
 scripts/sql/generated/
 
 # Data backups and exports
