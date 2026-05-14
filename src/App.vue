@@ -77,6 +77,11 @@ async function dismissPushBanner() {
 
 async function initPush() {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  // On iOS, Web Push only works when installed to home screen (standalone mode).
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+  if (!isStandalone) return;
   try {
     swRegistration = await navigator.serviceWorker.register("/sw.js");
     const existing = await swRegistration.pushManager.getSubscription();
