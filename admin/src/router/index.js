@@ -11,6 +11,7 @@ import PreviewRscupView from "@/views/PreviewRscupView.vue";
 import PreviewStatsHubView from "@/views/PreviewStatsHubView.vue";
 import RpcDevView from "@/views/RpcDevView.vue";
 import SeasonCloseView from "@/views/SeasonCloseView.vue";
+import SendNotificationView from "@/views/SendNotificationView.vue";
 
 const manageRoutes = ENTITY_ADMIN_PAGES.map((p) => ({
   path: p.path,
@@ -81,6 +82,12 @@ export default createRouter({
       name: "rpc",
       component: RpcDevView,
       meta: { title: "RPC" },
+    },
+    {
+      path: "/notifications",
+      name: "notifications",
+      component: SendNotificationView,
+      meta: { title: "Send notification" },
     },
   ],
 });

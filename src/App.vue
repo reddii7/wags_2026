@@ -12,6 +12,8 @@ import {
   FETCH_ALL_DATA_URL,
   SUPABASE_ANON_KEY,
   REALTIME_METADATA_TABLES,
+  VAPID_PUBLIC_KEY,
+  SEND_PUSH_URL,
 } from "./lib/supabaseConfig.js";
 const { user, loading: sessionLoading, signOut } = useSession();
 const showSignIn = ref(false);
@@ -29,6 +31,67 @@ const CLIENT_BUILD_ID = "20260514-greenfield-v30";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
+
+// ── Push notifications ────────────────────────────────────────────────────────
+const pushBannerVisible = ref(false);
+let swRegistration = null;
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+async function savePushSubscription(sub) {
+  const json = sub.toJSON();
+  await supabase.from("push_subscriptions").upsert(
+    { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth },
+    { onConflict: "endpoint" },
+  );
+}
+
+async function subscribeToPush() {
+  if (!swRegistration) return;
+  try {
+    const sub = await swRegistration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    await savePushSubscription(sub);
+    pushBannerVisible.value = false;
+    localStorage.setItem("wags-push-accepted", "1");
+  } catch (err) {
+    console.warn("[push] subscribe failed:", err);
+  }
+}
+
+async function dismissPushBanner() {
+  pushBannerVisible.value = false;
+  localStorage.setItem("wags-push-dismissed", "1");
+}
+
+async function initPush() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  try {
+    swRegistration = await navigator.serviceWorker.register("/sw.js");
+    const existing = await swRegistration.pushManager.getSubscription();
+    if (existing) {
+      await savePushSubscription(existing);
+      return;
+    }
+    // Only prompt if not previously dismissed and not already denied
+    if (
+      Notification.permission === "denied" ||
+      localStorage.getItem("wags-push-dismissed") ||
+      localStorage.getItem("wags-push-accepted")
+    ) return;
+    pushBannerVisible.value = true;
+  } catch (err) {
+    console.warn("[push] init failed:", err);
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 const globalMetadata = ref({
   api_version: null,
   defaults: {
@@ -524,7 +587,10 @@ onMounted(() => {
   document.addEventListener("freeze", handleDocumentFreeze);
   document.addEventListener("resume", handleDocumentResume);
   handleScroll();
-  loadGlobalMetadata();
+  loadGlobalMetadata().then(() => {
+    // Init push after first load so the permission prompt doesn't compete with app boot.
+    setTimeout(initPush, 1500);
+  });
 
   // Realtime: Postgres tables that should trigger a metadata refresh.
   supabaseChannels = REALTIME_METADATA_TABLES.map((table) =>
@@ -607,6 +673,19 @@ onBeforeUnmount(() => {
       </div>
     </main>
 
+    <!-- Push notification opt-in banner -->
+    <transition name="push-banner-slide">
+      <div v-if="pushBannerVisible" class="push-banner" role="dialog" aria-label="Enable notifications">
+        <div class="push-banner__content">
+          <span class="push-banner__text">Get notified when results are in</span>
+          <div class="push-banner__actions">
+            <button class="push-banner__allow" @click="subscribeToPush">Allow</button>
+            <button class="push-banner__dismiss" @click="dismissPushBanner">Not now</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
     <nav class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
@@ -669,5 +748,71 @@ onBeforeUnmount(() => {
 
 .app-load-error__retry:hover {
   opacity: 0.9;
+}
+
+/* Push notification opt-in banner */
+.push-banner {
+  position: fixed;
+  bottom: 68px; /* sits just above the bottom nav */
+  left: 0;
+  right: 0;
+  z-index: 200;
+  padding: 0 12px 8px;
+}
+
+.push-banner__content {
+  background: var(--surface, #2c2c2e);
+  border: 1px solid var(--line, #3a3a3c);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+.push-banner__text {
+  font-size: 0.88rem;
+  color: var(--text, #f0f0f0);
+  flex: 1;
+  line-height: 1.35;
+}
+
+.push-banner__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.push-banner__allow {
+  background: var(--accent, #30d158);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.push-banner__dismiss {
+  background: transparent;
+  color: var(--muted, #888);
+  border: 1px solid var(--line, #3a3a3c);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.push-banner-slide-enter-active,
+.push-banner-slide-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+.push-banner-slide-enter-from,
+.push-banner-slide-leave-to {
+  transform: translateY(20px);
+  opacity: 0;
 }
 </style>

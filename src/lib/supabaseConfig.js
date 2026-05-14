@@ -20,6 +20,18 @@ export const FETCH_ALL_DATA_URL =
         : SUPABASE_URL.replace('.supabase.co', '.functions.supabase.co') + '/fetch-all-data'
     );
 
+/** VAPID public key for Web Push subscriptions (public — safe to bundle). */
+export const VAPID_PUBLIC_KEY =
+  import.meta.env.VITE_VAPID_PUBLIC_KEY ||
+  "BEE7VXCx2PGjRP61pDjt7SHMBiz-F2U1ccvtvnZeOM2v7t-XKtKC4u1IrBcPHoeu3mbSk7gO-raTXR08Iwyd-28";
+
+/** send-push edge function URL */
+export const SEND_PUSH_URL =
+  import.meta.env.VITE_SEND_PUSH_URL ||
+  (SUPABASE_URL.includes("localhost")
+    ? `${SUPABASE_URL.replace(":54321", ":54321/functions/v1")}/send-push`
+    : SUPABASE_URL.replace(".supabase.co", ".functions.supabase.co") + "/send-push");
+
 /** PWA targets greenfield Postgres — realtime channel names (publication must include these). */
 export const REALTIME_METADATA_TABLES = [
   "campaigns",

@@ -43,6 +43,10 @@ const navGroups = [
     label: "Dev",
     items: [{ to: "/dev/rpc", label: "RPC console" }],
   },
+  {
+    label: "Notifications",
+    items: [{ to: "/notifications", label: "Send notification" }],
+  },
 ];
 
 function navClass(to) {
