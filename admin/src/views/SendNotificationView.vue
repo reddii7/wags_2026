@@ -13,6 +13,8 @@ const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL ||
   "https://iwzqzpzskawxrwhttufq.supabase.co";
 
+const appUrl = import.meta.env.VITE_APP_URL || "https://wags.netlify.app";
+
 const SEND_PUSH_URL = SUPABASE_URL.replace(".supabase.co", ".functions.supabase.co") + "/send-push";
 
 async function send() {
@@ -105,6 +107,12 @@ async function send() {
         <li>Stale subscriptions (uninstalled apps) are cleaned up automatically on send.</li>
       </ul>
     </div>
+
+    <div class="debug-section">
+      <h2 class="tips-h">Re-prompt a device</h2>
+      <p class="tips-p">If the Allow banner isn't showing, open this link on the device from the home screen icon:</p>
+      <code class="debug-url">{{ appUrl }}?enablePush=1</code>
+    </div>
   </div>
 </template>
 
@@ -161,4 +169,18 @@ async function send() {
 .tips { max-width: 520px; }
 .tips-h { font-size: 0.9rem; margin: 0 0 0.5rem; color: var(--muted); }
 .tips-list { margin: 0; padding-left: 1.2rem; font-size: 0.85rem; color: var(--muted); line-height: 1.8; }
+
+.debug-section { max-width: 520px; margin-top: 1.5rem; }
+.tips-p { font-size: 0.85rem; color: var(--muted); margin: 0 0 0.5rem; }
+.debug-url {
+  display: block;
+  background: var(--bg, #111);
+  border: 1px solid var(--line, #333);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--accent, #30d158);
+  word-break: break-all;
+  user-select: all;
+}
 </style>

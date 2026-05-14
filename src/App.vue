@@ -75,6 +75,18 @@ async function dismissPushBanner() {
   localStorage.setItem("wags-push-dismissed", "1");
 }
 
+/** Called from a URL param ?enablePush=1 so admin can force re-prompt for testing. */
+function checkPushReset() {
+  if (new URL(window.location.href).searchParams.get("enablePush") === "1") {
+    localStorage.removeItem("wags-push-dismissed");
+    localStorage.removeItem("wags-push-accepted");
+    // Strip the param so it doesn't linger
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete("enablePush");
+    window.history.replaceState({}, "", clean.toString());
+  }
+}
+
 async function initPush() {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
   // On iOS, Web Push only works when installed to home screen (standalone mode).
@@ -595,6 +607,7 @@ onMounted(() => {
   window.addEventListener("online", handleWindowOnline);
   document.addEventListener("freeze", handleDocumentFreeze);
   document.addEventListener("resume", handleDocumentResume);
+  checkPushReset();
   handleScroll();
   loadGlobalMetadata().then(() => {
     // Init push after first load so the permission prompt doesn't compete with app boot.
