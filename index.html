@@ -11,21 +11,23 @@
   <link rel="icon" href="/favicon.ico?v=__WAGS_SHELL_BUILD__" sizes="any" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=__WAGS_SHELL_BUILD__" />
   <title>WAGS</title>
-  <!-- Bust stale Web Clip HTML/JS when this value changes (injected at build). -->
+  <!-- Bust stale Web Clip HTML/JS when this value changes (injected at build).
+       Uses localStorage so the check fires on the FIRST open after a new deploy,
+       not the second (sessionStorage is cleared between Web Clip sessions on iOS). -->
   <script>
     (function () {
       try {
         var key = "wags-shell-build";
         var cur = "__WAGS_SHELL_BUILD__";
-        var prev = sessionStorage.getItem(key);
+        var prev = localStorage.getItem(key);
         if (prev && prev !== cur) {
-          sessionStorage.setItem(key, cur);
+          localStorage.setItem(key, cur);
           var u = new URL(location.href);
           u.searchParams.set("v", String(Date.now()));
           location.replace(u.toString());
           return;
         }
-        sessionStorage.setItem(key, cur);
+        localStorage.setItem(key, cur);
       } catch (e) {}
     })();
   </script>
