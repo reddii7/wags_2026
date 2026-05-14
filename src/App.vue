@@ -46,10 +46,18 @@ function urlBase64ToUint8Array(base64String) {
 
 async function savePushSubscription(sub) {
   const json = sub.toJSON();
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth },
-    { onConflict: "endpoint" },
-  );
+  const endpoint = json.endpoint;
+  const p256dh = json.keys?.p256dh;
+  const auth = json.keys?.auth;
+  if (!endpoint || !p256dh || !auth) {
+    console.error("[push] subscription missing fields", json);
+    return;
+  }
+  // Plain insert — upsert (merge-duplicates) requires SELECT RLS which we don't expose.
+  // If the endpoint already exists just ignore the conflict.
+  const { error } = await supabase
+    .from("push_subscriptions")
+    .insert({ endpoint, p256dh, auth }, { ignoreDuplicates: true });
   if (error) console.error("[push] failed to save subscription:", error);
 }
 
