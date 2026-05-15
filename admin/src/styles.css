@@ -1,4 +1,22 @@
 :root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --line: #d8dee6;
+  --text: #1a1f26;
+  --muted: #5c6773;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --danger: #dc2626;
+  --ok: #16a34a;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+html.dark {
   --bg: #0f1114;
   --surface: #1a1e24;
   --line: #2a313c;
@@ -8,12 +26,6 @@
   --accent-hover: #2563eb;
   --danger: #ef4444;
   --ok: #22c55e;
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
 }
 
 *,

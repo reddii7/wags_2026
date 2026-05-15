@@ -1,10 +1,22 @@
 <script setup>
 import { ref, watch, inject, computed, reactive } from "vue";
-import { useRoute } from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import { ENUMS } from "@/config/entityAdminConfig.js";
+import {
+  pickDefaultRoundId,
+  mapRoundOptions,
+  scoredMemberIdsFromRows,
+  isDuplicateKeyError,
+  friendlyDuplicateScoreMessage,
+  loadCampaignRoster,
+  loadActiveMembers,
+  checkRoundFinalizeReady,
+  setActiveCampaignId,
+} from "@/composables/useRoundScores.js";
 
 const admin = inject("adminCtx");
 const route = useRoute();
+const router = useRouter();
 
 const entity = computed(() => route.meta?.entity);
 const rows = ref([]);
@@ -34,6 +46,7 @@ const campaignFilterOptions = ref([]);
 /** When entity.filterBySelectedRound — scope list to one round (dropdown) */
 const snapshotRoundPickerId = ref("");
 const snapshotRoundPickerOptions = ref([]);
+const rosterMembers = ref([]);
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -129,16 +142,30 @@ async function loadRoundPickerOptions() {
   const { data, error: qerr } = await q;
   if (qerr) throw qerr;
   const list = data ?? [];
-  snapshotRoundPickerOptions.value = list.map((r) => {
-    const date = r.round_date ? r.round_date.slice(0, 10) : "?";
-    const nm = r.name ? `${r.name} · ` : "";
-    const fin = r.finalized ? " · done" : "";
-    return {
-      id: r.id,
-      label: `${nm}${date} · ${r.round_type}${fin} · ${r.campaigns?.label ?? "—"}`,
-    };
-  });
-  snapshotRoundPickerId.value = list[0]?.id ?? "";
+  snapshotRoundPickerOptions.value = mapRoundOptions(list);
+  const preferred = pickDefaultRoundId(list);
+  const stillValid = list.some((r) => r.id === snapshotRoundPickerId.value);
+  snapshotRoundPickerId.value = stillValid
+    ? snapshotRoundPickerId.value
+    : preferred || list[0]?.id || "";
+  const opt = snapshotRoundPickerOptions.value.find((o) => o.id === snapshotRoundPickerId.value);
+  if (opt?.campaignId) setActiveCampaignId(opt.campaignId);
+}
+
+async function loadScoreRoster() {
+  rosterMembers.value = [];
+  if (!entity.value?.scoreEntry || !admin?.client?.value) return;
+  const campId = selectedRoundOption.value?.campaignId;
+  try {
+    if (campId) {
+      const { roster } = await loadCampaignRoster(admin.client.value, campId);
+      rosterMembers.value = roster;
+    } else {
+      rosterMembers.value = await loadActiveMembers(admin.client.value);
+    }
+  } catch {
+    rosterMembers.value = [];
+  }
 }
 
 async function loadRows() {
@@ -222,11 +249,22 @@ async function loadFkOptions() {
         .order(orderCol, { ascending: true })
         .limit(500);
       if (qerr) throw qerr;
+      const scored =
+        entity.value?.excludeScoredMembersOnCreate &&
+        f.key === "member_id" &&
+        dialogMode.value === "create" &&
+        entity.value?.table === "round_players"
+          ? scoredMemberIdsFromRows(rows.value)
+          : null;
+
       next[f.key] = (data ?? []).map((r) => {
         let label = String(r[fk.labelKey] ?? "");
         if (fk.subLabelKey && r[fk.subLabelKey])
           label += ` (${r[fk.subLabelKey]})`;
-        return { value: r[fk.valueKey], label };
+        const value = r[fk.valueKey];
+        const already = scored?.has(String(value));
+        if (already) label += " (already scored — use Edit)";
+        return { value, label, disabled: Boolean(already) };
       });
     } catch (err) {
       next[f.key] = [];
@@ -294,6 +332,12 @@ function blankModel() {
 }
 
 function openCreate() {
+  if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
+    window.alert(
+      "This round is finalized. Reopen it on Rounds & finalize before adding scores.",
+    );
+    return;
+  }
   dialogMode.value = "create";
   formError.value = "";
   model.value = blankModel();
@@ -342,6 +386,12 @@ function sanitizeRawForModel(raw) {
 }
 
 function openEdit(row) {
+  if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
+    window.alert(
+      "This round is finalized. Reopen it on Rounds & finalize before editing scores.",
+    );
+    return;
+  }
   dialogMode.value = "edit";
   formError.value = "";
   const raw = { ...row };
@@ -512,13 +562,19 @@ async function save() {
     closeDialog();
     await loadRows();
   } catch (e) {
-    formError.value = e?.message || String(e);
+    formError.value = isDuplicateKeyError(e)
+      ? friendlyDuplicateScoreMessage()
+      : e?.message || String(e);
   } finally {
     saving.value = false;
   }
 }
 
 async function removeRow(row) {
+  if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
+    window.alert("This round is finalized. Reopen it before deleting scores.");
+    return;
+  }
   const sb = admin?.client?.value;
   if (!sb) return;
   const table = entity.value.table;
@@ -566,6 +622,35 @@ async function runRowAction(action, row) {
   const sb = admin?.client?.value;
   if (!sb) return;
   const key = rowKey(row);
+
+  if (action.key === "finalize" && entity.value?.table === "rounds") {
+    try {
+      const check = await checkRoundFinalizeReady(sb, row);
+      if (!check.ok) {
+        const names = [...check.missing, ...check.incomplete];
+        const bulletList = names
+          .slice(0, 12)
+          .map((m) => `• ${m.fullName}`)
+          .join("\n");
+        const more =
+          names.length > 12 ? `\n…and ${names.length - 12} more` : "";
+        const override = window.confirm(
+          `Scores look incomplete for "${row.name || "this round"}".\n\n` +
+            `${check.summary}.\n\n` +
+            (bulletList ? `${bulletList}${more}\n\n` : "") +
+            "Enter scores first (Weekly workflow → Enter scores).\n\n" +
+            "Finalize anyway? Handicaps and prize money may be wrong.",
+        );
+        if (!override) return;
+      }
+    } catch (e) {
+      const override = window.confirm(
+        `Could not verify scores (${e?.message || String(e)}).\n\nFinalize anyway?`,
+      );
+      if (!override) return;
+    }
+  }
+
   if (action.confirm && !window.confirm(action.confirm)) return;
   rpcResult.value = null;
   rpcBusy.value = { ...rpcBusy.value, [key]: true };
@@ -612,9 +697,50 @@ watch(
       return;
     }
     await loadRows();
+    await loadScoreRoster();
   },
   { immediate: true },
 );
+
+watch(snapshotRoundPickerId, async () => {
+  const opt = snapshotRoundPickerOptions.value.find((o) => o.id === snapshotRoundPickerId.value);
+  if (opt?.campaignId) setActiveCampaignId(opt.campaignId);
+  await loadScoreRoster();
+});
+
+const isScoreEntry = computed(() => Boolean(entity.value?.scoreEntry));
+
+const selectedRoundOption = computed(() =>
+  snapshotRoundPickerOptions.value.find((o) => o.id === snapshotRoundPickerId.value),
+);
+
+const roundIsFinalized = computed(() => Boolean(selectedRoundOption.value?.finalized));
+
+const canModifyScores = computed(() => !isScoreEntry.value || !roundIsFinalized.value);
+
+const scoreProgress = computed(() => {
+  if (!isScoreEntry.value) return null;
+  const scored = rows.value.length;
+  const roster = rosterMembers.value.length;
+  const missing =
+    roster > 0 ? rosterMembers.value.filter((m) => !rows.value.some((r) => r.member_id === m.memberId)).length : null;
+  return { scored, roster, missing };
+});
+
+function rowStatusClass(raw) {
+  if (!isScoreEntry.value || !raw) return "";
+  if (raw.disqualified) return "row-dq";
+  if (raw.stableford_points != null && raw.stableford_points !== "") return "row-scored";
+  if (raw.entered) return "row-incomplete";
+  return "";
+}
+
+function goToScoreEntry() {
+  router.push({
+    path: "/manage/score-entry",
+    query: snapshotRoundPickerId.value ? { round: snapshotRoundPickerId.value } : {},
+  });
+}
 
 const tableColumns = computed(() => {
   const cols = entity.value?.listColumns ?? [];
@@ -639,18 +765,53 @@ const formFieldsVisible = computed(() => {
 
 <template>
   <div class="entity-admin" v-if="entity">
-    <p class="hint">{{ route.meta?.title }}</p>
+    <p v-if="route.meta?.step" class="hint">{{ route.meta?.title }}</p>
     <p class="lead">
-      Step {{ route.meta?.step }} —
-      <span v-if="isReadOnly">read-only view</span>
-      <span v-else>edit the live Supabase tables (service role)</span>.
+      <span v-if="isReadOnly">Read-only view.</span>
+      <span v-else-if="isScoreEntry">
+        Advanced table view. Prefer
+        <button type="button" class="link accent" @click="goToScoreEntry">Enter scores</button>
+        for weekly entry.
+      </span>
+      <span v-else>Edit live Supabase tables (service role).</span>
     </p>
+
+    <div
+      v-if="isScoreEntry && snapshotRoundPickerId"
+      :class="['status-banner', roundIsFinalized ? 'banner-finalized' : 'banner-scores']"
+    >
+      <template v-if="roundIsFinalized">
+        <strong>Finalized.</strong> Scores are locked. Reopen on
+        <RouterLink to="/manage/6-rounds">Rounds &amp; finalize</RouterLink> to edit.
+      </template>
+      <template v-else-if="scoreProgress">
+        <strong>{{ selectedRoundOption?.label }}</strong>
+        · {{ scoreProgress.scored }} scored
+        <template v-if="scoreProgress.roster">
+          / {{ scoreProgress.roster }} in roster
+          <template v-if="scoreProgress.missing">
+            · <span class="banner-warn">{{ scoreProgress.missing }} missing</span>
+          </template>
+        </template>
+      </template>
+    </div>
+
     <div class="toolbar">
       <button
-        v-if="!isReadOnly"
+        v-if="isScoreEntry"
         type="button"
         class="btn primary"
         :disabled="!admin?.client?.value"
+        @click="goToScoreEntry"
+      >
+        Enter scores
+      </button>
+      <button
+        v-if="!isReadOnly"
+        type="button"
+        class="btn"
+        :class="{ primary: !isScoreEntry }"
+        :disabled="!admin?.client?.value || !canModifyScores"
         @click="openCreate"
       >
         Add row
@@ -737,7 +898,12 @@ const formFieldsVisible = computed(() => {
           <tr v-else-if="!tableRowsWithActions.length">
             <td :colspan="tableColumns.length" class="muted">No rows yet.</td>
           </tr>
-          <tr v-for="r in tableRowsWithActions" v-else :key="rowKey(r._raw)">
+          <tr
+            v-for="r in tableRowsWithActions"
+            v-else
+            :key="rowKey(r._raw)"
+            :class="rowStatusClass(r._raw)"
+          >
             <td v-for="c in entity.listColumns" :key="c.key">{{ r[c.key] ?? "—" }}</td>
             <td v-if="!isReadOnly" class="actions">
               <template v-for="act in (entity.rowActions ?? [])" :key="act.key">
@@ -749,8 +915,22 @@ const formFieldsVisible = computed(() => {
                   @click="runRowAction(act, r._raw)"
                 >{{ rpcBusy[rowKey(r._raw)] ? "…" : act.label }}</button>
               </template>
-              <button type="button" class="link" @click="openEdit(r._raw)">Edit</button>
-              <button type="button" class="link danger" @click="removeRow(r._raw)">Delete</button>
+              <button
+                type="button"
+                class="link"
+                :disabled="!canModifyScores"
+                @click="openEdit(r._raw)"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                class="link danger"
+                :disabled="!canModifyScores"
+                @click="removeRow(r._raw)"
+              >
+                Delete
+              </button>
             </td>
           </tr>
         </tbody>
@@ -842,6 +1022,7 @@ const formFieldsVisible = computed(() => {
                   v-for="opt in fkOptions[f.key] || []"
                   :key="String(opt.value)"
                   :value="opt.value"
+                  :disabled="opt.disabled"
                 >
                   {{ opt.label }}
                 </option>
@@ -881,10 +1062,47 @@ const formFieldsVisible = computed(() => {
   color: var(--muted);
   font-size: 0.88rem;
 }
+.status-banner {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  border: 1px solid var(--line);
+}
+
+.banner-scores {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.banner-finalized {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: #fecaca;
+}
+
+.banner-warn {
+  color: #fcd34d;
+  font-weight: 600;
+}
+
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+}
+
+.tbl tbody tr.row-scored {
+  opacity: 0.72;
+}
+
+.tbl tbody tr.row-incomplete {
+  background: color-mix(in srgb, #f59e0b 8%, transparent);
+}
+
+.tbl tbody tr.row-dq {
+  opacity: 0.55;
+  text-decoration: line-through;
 }
 .btn {
   border-radius: 8px;

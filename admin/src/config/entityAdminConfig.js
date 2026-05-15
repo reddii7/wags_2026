@@ -354,7 +354,7 @@ export const ENTITY_ADMIN_PAGES = [
   {
     path: "/manage/6-rounds",
     name: "manage-rounds",
-    title: "6 · Rounds",
+    title: "Rounds & finalize",
     step: 6,
     entity: {
       table: "rounds",
@@ -440,17 +440,21 @@ export const ENTITY_ADMIN_PAGES = [
   {
     path: "/manage/7-scores",
     name: "manage-scores",
-    title: "7 · Scores (round players)",
+    title: "Scores (table)",
     step: 7,
     entity: {
       table: "round_players",
       primaryKey: "id",
+      scoreEntry: true,
+      excludeScoredMembersOnCreate: true,
+      lockWhenRoundFinalized: true,
       listSelect: "*, members(full_name)",
       order: [
         { column: "stableford_points", ascending: false, nullsFirst: false },
         { column: "full_name", ascending: true, foreignTable: "members" },
       ],
       filterBySelectedRound: true,
+      roundFilterCampaignKind: "summer_main",
       listColumns: [
         { key: "member_id", label: "Member" },
         { key: "stableford_points", label: "Pts" },
