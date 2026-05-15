@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, inject } from "vue";
+import { ref, computed, watch, inject, nextTick } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
 import {
   pickDefaultRoundId,
@@ -30,6 +30,8 @@ const filter = ref("missing");
 const search = ref("");
 
 const drafts = ref({});
+/** @type {import('vue').Ref<Record<string, HTMLInputElement | null>>} */
+const pointsRefs = ref({});
 
 async function loadRounds() {
   const sb = admin?.client?.value;
@@ -145,7 +147,48 @@ function rowClass(memberId) {
   return "entry-done";
 }
 
-async function saveMember(member) {
+function setPointsRef(memberId, el) {
+  if (el) pointsRefs.value[memberId] = el;
+  else delete pointsRefs.value[memberId];
+}
+
+function focusMemberPoints(memberId) {
+  const el = pointsRefs.value[memberId];
+  if (!el) return;
+  el.focus();
+  el.select();
+}
+
+/** Next unscored player in roster order (wraps to top). */
+function getNextMissingAfter(memberId) {
+  const list = roster.value;
+  if (!list.length) return null;
+  let start = 0;
+  if (memberId) {
+    const i = list.findIndex((m) => m.memberId === memberId);
+    start = i >= 0 ? i + 1 : 0;
+  }
+  for (let i = start; i < list.length; i++) {
+    if (!scoreByMember.value.has(list[i].memberId)) return list[i];
+  }
+  for (let i = 0; i < start; i++) {
+    if (!scoreByMember.value.has(list[i].memberId)) return list[i];
+  }
+  return null;
+}
+
+async function focusFirstMissing() {
+  await nextTick();
+  const first = roster.value.find((m) => !scoreByMember.value.has(m.memberId));
+  if (first) focusMemberPoints(first.memberId);
+}
+
+async function onPointsEnter(member) {
+  if (roundFinalized.value || savingId.value) return;
+  await saveMember(member, { focusNext: true });
+}
+
+async function saveMember(member, { focusNext = false } = {}) {
   if (roundFinalized.value) return;
   const sb = admin?.client?.value;
   if (!sb) return;
@@ -185,6 +228,15 @@ async function saveMember(member) {
       drafts.value[member.memberId].rowId = data.id;
     }
     await loadAll();
+
+    if (focusNext && !roundFinalized.value) {
+      const next = getNextMissingAfter(member.memberId);
+      if (next) {
+        await nextTick();
+        focusMemberPoints(next.memberId);
+      }
+    }
+
     if (progress.value.missing === 0 && !roundFinalized.value) {
       const go = window.confirm(
         `All ${progress.value.total} roster players have scores. Open Rounds to finalize?`,
@@ -217,12 +269,27 @@ watch(roundId, async () => {
   router.replace({ query: { ...route.query, round: roundId.value || undefined } });
   await loadAll();
 });
+
+watch(loading, (isLoading, wasLoading) => {
+  if (wasLoading && !isLoading && filter.value === "missing" && !roundFinalized.value) {
+    void focusFirstMissing();
+  }
+});
+
+watch(filter, (mode) => {
+  if (mode === "missing" && !loading.value && !roundFinalized.value) {
+    void focusFirstMissing();
+  }
+});
 </script>
 
 <template>
   <div class="score-entry">
     <h1 class="h1">Enter scores</h1>
-    <p class="lede">Add or update net stableford points for one round. Saved players appear greyed out.</p>
+    <p class="lede">
+      Type points and press <kbd>Enter</kbd> to save and jump to the next missing player. Saved
+      players appear greyed out.
+    </p>
 
     <p v-if="!admin?.client?.value" class="warn">Connect to Supabase in the header first.</p>
 
@@ -283,12 +350,16 @@ watch(roundId, async () => {
             <label class="mini">
               Pts
               <input
+                :ref="(el) => setPointsRef(m.memberId, el)"
                 v-model="drafts[m.memberId].points"
                 type="number"
-                class="input num"
+                class="input num points-input"
                 min="0"
                 max="60"
+                inputmode="numeric"
+                autocomplete="off"
                 :disabled="roundFinalized || savingId === m.memberId"
+                @keydown.enter.prevent="onPointsEnter(m)"
               />
             </label>
             <label class="mini">
@@ -397,6 +468,21 @@ watch(roundId, async () => {
 
 .input.num {
   width: 4rem;
+}
+
+.points-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.lede kbd {
+  font-size: 0.8em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-family: inherit;
 }
 
 .banner {
