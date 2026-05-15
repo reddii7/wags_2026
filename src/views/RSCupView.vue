@@ -276,33 +276,11 @@ const roundsWithMatches = computed(() => {
 .player-name.winner {
   font-weight: 900;
   color: var(--text);
-  animation: winnerPulse 2s infinite;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
 }
 
 .player-name.loser {
   opacity: 0.3;
   color: var(--muted);
-}
-
-.winner-icon {
-  font-size: 0.7rem;
-  opacity: 0.8;
-}
-
-@keyframes winnerPulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.05);
-  }
 }
 
 .match-versus {
