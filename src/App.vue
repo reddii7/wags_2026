@@ -387,8 +387,6 @@ async function hardRefresh() {
   window.location.href = url.toString();
 }
 
-// ...existing code...
-
 const sections = [
   { name: "home", label: "Home", icon: "home", path: "/" },
   { name: "stats", label: "Stats", icon: "results", path: "/stats" },
@@ -744,10 +742,7 @@ onBeforeUnmount(() => {
         <NavIcon :name="section.icon" />
         <span class="bottom-nav-label">{{ section.label }}</span>
       </button>
-      <!-- ...existing nav code... -->
     </nav>
-
-    <!-- ...existing code... -->
   </div>
 </template>
 

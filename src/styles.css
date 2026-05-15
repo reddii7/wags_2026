@@ -755,33 +755,6 @@ select {
     text-transform: uppercase;
 }
 
-.season-selector {
-    display: flex;
-    gap: 0.5rem;
-    overflow-x: auto;
-    padding: 0.25rem 1rem 0.5rem;
-    scrollbar-width: none;
-}
-
-.season-selector::-webkit-scrollbar {
-    display: none;
-}
-
-.season-pill {
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    padding: 0.4rem 0.75rem;
-    white-space: nowrap;
-    font-size: 0.95rem;
-    cursor: pointer;
-}
-
-.season-pill.active,
-.season-pill:hover {
-    color: var(--text);
-}
-
 .content-panel {
     padding: 1rem 0;
     border-radius: 32px;
