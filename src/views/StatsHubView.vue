@@ -2,6 +2,7 @@
 import { ref, computed, markRaw, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { triggerHapticFeedback } from "../utils/haptics";
+import AppDialog from "../components/AppDialog.vue";
 import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
 import ResultsView from "./ResultsView.vue";
@@ -20,7 +21,7 @@ const seasons = ref(
   Array.isArray(props.metadata?.seasons) ? props.metadata.seasons : [],
 );
 const selectedSeasonId = ref(null);
-const loading = ref(false);
+const seasonPickerOpen = ref(false);
 
 const tabs = [
   { id: "results", label: "RESULTS", component: markRaw(ResultsView) },
@@ -107,14 +108,29 @@ function setTab(id) {
     router.replace({ path: "/stats", query: { tab: id } });
   }
 }
+
+function openSeasonPicker() {
+  triggerHapticFeedback();
+  seasonPickerOpen.value = true;
+}
+
+function pickSeason(seasonId) {
+  triggerHapticFeedback();
+  selectedSeasonId.value = seasonId;
+  seasonPickerOpen.value = false;
+}
 </script>
 
 <template>
   <div class="stats-hub">
     <header class="hub-header">
-      <!-- Row 1: Season Selector -->
-      <div class="f1-season-row">
-        <div class="f1-circle-trigger">
+      <!-- Row 1: Season (in-app sheet — matches Handicaps / Best 14 dialogs) -->
+      <button
+        type="button"
+        class="f1-season-row f1-season-row-trigger"
+        @click="openSeasonPicker"
+      >
+        <div class="f1-circle-trigger" aria-hidden="true">
           <svg
             width="10"
             height="6"
@@ -130,15 +146,10 @@ function setTab(id) {
               stroke-linejoin="round"
             />
           </svg>
-          <select v-model="selectedSeasonId" class="f1-hidden-select">
-            <option v-for="s in seasons" :key="s.id" :value="s.id">
-              {{ s.name || s.start_year }}
-            </option>
-          </select>
         </div>
         <span class="f1-year-text">{{ selectedSeason?.start_year }}</span>
         <span class="f1-season-label">Season</span>
-      </div>
+      </button>
 
       <!-- Row 2: Tabs -->
       <nav class="f1-section-nav">
@@ -165,6 +176,42 @@ function setTab(id) {
         :metadata="metadata"
       />
     </main>
+
+    <AppDialog
+      v-model="seasonPickerOpen"
+      aria-label="Choose season"
+    >
+      <template #header>
+        <div class="panel-heading">
+          <h3>Season</h3>
+          <span>{{ selectedSeason?.start_year ?? "" }}</span>
+        </div>
+      </template>
+      <ul class="stats-season-list" role="listbox" aria-label="Seasons">
+        <li v-for="s in seasons" :key="s.id" role="none">
+          <button
+            type="button"
+            class="stats-season-list__option"
+            :class="{
+              'stats-season-list__option--active': s.id === selectedSeasonId,
+            }"
+            role="option"
+            :aria-selected="s.id === selectedSeasonId"
+            @click="pickSeason(s.id)"
+          >
+            <span class="stats-season-list__label">{{
+              s.name || s.start_year
+            }}</span>
+            <span
+              v-if="s.id === selectedSeasonId"
+              class="stats-season-list__check"
+              aria-hidden="true"
+              >✓</span
+            >
+          </button>
+        </li>
+      </ul>
+    </AppDialog>
   </div>
 </template>
 
@@ -186,8 +233,26 @@ function setTab(id) {
   padding: 1.25rem 1rem 0.75rem;
 }
 
+.f1-season-row-trigger {
+  width: 100%;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border-radius: 12px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.f1-season-row-trigger:active .f1-circle-trigger {
+  background: var(--surface-4);
+}
+
 .f1-circle-trigger {
   position: relative;
+  flex-shrink: 0;
   width: 22px;
   height: 22px;
   background: var(--surface-3);
@@ -197,14 +262,6 @@ function setTab(id) {
   justify-content: center;
   color: var(--text);
   transition: background 0.2s;
-}
-
-.f1-hidden-select {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  width: 100%;
 }
 
 .f1-year-text {
@@ -232,5 +289,56 @@ function setTab(id) {
   margin-top: 0.5rem;
   border-bottom: 1px solid var(--line);
   justify-content: space-evenly;
+}
+
+.stats-season-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: min(56vh, 22rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.stats-season-list__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.92rem 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.stats-season-list__option:active {
+  background: var(--surface-3);
+}
+
+.stats-season-list__option--active {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.stats-season-list__label {
+  min-width: 0;
+}
+
+.stats-season-list__check {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-weight: 700;
 }
 </style>
