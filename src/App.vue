@@ -33,6 +33,9 @@ const routerViewComponentKey = computed(() =>
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
 const CLIENT_BUILD_ID = "20260514-greenfield-v30";
 
+/** Visible label only — bump to prove this JS bundle deployed (never compared to API build_id). */
+const SHELL_VISIBILITY_STAMP = "ui-20260515-reload-stack";
+
 const { theme } = useTheme();
 const chromeHidden = ref(false);
 
@@ -620,14 +623,22 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </div>
-    <button
-      type="button"
-      class="app-reload-fab"
-      aria-label="Reload page"
-      @click="reloadPage"
-    >
-      Reload
-    </button>
+    <div class="app-reload-cluster">
+      <button
+        type="button"
+        class="app-reload-fab"
+        aria-label="Reload page"
+        @click="reloadPage"
+      >
+        Reload
+      </button>
+      <span
+        class="app-build-stamp"
+        :title="'Deploy stamp ' + SHELL_VISIBILITY_STAMP"
+      >
+        {{ SHELL_VISIBILITY_STAMP }}
+      </span>
+    </div>
     <main class="app-main">
       <!-- Spinner overlays the view — RouterView stays mounted always -->
       <div v-if="globalMetadata.loading" class="app-boot-loader">
@@ -672,11 +683,36 @@ onBeforeUnmount(() => {
   background: var(--bg) !important;
 }
 
-.app-reload-fab {
+.app-reload-cluster {
   position: fixed;
   top: max(10px, env(safe-area-inset-top, 10px));
   right: max(10px, env(safe-area-inset-right, 10px));
   z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  max-width: min(52vw, 11.5rem);
+  pointer-events: none;
+}
+
+.app-reload-cluster .app-reload-fab {
+  position: static;
+  pointer-events: auto;
+}
+
+.app-build-stamp {
+  pointer-events: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 0.58rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: color-mix(in srgb, var(--muted, #888) 88%, transparent);
+  text-align: right;
+  word-break: break-all;
+}
+
+.app-reload-fab {
   border: 1px solid var(--line, #3a3a3c);
   background: color-mix(in srgb, var(--bg-strong, #1c1c1e) 92%, var(--surface-3, #444));
   color: var(--text, #f0f0f0);
