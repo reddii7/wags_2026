@@ -75,19 +75,23 @@ let resumeBaselineMs = 0;
 let lastResumeMetadataRefreshMs = 0;
 let lastFetchCompletedAt = 0;
 let appMountTime = 0;
-const RESUME_METADATA_DEBOUNCE_MS = 1200;
-const RESUME_LONG_AWAY_MS = 2000;
-const RESUME_STALE_FETCH_MS = 120_000;
+const RESUME_METADATA_DEBOUNCE_MS = 700;
+const RESUME_LONG_AWAY_MS = 800;
+const RESUME_STALE_FETCH_MS = 45_000;
 
 function markDocumentSuspended() {
   resumeBaselineMs = Date.now();
 }
 
 /**
- * Refetch after sleep / multitask. `explicitAwayMs` is used when visibility just
- * cleared resumeBaselineMs (ms since hide). Pass null to consume resumeBaselineMs here.
+ * Refetch after sleep / multitask. `explicitAwayMs` consumes `resumeBaselineMs` when
+ * passed from visibility. `bypassDebounce` forces a bust-cache fetch for definitive
+ * foreground signals (WKWeb focus without visibility, visibility online, resume).
  */
-function runResumeMetadataRefresh(explicitAwayMs = null) {
+function runResumeMetadataRefresh(
+  explicitAwayMs = null,
+  { bypassDebounce = false } = {},
+) {
   if (globalMetadata.value.loading) return;
 
   let awayMs = explicitAwayMs;
@@ -110,6 +114,7 @@ function runResumeMetadataRefresh(explicitAwayMs = null) {
   if (awayMs === 0 && sinceBoot < 3500) return;
 
   if (
+    !bypassDebounce &&
     !longAway &&
     !stale &&
     now - lastResumeMetadataRefreshMs < RESUME_METADATA_DEBOUNCE_MS
@@ -125,16 +130,19 @@ function runResumeMetadataRefresh(explicitAwayMs = null) {
   void loadGlobalMetadata(true, true);
 }
 
-function scheduleResumeMetadataRefresh(explicitAwayMs = null) {
+function scheduleResumeMetadataRefresh(
+  explicitAwayMs = null,
+  options = {},
+) {
   requestAnimationFrame(() => {
-    setTimeout(() => runResumeMetadataRefresh(explicitAwayMs), 45);
+    setTimeout(() => runResumeMetadataRefresh(explicitAwayMs, options), 45);
   });
 }
 
 let silentMetadataRefreshPromise = null;
 
 async function loadGlobalMetadata(silent = false, bustCache = false) {
-  if (silent && silentMetadataRefreshPromise) {
+  if (silent && silentMetadataRefreshPromise && !bustCache) {
     return silentMetadataRefreshPromise;
   }
 
@@ -246,10 +254,13 @@ async function loadGlobalMetadata(silent = false, bustCache = false) {
   };
 
   if (silent) {
-    silentMetadataRefreshPromise = run().finally(() => {
-      silentMetadataRefreshPromise = null;
+    const p = run().finally(() => {
+      if (silentMetadataRefreshPromise === p) {
+        silentMetadataRefreshPromise = null;
+      }
     });
-    return silentMetadataRefreshPromise;
+    silentMetadataRefreshPromise = p;
+    return p;
   }
 
   await run();
@@ -485,7 +496,7 @@ const handleVisibilityChange = () => {
   const awayMs =
     resumeBaselineMs > 0 ? Date.now() - resumeBaselineMs : 0;
   resumeBaselineMs = 0;
-  scheduleResumeMetadataRefresh(awayMs);
+  scheduleResumeMetadataRefresh(awayMs, { bypassDebounce: true });
 };
 
 // iOS home screen / Web Clip: bfcache restores and some wake paths only hit pageshow.
@@ -495,19 +506,26 @@ const handlePageShow = (e) => {
       sessionStorage.removeItem("forced-refreshing");
       return;
     }
-    scheduleResumeMetadataRefresh(null);
+    scheduleResumeMetadataRefresh(null, { bypassDebounce: true });
     return;
   }
   if (globalMetadata.value.loading) return;
-  scheduleResumeMetadataRefresh(null);
+  scheduleResumeMetadataRefresh(null, { bypassDebounce: true });
 };
 
+/** Window focus often resumes without visibilitychange on WKWeb / Web Clip. */
 const handleWindowFocus = () => {
   if (globalMetadata.value.loading) return;
-  scheduleResumeMetadataRefresh(null);
+  if (typeof document !== "undefined" && document.visibilityState !== "visible")
+    return;
+  scheduleResumeMetadataRefresh(null, { bypassDebounce: true });
 };
 
 const handlePageHide = () => {
+  markDocumentSuspended();
+};
+
+const handleWindowBlur = () => {
   markDocumentSuspended();
 };
 
@@ -517,12 +535,12 @@ const handleDocumentFreeze = () => {
 
 const handleDocumentResume = () => {
   if (globalMetadata.value.loading) return;
-  scheduleResumeMetadataRefresh(null);
+  scheduleResumeMetadataRefresh(null, { bypassDebounce: true });
 };
 
 const handleWindowOnline = () => {
   if (globalMetadata.value.loading) return;
-  scheduleResumeMetadataRefresh(null);
+  scheduleResumeMetadataRefresh(null, { bypassDebounce: true });
 };
 
 onBeforeMount(() => {
@@ -536,6 +554,7 @@ onMounted(() => {
   window.addEventListener("scroll", handleScroll, { passive: true });
   document.addEventListener("visibilitychange", handleVisibilityChange, false);
   window.addEventListener("pagehide", handlePageHide);
+  window.addEventListener("blur", handleWindowBlur);
   window.addEventListener("pageshow", handlePageShow);
   window.addEventListener("focus", handleWindowFocus, true);
   window.addEventListener("online", handleWindowOnline);
@@ -562,6 +581,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("scroll", handleScroll);
   document.removeEventListener("visibilitychange", handleVisibilityChange);
   window.removeEventListener("pagehide", handlePageHide);
+  window.removeEventListener("blur", handleWindowBlur);
   window.removeEventListener("pageshow", handlePageShow);
   window.removeEventListener("focus", handleWindowFocus, true);
   window.removeEventListener("online", handleWindowOnline);
