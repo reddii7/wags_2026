@@ -34,7 +34,7 @@ const routerViewComponentKey = computed(() =>
 const CLIENT_BUILD_ID = "20260514-greenfield-v30";
 
 /** Visible label only — bump to prove this JS bundle deployed (never compared to API build_id). */
-const SHELL_VISIBILITY_STAMP = "ui-20260515-reload-stack";
+const SHELL_VISIBILITY_STAMP = "ui-20260515-foreground-burst";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -75,6 +75,7 @@ function scheduleGlobalMetadataReload() {
 
 /** When the document was last hidden (lock / background); iOS often skips visibility, so pagehide backs this up. */
 let resumeBaselineMs = 0;
+let suspendRecordedMs = 0;
 let lastResumeMetadataRefreshMs = 0;
 let lastFetchCompletedAt = 0;
 let appMountTime = 0;
@@ -82,8 +83,49 @@ const RESUME_METADATA_DEBOUNCE_MS = 700;
 const RESUME_LONG_AWAY_MS = 800;
 const RESUME_STALE_FETCH_MS = 45_000;
 
+/** Dedupe bursts from visibility + focus + pointer firing together */
+const FOREGROUND_BURST_COOLDOWN_MS = 4000;
+
+let wakeBurstTimers = [];
+let lastForegroundBurstMs = 0;
+
+function isStandalonePwa() {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
+}
+
+function clearWakeBurstTimers() {
+  wakeBurstTimers.forEach((id) => clearTimeout(id));
+  wakeBurstTimers = [];
+}
+
+/**
+ * iOS WKWeb often drops or serves a dead first fetch after thaw; stagger several
+ * bust-cache loads so at least one hits a live radio stack without full reload().
+ */
+function scheduleForegroundBurst() {
+  if (!globalMetadata.value.api_version) return;
+  const now = Date.now();
+  if (now - lastForegroundBurstMs < FOREGROUND_BURST_COOLDOWN_MS) return;
+  lastForegroundBurstMs = now;
+  suspendRecordedMs = 0;
+
+  clearWakeBurstTimers();
+  const run = () => {
+    void loadGlobalMetadata(true, true);
+  };
+  wakeBurstTimers.push(setTimeout(run, 80));
+  wakeBurstTimers.push(setTimeout(run, 900));
+  wakeBurstTimers.push(setTimeout(run, 2400));
+}
+
 function markDocumentSuspended() {
-  resumeBaselineMs = Date.now();
+  const t = Date.now();
+  resumeBaselineMs = t;
+  suspendRecordedMs = t;
 }
 
 /**
@@ -95,7 +137,8 @@ function runResumeMetadataRefresh(
   explicitAwayMs = null,
   { bypassDebounce = false } = {},
 ) {
-  if (globalMetadata.value.loading) return;
+  if (globalMetadata.value.loading && !globalMetadata.value.api_version)
+    return;
 
   let awayMs = explicitAwayMs;
   if (awayMs == null) {
@@ -129,6 +172,10 @@ function runResumeMetadataRefresh(
   if (reloadDebounceTimer) {
     clearTimeout(reloadDebounceTimer);
     reloadDebounceTimer = null;
+  }
+  if (bypassDebounce) {
+    scheduleForegroundBurst();
+    return;
   }
   void loadGlobalMetadata(true, true);
 }
@@ -495,7 +542,7 @@ const handleVisibilityChange = () => {
     markDocumentSuspended();
     return;
   }
-  if (globalMetadata.value.loading) return;
+  if (globalMetadata.value.loading && !globalMetadata.value.api_version) return;
   const awayMs =
     resumeBaselineMs > 0 ? Date.now() - resumeBaselineMs : 0;
   resumeBaselineMs = 0;
@@ -512,17 +559,33 @@ const handlePageShow = (e) => {
     scheduleResumeMetadataRefresh(null, { bypassDebounce: true });
     return;
   }
-  if (globalMetadata.value.loading) return;
+  if (globalMetadata.value.loading && !globalMetadata.value.api_version) return;
   scheduleResumeMetadataRefresh(null, { bypassDebounce: true });
 };
 
-/** Window focus often resumes without visibilitychange on WKWeb / Web Clip. */
 const handleWindowFocus = () => {
-  if (globalMetadata.value.loading) return;
+  if (globalMetadata.value.loading && !globalMetadata.value.api_version) return;
   if (typeof document !== "undefined" && document.visibilityState !== "visible")
     return;
   scheduleResumeMetadataRefresh(null, { bypassDebounce: true });
 };
+
+/** Rare: no visibility/focus after lock; next touch retries once from standalone clip. */
+const wakePointerOpts = { capture: true, passive: true };
+function handleWakePointer() {
+  if (!isStandalonePwa()) return;
+  if (typeof document !== "undefined" && document.visibilityState !== "visible")
+    return;
+  const now = Date.now();
+  if (!suspendRecordedMs) return;
+  if (now - suspendRecordedMs < 1500) return;
+  if (now - suspendRecordedMs > 30 * 60_000) {
+    suspendRecordedMs = 0;
+    return;
+  }
+  suspendRecordedMs = 0;
+  scheduleForegroundBurst();
+}
 
 const handlePageHide = () => {
   markDocumentSuspended();
@@ -537,12 +600,12 @@ const handleDocumentFreeze = () => {
 };
 
 const handleDocumentResume = () => {
-  if (globalMetadata.value.loading) return;
+  if (globalMetadata.value.loading && !globalMetadata.value.api_version) return;
   scheduleResumeMetadataRefresh(null, { bypassDebounce: true });
 };
 
 const handleWindowOnline = () => {
-  if (globalMetadata.value.loading) return;
+  if (globalMetadata.value.loading && !globalMetadata.value.api_version) return;
   scheduleResumeMetadataRefresh(null, { bypassDebounce: true });
 };
 
@@ -555,7 +618,7 @@ onBeforeMount(() => {
 onMounted(() => {
   lastScrollY = window.scrollY || 0;
   window.addEventListener("scroll", handleScroll, { passive: true });
-  document.addEventListener("visibilitychange", handleVisibilityChange, false);
+  document.addEventListener("visibilitychange", handleVisibilityChange, true);
   window.addEventListener("pagehide", handlePageHide);
   window.addEventListener("blur", handleWindowBlur);
   window.addEventListener("pageshow", handlePageShow);
@@ -563,6 +626,7 @@ onMounted(() => {
   window.addEventListener("online", handleWindowOnline);
   document.addEventListener("freeze", handleDocumentFreeze);
   document.addEventListener("resume", handleDocumentResume);
+  document.addEventListener("pointerdown", handleWakePointer, wakePointerOpts);
   handleScroll();
 
   // Realtime: Postgres tables that should trigger a metadata refresh.
@@ -580,9 +644,11 @@ onBeforeUnmount(() => {
     clearTimeout(reloadDebounceTimer);
     reloadDebounceTimer = null;
   }
+  clearWakeBurstTimers();
   supabaseChannels.forEach((ch) => supabase.removeChannel(ch));
   window.removeEventListener("scroll", handleScroll);
-  document.removeEventListener("visibilitychange", handleVisibilityChange);
+  document.removeEventListener("visibilitychange", handleVisibilityChange, true);
+  document.removeEventListener("pointerdown", handleWakePointer, wakePointerOpts);
   window.removeEventListener("pagehide", handlePageHide);
   window.removeEventListener("blur", handleWindowBlur);
   window.removeEventListener("pageshow", handlePageShow);
