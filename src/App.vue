@@ -1,5 +1,11 @@
 <script setup>
-import { ref, computed, onBeforeUnmount, onMounted } from "vue";
+import {
+  ref,
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  onBeforeMount,
+} from "vue";
 import { useTheme } from "./composables/useTheme";
 import { useSession } from "./composables/useSession";
 import { useRoute, useRouter } from "vue-router";
@@ -12,8 +18,6 @@ import {
   FETCH_ALL_DATA_URL,
   SUPABASE_ANON_KEY,
   REALTIME_METADATA_TABLES,
-  VAPID_PUBLIC_KEY,
-  SEND_PUSH_URL,
 } from "./lib/supabaseConfig.js";
 const { user, loading: sessionLoading, signOut } = useSession();
 const showSignIn = ref(false);
@@ -32,107 +36,6 @@ const CLIENT_BUILD_ID = "20260514-greenfield-v30";
 const { theme } = useTheme();
 const chromeHidden = ref(false);
 
-// ── Push notifications ────────────────────────────────────────────────────────
-const pushBannerVisible = ref(false);
-const pushReEnableVisible = ref(false);
-let swRegistration = null;
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
-}
-
-async function savePushSubscription(sub) {
-  const json = sub.toJSON();
-  const endpoint = json.endpoint;
-  const p256dh = json.keys?.p256dh;
-  const auth = json.keys?.auth;
-  if (!endpoint || !p256dh || !auth) {
-    console.error("[push] subscription missing fields", json);
-    return;
-  }
-  // Plain insert — upsert (merge-duplicates) requires SELECT RLS which we don't expose.
-  // If the endpoint already exists just ignore the conflict.
-  const { error } = await supabase
-    .from("push_subscriptions")
-    .insert({ endpoint, p256dh, auth }, { ignoreDuplicates: true });
-  if (error) console.error("[push] failed to save subscription:", error);
-}
-
-async function subscribeToPush() {
-  if (!swRegistration) return;
-  try {
-    const sub = await swRegistration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-    });
-    await savePushSubscription(sub);
-    pushBannerVisible.value = false;
-    localStorage.setItem("wags-push-accepted", "1");
-  } catch (err) {
-    console.error("[push] subscribe failed:", err);
-    // Re-show banner so user can try again
-    pushBannerVisible.value = true;
-    localStorage.removeItem("wags-push-accepted");
-  }
-}
-
-async function dismissPushBanner() {
-  pushBannerVisible.value = false;
-  pushReEnableVisible.value = true;
-  localStorage.setItem("wags-push-dismissed", "1");
-}
-
-async function reEnablePush() {
-  localStorage.removeItem("wags-push-dismissed");
-  localStorage.removeItem("wags-push-accepted");
-  pushReEnableVisible.value = false;
-  await initPush();
-}
-
-/** Called from a URL param ?enablePush=1 so admin can force re-prompt for testing. */
-function checkPushReset() {
-  if (new URL(window.location.href).searchParams.get("enablePush") === "1") {
-    localStorage.removeItem("wags-push-dismissed");
-    localStorage.removeItem("wags-push-accepted");
-    // Strip the param so it doesn't linger
-    const clean = new URL(window.location.href);
-    clean.searchParams.delete("enablePush");
-    window.history.replaceState({}, "", clean.toString());
-  }
-}
-
-async function initPush() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-  // On iOS, Web Push only works when installed to home screen (standalone mode).
-  const isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true;
-  if (!isStandalone) return;
-  try {
-    swRegistration = await navigator.serviceWorker.register("/sw.js");
-    const existing = await swRegistration.pushManager.getSubscription();
-    if (existing) {
-      await savePushSubscription(existing);
-      return;
-    }
-    // Previously accepted — already saved above, nothing to show
-    if (localStorage.getItem("wags-push-accepted")) return;
-    // Denied by OS — nothing we can do
-    if (Notification.permission === "denied") return;
-    // Previously dismissed — show the small re-enable link instead
-    if (localStorage.getItem("wags-push-dismissed")) {
-      pushReEnableVisible.value = true;
-      return;
-    }
-    pushBannerVisible.value = true;
-  } catch (err) {
-    console.warn("[push] init failed:", err);
-  }
-}
-// ─────────────────────────────────────────────────────────────────────────────
 const globalMetadata = ref({
   api_version: null,
   defaults: {
@@ -387,6 +290,15 @@ async function hardRefresh() {
   window.location.href = url.toString();
 }
 
+function reloadPage() {
+  window.location.reload();
+}
+
+/** Live payload from Supabase (fetch-all-data edge function → `globalMetadata`). */
+function loadDataFromSupabase(...args) {
+  return loadGlobalMetadata(...args);
+}
+
 const sections = [
   { name: "home", label: "Home", icon: "home", path: "/" },
   { name: "stats", label: "Stats", icon: "results", path: "/stats" },
@@ -613,9 +525,13 @@ const handleWindowOnline = () => {
   scheduleResumeMetadataRefresh(null);
 };
 
-onMounted(() => {
+onBeforeMount(() => {
   appMountTime = Date.now();
   lastFetchCompletedAt = Date.now();
+  void loadDataFromSupabase(false, false);
+});
+
+onMounted(() => {
   lastScrollY = window.scrollY || 0;
   window.addEventListener("scroll", handleScroll, { passive: true });
   document.addEventListener("visibilitychange", handleVisibilityChange, false);
@@ -625,12 +541,7 @@ onMounted(() => {
   window.addEventListener("online", handleWindowOnline);
   document.addEventListener("freeze", handleDocumentFreeze);
   document.addEventListener("resume", handleDocumentResume);
-  checkPushReset();
   handleScroll();
-  loadGlobalMetadata().then(() => {
-    // Init push after first load so the permission prompt doesn't compete with app boot.
-    setTimeout(initPush, 1500);
-  });
 
   // Realtime: Postgres tables that should trigger a metadata refresh.
   supabaseChannels = REALTIME_METADATA_TABLES.map((table) =>
@@ -689,6 +600,14 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </div>
+    <button
+      type="button"
+      class="app-reload-fab"
+      aria-label="Reload page"
+      @click="reloadPage"
+    >
+      Reload
+    </button>
     <main class="app-main">
       <!-- Spinner overlays the view — RouterView stays mounted always -->
       <div v-if="globalMetadata.loading" class="app-boot-loader">
@@ -713,24 +632,6 @@ onBeforeUnmount(() => {
       </div>
     </main>
 
-    <!-- Push notification opt-in banner -->
-    <transition name="push-banner-slide">
-      <div v-if="pushBannerVisible" class="push-banner" role="dialog" aria-label="Enable notifications">
-        <div class="push-banner__content">
-          <span class="push-banner__text">Get notified when results are in</span>
-          <div class="push-banner__actions">
-            <button class="push-banner__allow" @click="subscribeToPush">Allow</button>
-            <button class="push-banner__dismiss" @click="dismissPushBanner">Not now</button>
-          </div>
-        </div>
-      </div>
-    </transition>
-
-    <!-- Re-enable notifications link (shows after dismiss, standalone only) -->
-    <div v-if="pushReEnableVisible" class="push-reenable">
-      <button class="push-reenable__btn" @click="reEnablePush">Enable notifications</button>
-    </div>
-
     <nav class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
@@ -749,6 +650,24 @@ onBeforeUnmount(() => {
 <style>
 .bottom-nav {
   background: var(--bg) !important;
+}
+
+.app-reload-fab {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top, 10px));
+  right: max(10px, env(safe-area-inset-right, 10px));
+  z-index: 40;
+  border: 1px solid var(--line, #3a3a3c);
+  background: color-mix(in srgb, var(--bg-strong, #1c1c1e) 92%, var(--surface-3, #444));
+  color: var(--text, #f0f0f0);
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.38rem 0.72rem;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
 }
 
 .page-fade-enter-active,
@@ -792,87 +711,4 @@ onBeforeUnmount(() => {
   opacity: 0.9;
 }
 
-/* Push notification opt-in banner */
-.push-banner {
-  position: fixed;
-  bottom: 68px; /* sits just above the bottom nav */
-  left: 0;
-  right: 0;
-  z-index: 200;
-  padding: 0 12px 8px;
-}
-
-.push-banner__content {
-  background: var(--surface, #2c2c2e);
-  border: 1px solid var(--line, #3a3a3c);
-  border-radius: 14px;
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
-}
-
-.push-banner__text {
-  font-size: 0.88rem;
-  color: var(--text, #f0f0f0);
-  flex: 1;
-  line-height: 1.35;
-}
-
-.push-banner__actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.push-banner__allow {
-  background: var(--accent, #30d158);
-  color: #000;
-  border: none;
-  border-radius: 8px;
-  padding: 7px 14px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.push-banner__dismiss {
-  background: transparent;
-  color: var(--muted, #888);
-  border: 1px solid var(--line, #3a3a3c);
-  border-radius: 8px;
-  padding: 7px 12px;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.push-banner-slide-enter-active,
-.push-banner-slide-leave-active {
-  transition: transform 0.3s ease, opacity 0.3s ease;
-}
-.push-banner-slide-enter-from,
-.push-banner-slide-leave-to {
-  transform: translateY(20px);
-  opacity: 0;
-}
-
-/* Small re-enable link that sits above the bottom nav after dismissal */
-.push-reenable {
-  position: fixed;
-  bottom: 68px;
-  right: 14px;
-  z-index: 190;
-}
-.push-reenable__btn {
-  background: transparent;
-  border: none;
-  color: var(--muted, #888);
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 4px 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
 </style>

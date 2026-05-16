@@ -3,34 +3,56 @@
 
 <head>
   <meta charset="UTF-8" />
+  <!-- Baseline viewport (required); apple standalone tags follow your spec -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#1C1C1E" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <!-- Per-deploy query busts CDN/Safari cache; iOS Home Screen tiles may still need remove + re-add once. -->
-  <link rel="icon" href="/favicon.ico?v=__WAGS_SHELL_BUILD__" sizes="any" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=__WAGS_SHELL_BUILD__" />
   <title>WAGS</title>
+
+  <!-- iOS Home Screen: launch without Safari chrome (minimal meta set per spec) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+  <link rel="icon" href="/favicon.ico?v=__WAGS_SHELL_BUILD__" sizes="any" />
+
+  <!-- Bust stale Web Clip cached documents when ?v= is missing (hash-safe vs string concat). -->
+  <script>
+    (function () {
+      try {
+        if (!window.location.search.includes("v=")) {
+          var u = new URL(window.location.href);
+          u.searchParams.set("v", String(Date.now()));
+          window.location.replace(u.toString());
+          return;
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- Catch stale Web Clip asset 404s (old hashed JS filename no longer on server).
-       Fires before the module script runs, so blank-screen on 404 is avoided.
        Throttled to once per 10s to prevent reload loops. -->
   <script>
     (function () {
       try {
-        window.addEventListener('error', function (e) {
-          var t = e.target;
-          if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK') && t !== window) {
-            var lastKey = 'wags-asset-reload';
-            var last = parseInt(localStorage.getItem(lastKey) || '0', 10);
-            if (Date.now() - last > 10000) {
-              localStorage.setItem(lastKey, String(Date.now()));
-              localStorage.removeItem('wags-shell-build');
-              location.reload();
+        window.addEventListener(
+          "error",
+          function (e) {
+            var t = e.target;
+            if (
+              t &&
+              (t.tagName === "SCRIPT" || t.tagName === "LINK") &&
+              t !== window
+            ) {
+              var lastKey = "wags-asset-reload";
+              var last = parseInt(localStorage.getItem(lastKey) || "0", 10);
+              if (Date.now() - last > 10000) {
+                localStorage.setItem(lastKey, String(Date.now()));
+                localStorage.removeItem("wags-shell-build");
+                location.reload();
+              }
             }
-          }
-        }, true);
+          },
+          true,
+        );
 
-        // Build-ID check: catches stale HTML that survived the asset reload above.
         var key = "wags-shell-build";
         var cur = "__WAGS_SHELL_BUILD__";
         var prev = localStorage.getItem(key);
@@ -45,6 +67,7 @@
       } catch (e) {}
     })();
   </script>
+
   <!-- Vite/Vue standard entry -->
   <script type="module" src="/src/main.js"></script>
 </head>
