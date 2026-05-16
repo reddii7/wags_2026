@@ -28,6 +28,74 @@ const homeContract = computed(() =>
   resolveHomeDashboardBlock(props.metadata),
 );
 
+function normRoundId(id) {
+  return String(id ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "");
+}
+
+function parseWeekNumFromLabel(wl) {
+  const m = String(wl || "").match(/WEEK\s+(\d+)/i);
+  const n = Number(m?.[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function formatDayMonthYear(isoLike) {
+  const dStr =
+    typeof isoLike === "string" ? isoLike.trim().slice(0, 10) : "";
+  if (!dStr || !/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return "";
+  const d = new Date(`${dStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+}
+
+const inferredSeasonYear = computed(() => {
+  const seasons = Array.isArray(props.metadata?.seasons)
+    ? props.metadata.seasons
+    : [];
+  const cur =
+    seasons.find((s) => s?.is_current) ||
+    seasons.find((s) => s?.is_active) ||
+    seasons[0];
+  return cur?.start_year != null && String(cur.start_year).trim() !== ""
+    ? String(cur.start_year).trim()
+    : "";
+});
+
+/** Week line with calendar year when we can derive a competition date */
+const homeWeekDisplayLine = computed(() => {
+  const wl = (homePayload.value.week_label || "").trim();
+  const dash = homeContract.value;
+  const dashHome =
+    dash?.home && typeof dash.home === "object" ? dash.home : {};
+  const focusRaw = dashHome.focus_round_id;
+  const focusId =
+    focusRaw != null && String(focusRaw).trim() !== ""
+      ? String(focusRaw).trim()
+      : "";
+  const comps = Array.isArray(props.metadata?.competitions)
+    ? props.metadata.competitions
+    : [];
+  const round =
+    focusId && comps.length
+      ? comps.find((c) => normRoundId(c.id) === normRoundId(focusId))
+      : null;
+
+  const datePretty = round ? formatDayMonthYear(round.competition_date) : "";
+  const wn = parseWeekNumFromLabel(wl);
+  if (wn != null && datePretty) return `WEEK ${wn}, ${datePretty}`;
+
+  if (wl && inferredSeasonYear.value && !/\b(19|20)\d{2}\b/.test(wl))
+    return `${wl} ${inferredSeasonYear.value}`;
+
+  return wl || "WEEK — , —";
+});
+
 const loadHomeData = async () => {
   if (props.metadata.loading) {
     loading.value = true;
@@ -115,6 +183,7 @@ watch(
     () => props.metadata.dashboard,
     () => props.metadata.defaults,
     () => props.metadata.seasons,
+    () => props.metadata.competitions,
     () => props.metadata.api_version,
   ],
   () => {
@@ -140,8 +209,8 @@ watch(
       <div class="home-hero__intro">
         <div class="wags-headline">
           <span class="home-hero-sublabel2 wags-body">
-            LATEST UPDATES -
-            <span>{{ homePayload.week_label }}</span>
+            LATEST -
+            <span>{{ homeWeekDisplayLine }}</span>
           </span>
           <template v-if="!homePayload.no_results">
             <span>{{ homePayload.hero_message }}</span>
