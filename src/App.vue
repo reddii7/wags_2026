@@ -34,7 +34,7 @@ const routerViewComponentKey = computed(() =>
 const CLIENT_BUILD_ID = "20260514-greenfield-v30";
 
 /** Visible label only — bump to prove this JS bundle deployed (never compared to API build_id). */
-const SHELL_VISIBILITY_STAMP = "ui-20260515-test-j";
+const SHELL_VISIBILITY_STAMP = "ui-20260515-test-k";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
