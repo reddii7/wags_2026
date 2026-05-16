@@ -34,7 +34,7 @@ const routerViewComponentKey = computed(() =>
 const CLIENT_BUILD_ID = "20260514-greenfield-v30";
 
 /** Visible label only — bump to prove this JS bundle deployed (never compared to API build_id). */
-const SHELL_VISIBILITY_STAMP = "ui-20260515-test-i";
+const SHELL_VISIBILITY_STAMP = "ui-20260515-sleep-reload";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -537,16 +537,45 @@ const handleScroll = () => {
 
 let supabaseChannels = [];
 
+/** Home-screen Web Clip only: force full navigation after real sleep — matches swipe-kill freshness. */
+const STANDALONE_VISIBLE_RELOAD_AFTER_MS = 4500;
+
 const handleVisibilityChange = () => {
   if (document.visibilityState === "hidden") {
     markDocumentSuspended();
     return;
   }
   if (globalMetadata.value.loading && !globalMetadata.value.api_version) return;
-  const awayMs =
-    resumeBaselineMs > 0 ? Date.now() - resumeBaselineMs : 0;
+
+  const now = Date.now();
+  const awayFromBaseline =
+    resumeBaselineMs > 0 ? now - resumeBaselineMs : 0;
+  const awayFromSuspend = suspendRecordedMs
+    ? now - suspendRecordedMs
+    : 0;
+  const effectiveAway = Math.max(awayFromBaseline, awayFromSuspend);
+
+  if (
+    isStandalonePwa() &&
+    effectiveAway >= STANDALONE_VISIBLE_RELOAD_AFTER_MS &&
+    globalMetadata.value.api_version
+  ) {
+    const dedupeKey = "wags-standalone-visible-reload";
+    const prev = Number(sessionStorage.getItem(dedupeKey) || 0);
+    if (now - prev > 12_000) {
+      sessionStorage.setItem(dedupeKey, String(now));
+      clearWakeBurstTimers();
+      resumeBaselineMs = 0;
+      suspendRecordedMs = 0;
+      window.location.reload();
+      return;
+    }
+  }
+
   resumeBaselineMs = 0;
-  scheduleResumeMetadataRefresh(awayMs, { bypassDebounce: true });
+  scheduleResumeMetadataRefresh(effectiveAway, {
+    bypassDebounce: true,
+  });
 };
 
 // iOS home screen / Web Clip: bfcache restores and some wake paths only hit pageshow.
