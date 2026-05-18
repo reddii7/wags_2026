@@ -27,8 +27,7 @@
     "magic-string": "^0.30.21",
     "picomatch": "2.3.2",
     "vue": "^3.5.33",
-    "vue-router": "^4.5.1",
-    "ws": "^8.20.1"
+    "vue-router": "^4.5.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.6",

@@ -1,7 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
-import WebSocket from "ws";
-
 const FALLBACK_SUPABASE_URL = "https://iwzqzpzskawxrwhttufq.supabase.co";
+const TABLE = "scorecard_player_cards";
 
 function json(statusCode, body) {
   return {
@@ -29,7 +27,7 @@ function requirePassword(event) {
   return passwords.length > 0 && passwords.includes(String(suppliedPassword));
 }
 
-function getSupabase() {
+function getSupabaseConfig() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || FALLBACK_SUPABASE_URL;
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -40,10 +38,27 @@ function getSupabase() {
     ].filter(Boolean);
     throw new Error(`Supabase service credentials are not configured: missing ${missing.join(", ")}`);
   }
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    realtime: { transport: WebSocket },
+  return { url, key };
+}
+
+async function supabaseRest(path, { method = "GET", body, prefer } = {}) {
+  const { url, key } = getSupabaseConfig();
+  const response = await fetch(`${url}/rest/v1/${path}`, {
+    method,
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      ...(prefer ? { Prefer: prefer } : {}),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || `Supabase REST request failed (${response.status})`);
+  }
+  return data;
 }
 
 export async function handler(event) {
@@ -52,37 +67,35 @@ export async function handler(event) {
       return json(401, { error: "Entry password required" });
     }
 
-    const supabase = getSupabase();
-
     if (event.httpMethod === "GET") {
       const params = event.queryStringParameters || {};
-      const { data, error } = await supabase
-        .from("scorecard_player_cards")
-        .select("*")
-        .eq("season_id", params.season_id || "")
-        .eq("played_date", params.played_date || "");
-      if (error) throw error;
-      return json(200, { cards: data || [] });
+      const query = new URLSearchParams({
+        select: "*",
+        season_id: `eq.${params.season_id || ""}`,
+        played_date: `eq.${params.played_date || ""}`,
+      });
+      const cards = await supabaseRest(`${TABLE}?${query.toString()}`);
+      return json(200, { cards: cards || [] });
     }
 
     if (event.httpMethod === "POST") {
       const payload = JSON.parse(event.body || "{}");
-      const { error } = await supabase
-        .from("scorecard_player_cards")
-        .upsert(payload, { onConflict: "season_id,played_date,member_id" });
-      if (error) throw error;
+      await supabaseRest(`${TABLE}?on_conflict=season_id,played_date,member_id`, {
+        method: "POST",
+        body: payload,
+        prefer: "resolution=merge-duplicates",
+      });
       return json(200, { ok: true });
     }
 
     if (event.httpMethod === "DELETE") {
       const payload = JSON.parse(event.body || "{}");
-      const { error } = await supabase
-        .from("scorecard_player_cards")
-        .delete()
-        .eq("season_id", payload.season_id || "")
-        .eq("played_date", payload.played_date || "")
-        .eq("member_id", payload.member_id || "");
-      if (error) throw error;
+      const query = new URLSearchParams({
+        season_id: `eq.${payload.season_id || ""}`,
+        played_date: `eq.${payload.played_date || ""}`,
+        member_id: `eq.${payload.member_id || ""}`,
+      });
+      await supabaseRest(`${TABLE}?${query.toString()}`, { method: "DELETE" });
       return json(200, { ok: true });
     }
 
