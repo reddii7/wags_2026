@@ -3,11 +3,18 @@
 #   VITE_SUPABASE_ANON_KEY  (public anon key)
 # Optional:
 #   VITE_FETCH_ALL_DATA_URL (override edge function URL)
+# Score entry password gate:
+#   ENTRY_PASSWORD            (shared password for /entry)
+#   ENTRY_PASSWORDS           (optional comma-separated extra passwords)
+#   SUPABASE_SERVICE_ROLE_KEY (server-only key used by Netlify functions)
 # Builds use fallbacks from src/lib/supabaseConfig.js if unset, but set these for production rotation.
 
 [build]
   command = "npm ci && npm run build"
   publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
 
 [[redirects]]
   from = "/entry"

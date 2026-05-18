@@ -1,6 +1,5 @@
 <script setup>
 import { computed, onMounted, ref, watch, watchEffect } from "vue";
-import { createClient } from "@supabase/supabase-js";
 
 const FALLBACK_SUPABASE_URL = "https://iwzqzpzskawxrwhttufq.supabase.co";
 const FALLBACK_SUPABASE_ANON_KEY =
@@ -12,10 +11,6 @@ const SUPABASE_ANON_KEY =
 const FETCH_ALL_DATA_URL =
   import.meta.env.VITE_FETCH_ALL_DATA_URL ||
   `${SUPABASE_URL.replace(".supabase.co", ".functions.supabase.co")}/fetch-all-data`;
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
 
 const HOLES = [
   { no: 1, par: 4, index: 9 },
@@ -43,6 +38,10 @@ const selectedPlayerId = ref("");
 const playerPickerOpen = ref(false);
 const drafts = ref({});
 const theme = ref(localStorage.getItem("wags-score-entry-theme") || "dark");
+const entryPassword = ref(localStorage.getItem("wags-score-entry-password") || "");
+const entryUnlocked = ref(false);
+const authLoading = ref(false);
+const authError = ref("");
 const confirmDialog = ref({
   open: false,
   title: "",
@@ -142,6 +141,54 @@ watchEffect(() => {
   document.documentElement.style.colorScheme = theme.value;
   localStorage.setItem("wags-score-entry-theme", theme.value);
 });
+
+async function verifyEntryPassword() {
+  authLoading.value = true;
+  authError.value = "";
+  try {
+    const response = await fetch("/.netlify/functions/entry-auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: entryPassword.value }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.error) {
+      throw new Error(data?.error || "Incorrect password");
+    }
+    localStorage.setItem("wags-score-entry-password", entryPassword.value);
+    entryUnlocked.value = true;
+    await loadData();
+  } catch (e) {
+    entryUnlocked.value = false;
+    authError.value = e?.message || String(e);
+    localStorage.removeItem("wags-score-entry-password");
+  } finally {
+    authLoading.value = false;
+  }
+}
+
+function lockEntry() {
+  entryUnlocked.value = false;
+  entryPassword.value = "";
+  localStorage.removeItem("wags-score-entry-password");
+}
+
+async function entryCardsRequest(path = "", options = {}) {
+  const response = await fetch(`/.netlify/functions/entry-cards${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "x-entry-password": entryPassword.value,
+      ...(options.headers || {}),
+    },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error) {
+    throw new Error(data?.error || `Request failed (${response.status})`);
+  }
+  return data;
+}
+
 function defaultHandicap(player) {
   return Math.round(Number(player.current_handicap ?? player.handicap_index ?? 0) || 0);
 }
@@ -303,14 +350,13 @@ function setDefaultPlayedDate(allRounds = metadata.value?.competitions || []) {
 
 async function loadStagedCards() {
   if (!selectedSeasonId.value || !playedDate.value || !profiles.value.length) return;
-  const { data, error: qerr } = await supabase
-    .from("scorecard_player_cards")
-    .select("*")
-    .eq("season_id", selectedSeasonId.value)
-    .eq("played_date", playedDate.value);
-  if (qerr) throw qerr;
+  const params = new URLSearchParams({
+    season_id: selectedSeasonId.value,
+    played_date: playedDate.value,
+  });
+  const data = await entryCardsRequest(`?${params.toString()}`);
 
-  const byMember = new Map((data || []).map((row) => [row.member_id, row]));
+  const byMember = new Map((data.cards || []).map((row) => [row.member_id, row]));
   drafts.value = Object.fromEntries(
     profiles.value.map((player) => {
       const staged = byMember.get(player.id);
@@ -440,13 +486,14 @@ async function deletePlayerCard(row) {
   error.value = "";
   success.value = "";
   try {
-    const { error: derr } = await supabase
-      .from("scorecard_player_cards")
-      .delete()
-      .eq("season_id", selectedSeasonId.value)
-      .eq("played_date", playedDate.value)
-      .eq("member_id", row.memberId);
-    if (derr) throw derr;
+    await entryCardsRequest("", {
+      method: "DELETE",
+      body: JSON.stringify({
+        season_id: selectedSeasonId.value,
+        played_date: playedDate.value,
+        member_id: row.memberId,
+      }),
+    });
     drafts.value = {
       ...drafts.value,
       [row.memberId]: blankDraft(player),
@@ -504,10 +551,10 @@ async function saveSelectedCard() {
       submitted_by: "",
       payload_json: { version: 1, hole_rules: HOLES, row },
     };
-    const { error: upsertError } = await supabase
-      .from("scorecard_player_cards")
-      .upsert(payload, { onConflict: "season_id,played_date,member_id" });
-    if (upsertError) throw upsertError;
+    await entryCardsRequest("", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
     drafts.value = {
       ...drafts.value,
       [memberId]: {
@@ -525,6 +572,7 @@ async function saveSelectedCard() {
 }
 
 watch([selectedSeasonId, playedDate], async () => {
+  if (!entryUnlocked.value) return;
   hydrateDrafts();
   try {
     await loadStagedCards();
@@ -534,11 +582,42 @@ watch([selectedSeasonId, playedDate], async () => {
 });
 watch(selectedPlayerId, resetUnsavedSelectedDraft);
 watch(drafts, saveDrafts, { deep: true });
-onMounted(loadData);
+onMounted(() => {
+  if (entryPassword.value) verifyEntryPassword();
+});
 </script>
 
 <template>
-  <main class="app-shell">
+  <main v-if="!entryUnlocked" class="login-shell">
+    <section class="login-card">
+      <strong class="brand">WAGS</strong>
+      <div>
+        <p class="eyebrow">Score entry</p>
+        <h1>Committee access</h1>
+        <p>Enter the score-entry password to continue.</p>
+      </div>
+      <form class="login-form" @submit.prevent="verifyEntryPassword">
+        <label>
+          <span>Password</span>
+          <input
+            v-model="entryPassword"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Password"
+          />
+        </label>
+        <button type="submit" class="primary-button" :disabled="authLoading || !entryPassword">
+          {{ authLoading ? "Checking..." : "Open score entry" }}
+        </button>
+      </form>
+      <p v-if="authError" class="notice error">{{ authError }}</p>
+      <button type="button" class="theme-button login-theme" @click="toggleTheme">
+        {{ theme === "dark" ? "Light" : "Dark" }}
+      </button>
+    </section>
+  </main>
+
+  <main v-else class="app-shell">
     <aside class="app-sidebar">
       <strong class="brand">WAGS</strong>
       <nav>
@@ -546,6 +625,9 @@ onMounted(loadData);
       </nav>
       <button type="button" class="theme-button" @click="toggleTheme">
         {{ theme === "dark" ? "Light" : "Dark" }}
+      </button>
+      <button type="button" class="theme-button" @click="lockEntry">
+        Lock
       </button>
       <div class="sidebar-foot">
         <span>{{ completedRows.length }}/{{ profiles.length }}</span>
@@ -558,6 +640,9 @@ onMounted(loadData);
         <strong class="brand">WAGS</strong>
         <button type="button" class="theme-button" @click="toggleTheme">
           {{ theme === "dark" ? "Light" : "Dark" }}
+        </button>
+        <button type="button" class="theme-button" @click="lockEntry">
+          Lock
         </button>
       </div>
 
