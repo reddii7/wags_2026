@@ -97,7 +97,7 @@ const playedWeekNumber = computed(() => {
   const played = parseDateOnly(playedDate.value);
   if (!weekOne || !played) return null;
   const daysSinceWeekOne = Math.floor((played - weekOne) / MS_PER_DAY);
-  if (daysSinceWeekOne < 0) return null;
+  if (daysSinceWeekOne < 0 || daysSinceWeekOne % 7 !== 0) return null;
   return Math.floor(daysSinceWeekOne / 7) + 1;
 });
 
