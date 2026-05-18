@@ -1,50 +1,26 @@
-import { ENTITY_ADMIN_PAGES } from "./entityAdminConfig.js";
-
-const manageItems = ENTITY_ADMIN_PAGES.map((p) => ({
-  to: p.path,
-  label: p.title,
-}));
-
 /** Single source of truth for admin sidebar / search navigation. */
 export const ADMIN_NAV_GROUPS = [
   {
     id: "weekly",
-    label: "Weekly workflow",
+    label: "Weekly scoring",
     items: [
-      { to: "/", label: "Overview" },
-      { to: "/manage/score-entry", label: "Enter scores" },
-      { to: "/manage/score-submissions", label: "Score submissions" },
-      { to: "/manage/6-rounds", label: "Rounds & finalize" },
+      { to: "/", label: "Dashboard" },
+      { to: "/manage/score-submissions", label: "Held cards" },
+      { to: "/manage/score-entry", label: "Live score entry" },
+      { to: "/manage/6-rounds", label: "Rounds" },
       { to: "/manage/season-close", label: "Close summer (P/R)" },
     ],
   },
   {
-    id: "preview",
-    label: "Member PWA (preview)",
+    id: "setup",
+    label: "Setup",
     items: [
-      { to: "/app/stats", label: "Stats hub" },
-      { to: "/app/home", label: "Home" },
-      { to: "/app/results", label: "Results" },
-      { to: "/app/leagues", label: "Leagues" },
-      { to: "/app/best14", label: "Best 14" },
-      { to: "/app/handicaps", label: "Handicaps" },
-      { to: "/app/rscup", label: "RS Cup" },
+      { to: "/manage/4-campaigns", label: "Campaigns" },
+      { to: "/manage/1-members", label: "Members" },
+      { to: "/manage/5-league-assignments", label: "Leagues" },
+      { to: "/manage/3-money-rules", label: "Money rules" },
+      { to: "/manage/2-handicap-rules", label: "Handicap rules" },
     ],
-  },
-  {
-    id: "manage",
-    label: "All tables (advanced)",
-    items: manageItems,
-  },
-  {
-    id: "dev",
-    label: "Dev",
-    items: [{ to: "/dev/rpc", label: "RPC console" }],
-  },
-  {
-    id: "notifications",
-    label: "Notifications",
-    items: [{ to: "/notifications", label: "Send notification" }],
   },
 ];
 

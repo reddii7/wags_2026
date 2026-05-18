@@ -354,7 +354,7 @@ export const ENTITY_ADMIN_PAGES = [
   {
     path: "/manage/6-rounds",
     name: "manage-rounds",
-    title: "Rounds & finalize",
+    title: "Rounds",
     step: 6,
     entity: {
       table: "rounds",

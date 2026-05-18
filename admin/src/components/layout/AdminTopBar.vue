@@ -1,8 +1,6 @@
 <script setup>
-import { computed, ref, watchEffect } from "vue";
-import { useRouter } from "vue-router";
+import { computed, watchEffect } from "vue";
 import { useDark, useToggle, usePreferredDark, useStorage } from "@vueuse/core";
-import { getAdminNavFlatItems } from "@/config/adminNav.js";
 import { useLayoutStore } from "@/stores/useLayoutStore.js";
 
 defineProps({
@@ -11,7 +9,6 @@ defineProps({
 
 const emit = defineEmits(["open-drawer"]);
 
-const router = useRouter();
 const layout = useLayoutStore();
 
 /** @type {import('vue').Ref<'light'|'dark'|'auto'>} */
@@ -53,43 +50,6 @@ const themeIcon = computed(() => {
   return "◐";
 });
 
-const displayName = import.meta.env.VITE_ADMIN_DISPLAY_NAME || "WAGS Operator";
-const initials = computed(() =>
-  displayName
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase(),
-);
-
-const searchQuery = ref("");
-const searchOpen = ref(false);
-
-const flatNav = getAdminNavFlatItems();
-
-const searchResults = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return [];
-  return flatNav
-    .filter(
-      (item) =>
-        item.label.toLowerCase().includes(q) || item.group.toLowerCase().includes(q),
-    )
-    .slice(0, 8);
-});
-
-function goToResult(item) {
-  searchQuery.value = "";
-  searchOpen.value = false;
-  router.push(item.to);
-}
-
-function onSearchBlur() {
-  window.setTimeout(() => {
-    searchOpen.value = false;
-  }, 150);
-}
 </script>
 
 <template>
@@ -115,27 +75,7 @@ function onSearchBlur() {
       </button>
     </div>
 
-    <div class="search-wrap">
-      <label class="sr-only" for="global-search">Search admin pages</label>
-      <input
-        id="global-search"
-        v-model="searchQuery"
-        type="search"
-        class="search-input"
-        placeholder="Search pages…"
-        autocomplete="off"
-        @focus="searchOpen = true"
-        @blur="onSearchBlur"
-      />
-      <ul v-if="searchOpen && searchResults.length" class="search-results" role="listbox">
-        <li v-for="item in searchResults" :key="item.to">
-          <button type="button" class="search-hit" role="option" @mousedown.prevent="goToResult(item)">
-            <span class="hit-label">{{ item.label }}</span>
-            <span class="hit-group">{{ item.group }}</span>
-          </button>
-        </li>
-      </ul>
-    </div>
+    <div class="topbar-title">WAGS Admin</div>
 
     <div class="topbar-end">
       <button
@@ -148,11 +88,6 @@ function onSearchBlur() {
         <span class="theme-icon" aria-hidden="true">{{ themeIcon }}</span>
         <span class="theme-text">{{ themeLabel }}</span>
       </button>
-
-      <div class="user-chip">
-        <span class="avatar" aria-hidden="true">{{ initials }}</span>
-        <span class="user-name">{{ displayName }}</span>
-      </div>
     </div>
   </header>
 </template>
@@ -202,69 +137,12 @@ function onSearchBlur() {
   line-height: 1;
 }
 
-.search-wrap {
-  position: relative;
+.topbar-title {
   flex: 1;
-  max-width: 28rem;
-}
-
-.search-input {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.42rem 0.9rem;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 0.86rem;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-
-.search-results {
-  position: absolute;
-  z-index: 40;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  margin: 0;
-  padding: 0.35rem;
-  list-style: none;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
-}
-
-.search-hit {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  width: 100%;
-  padding: 0.45rem 0.55rem;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
-}
-
-.search-hit:hover {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.hit-label {
-  font-size: 0.86rem;
-  font-weight: 600;
-}
-
-.hit-group {
-  font-size: 0.72rem;
+  min-width: 0;
   color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .topbar-end {
@@ -298,46 +176,8 @@ function onSearchBlur() {
 }
 
 @media (max-width: 640px) {
-  .theme-text,
-  .user-name {
+  .theme-text {
     display: none;
   }
-}
-
-.user-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.user-name {
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 </style>

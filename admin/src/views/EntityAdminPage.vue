@@ -334,7 +334,7 @@ function blankModel() {
 function openCreate() {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
     window.alert(
-      "This round is finalized. Reopen it on Rounds & finalize before adding scores.",
+      "This round is finalized. Reopen it on Rounds before adding scores.",
     );
     return;
   }
@@ -388,7 +388,7 @@ function sanitizeRawForModel(raw) {
 function openEdit(row) {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
     window.alert(
-      "This round is finalized. Reopen it on Rounds & finalize before editing scores.",
+      "This round is finalized. Reopen it on Rounds before editing scores.",
     );
     return;
   }
@@ -782,7 +782,7 @@ const formFieldsVisible = computed(() => {
     >
       <template v-if="roundIsFinalized">
         <strong>Finalized.</strong> Scores are locked. Reopen on
-        <RouterLink to="/manage/6-rounds">Rounds &amp; finalize</RouterLink> to edit.
+        <RouterLink to="/manage/6-rounds">Rounds</RouterLink> to edit.
       </template>
       <template v-else-if="scoreProgress">
         <strong>{{ selectedRoundOption?.label }}</strong>

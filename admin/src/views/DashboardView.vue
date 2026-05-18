@@ -1,7 +1,6 @@
 <script setup>
 import { ref, watch, inject } from "vue";
 import { RouterLink } from "vue-router";
-import DataTable from "@/components/DataTable.vue";
 import {
   pickDefaultRoundId,
   formatRoundLabel,
@@ -9,7 +8,6 @@ import {
 } from "@/composables/useRoundScores.js";
 
 const admin = inject("adminCtx");
-const counts = ref([]);
 const loading = ref(false);
 const error = ref("");
 const weekly = ref({
@@ -20,18 +18,6 @@ const weekly = ref({
   roster: 0,
   missing: 0,
 });
-
-const tables = [
-  "members",
-  "handicap_rules",
-  "money_rules",
-  "campaigns",
-  "league_assignments",
-  "rounds",
-  "round_players",
-  "weekly_prize_state",
-  "handicap_snapshots",
-];
 
 async function loadWeeklyStatus() {
   weekly.value = {
@@ -84,25 +70,14 @@ async function loadWeeklyStatus() {
 async function load() {
   const sb = admin?.client?.value;
   if (!sb) {
-    counts.value = [];
     return;
   }
   loading.value = true;
   error.value = "";
   try {
-    const out = [];
-    for (const t of tables) {
-      const { count, error: cErr } = await sb
-        .from(t)
-        .select("*", { count: "exact", head: true });
-      if (cErr) throw cErr;
-      out.push({ table: t, count: count ?? 0 });
-    }
-    counts.value = out;
     await loadWeeklyStatus();
   } catch (e) {
     error.value = e?.message || String(e);
-    counts.value = [];
   } finally {
     loading.value = false;
   }
@@ -114,47 +89,44 @@ watch(
   { immediate: true },
 );
 
-const countColumns = [
-  { key: "table", label: "Table" },
-  { key: "count", label: "Rows" },
-];
 </script>
 
 <template>
   <div class="view">
     <h1 class="h1">Overview</h1>
-    <p class="lede">Weekly tasks and database row counts.</p>
+    <p class="lede">The normal weekly flow, in order.</p>
 
-    <p v-if="!admin?.client?.value" class="warn">Connect to Supabase (expand connection bar above).</p>
+    <p v-if="!admin?.client?.value" class="warn">Connect to Supabase first.</p>
 
     <div v-else class="cards">
+      <RouterLink class="card card-primary" to="/manage/score-submissions">
+        <span class="card-step">1</span>
+        <span class="card-title">Held cards</span>
+        <span class="card-sub">Review committee cards and import into a round</span>
+      </RouterLink>
+
       <RouterLink
-        class="card card-primary"
+        class="card"
         :to="weekly.roundId ? { path: '/manage/score-entry', query: { round: weekly.roundId } } : '/manage/score-entry'"
       >
-        <span class="card-title">Enter scores</span>
+        <span class="card-step">2</span>
+        <span class="card-title">Live score entry</span>
         <span v-if="weekly.roundLabel" class="card-sub">{{ weekly.roundLabel }}</span>
         <span v-if="weekly.roundId && !weekly.finalized" class="card-stat">
           {{ weekly.scored }}/{{ weekly.roster || "?" }} scored
           <template v-if="weekly.missing"> · {{ weekly.missing }} missing</template>
         </span>
         <span v-else-if="weekly.finalized" class="card-stat">Round finalized</span>
-        <span v-else class="card-stat">Pick a round</span>
       </RouterLink>
 
       <RouterLink class="card" to="/manage/6-rounds">
-        <span class="card-title">Rounds &amp; finalize</span>
-        <span class="card-sub">Finalize when all scores are in</span>
-      </RouterLink>
-
-      <RouterLink class="card" to="/manage/season-close">
-        <span class="card-title">Close summer (P/R)</span>
-        <span class="card-sub">End of season promotion / relegation</span>
+        <span class="card-step">3</span>
+        <span class="card-title">Rounds</span>
+        <span class="card-sub">Create rounds first. Finalize later when scores are correct.</span>
       </RouterLink>
     </div>
 
-    <h2 class="h2">Table counts</h2>
-    <DataTable :columns="countColumns" :rows="counts" :loading="loading" :error="error" />
+    <p v-if="error" class="warn">{{ error }}</p>
   </div>
 </template>
 
@@ -189,18 +161,18 @@ const countColumns = [
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0.65rem;
-  margin-bottom: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 1rem;
 }
 
 .card {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.85rem 1rem;
+  padding: 1rem;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 16px;
   background: var(--surface);
   text-decoration: none;
   color: var(--text);
@@ -216,6 +188,20 @@ const countColumns = [
 
 .card-primary {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+
+.card-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  margin-bottom: 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .card-title {

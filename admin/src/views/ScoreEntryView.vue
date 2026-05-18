@@ -407,7 +407,7 @@ watch(filter, (mode) => {
       <p class="footer-links">
         <RouterLink to="/manage/7-scores">Advanced scores table</RouterLink>
         ·
-        <RouterLink to="/manage/6-rounds">Rounds &amp; finalize</RouterLink>
+        <RouterLink to="/manage/6-rounds">Rounds</RouterLink>
       </p>
     </template>
   </div>

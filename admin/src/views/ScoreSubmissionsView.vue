@@ -3,9 +3,12 @@ import { computed, inject, onMounted, ref, watch } from "vue";
 
 const admin = inject("adminCtx");
 const loading = ref(false);
+const importing = ref(false);
 const error = ref("");
 const success = ref("");
 const cards = ref([]);
+const rounds = ref([]);
+const selectedRoundId = ref("");
 const selectedKey = ref("");
 
 const groups = computed(() => {
@@ -70,6 +73,25 @@ const camelCount = computed(() =>
 );
 const cashTotal = computed(() => paidCount.value * 5 + snakeCount.value + camelCount.value);
 
+const selectedRound = computed(
+  () => rounds.value.find((round) => String(round.id) === String(selectedRoundId.value)) || null,
+);
+
+const roundOptions = computed(() =>
+  rounds.value.map((round) => ({
+    id: round.id,
+    label: [
+      round.play_order ? `Week ${round.play_order}` : null,
+      round.round_date,
+      round.name,
+      round.finalized ? "finalized" : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    finalized: Boolean(round.finalized),
+  })),
+);
+
 function formatDate(value) {
   if (!value) return "Unknown date";
   return new Intl.DateTimeFormat("en-GB", {
@@ -98,6 +120,16 @@ function csvEscape(value) {
 
 function holeValue(card, holeNo) {
   return card.gross_scores?.[String(holeNo)] ?? card.gross_scores?.[holeNo] ?? "";
+}
+
+function pickMatchingRound() {
+  if (!selectedGroup.value) return;
+  const matching = rounds.value.find(
+    (round) =>
+      String(round.round_date || "") === String(selectedGroup.value.playedDate || "") &&
+      !round.finalized,
+  );
+  if (matching) selectedRoundId.value = matching.id;
 }
 
 function downloadCsv() {
@@ -173,6 +205,75 @@ async function loadCards() {
   }
 }
 
+async function loadRounds() {
+  const sb = admin?.client?.value;
+  if (!sb) {
+    rounds.value = [];
+    return;
+  }
+  const { data, error: roundsError } = await sb
+    .from("rounds")
+    .select("id, name, play_order, round_date, round_type, finalized, campaign_id, campaigns(label, kind)")
+    .order("play_order", { ascending: true, nullsFirst: false })
+    .order("round_date", { ascending: true })
+    .limit(400);
+  if (roundsError) throw roundsError;
+  const summer = (data || []).filter((round) => round.campaigns?.kind === "summer_main");
+  rounds.value = summer.length ? summer : data || [];
+  pickMatchingRound();
+}
+
+async function loadAll() {
+  loading.value = true;
+  error.value = "";
+  try {
+    await loadCards();
+    await loadRounds();
+  } catch (e) {
+    error.value = e?.message || String(e);
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function importToRound() {
+  const sb = admin?.client?.value;
+  if (!sb || !selectedGroup.value || !selectedRoundId.value) return;
+  if (selectedRound.value?.finalized) {
+    error.value = "This round is finalized. Reopen it before importing held cards.";
+    return;
+  }
+  const ok = window.confirm(
+    `Import ${selectedRows.value.length} held cards into ${selectedRound.value?.name || "the selected round"}?\n\nExisting scores for these players in that round will be updated.`,
+  );
+  if (!ok) return;
+
+  importing.value = true;
+  error.value = "";
+  success.value = "";
+  try {
+    const payload = selectedRows.value.map((row) => ({
+      round_id: selectedRoundId.value,
+      member_id: row.member_id,
+      stableford_points: Number(row.stableford_points) || 0,
+      snake_count: Number(row.snake_count) || 0,
+      camel_count: Number(row.camel_count) || 0,
+      entry_fee_pence: Number(row.entry_fee_pence) || 0,
+      entered: true,
+      disqualified: false,
+    }));
+    const { error: upsertError } = await sb
+      .from("round_players")
+      .upsert(payload, { onConflict: "round_id,member_id" });
+    if (upsertError) throw upsertError;
+    success.value = `${payload.length} held cards imported into live scores. Review and finalize when ready.`;
+  } catch (e) {
+    error.value = e?.message || String(e);
+  } finally {
+    importing.value = false;
+  }
+}
+
 async function deleteGroup() {
   const sb = admin?.client?.value;
   if (!sb || !selectedGroup.value) return;
@@ -201,8 +302,9 @@ async function deleteGroup() {
   }
 }
 
-onMounted(loadCards);
-watch(() => admin?.client?.value, loadCards);
+onMounted(loadAll);
+watch(() => admin?.client?.value, loadAll);
+watch(selectedGroup, pickMatchingRound);
 </script>
 
 <template>
@@ -210,12 +312,12 @@ watch(() => admin?.client?.value, loadCards);
     <header class="admin-page-header">
       <div>
         <p class="eyebrow">Weekly workflow</p>
-        <h1>Score staging</h1>
+        <h1>Held cards</h1>
         <p class="lede">
-          Saved committee cards appear here live. Export the current table when ready, then import it through the normal score entry process.
+          Saved committee cards appear here live. Check them, import them into the selected round, then finalize.
         </p>
       </div>
-      <button type="button" class="secondary-button" :disabled="loading" @click="loadCards">
+      <button type="button" class="secondary-button" :disabled="loading" @click="loadAll">
         {{ loading ? "Refreshing..." : "Refresh" }}
       </button>
     </header>
@@ -250,6 +352,28 @@ watch(() => admin?.client?.value, loadCards);
             </p>
           </div>
           <div class="submission-actions">
+            <label class="round-picker">
+              <span>Import into round</span>
+              <select v-model="selectedRoundId">
+                <option value="">Select round</option>
+                <option
+                  v-for="round in roundOptions"
+                  :key="round.id"
+                  :value="round.id"
+                  :disabled="round.finalized"
+                >
+                  {{ round.label }}
+                </option>
+              </select>
+            </label>
+            <button
+              type="button"
+              class="primary-button"
+              :disabled="!selectedRoundId || importing || selectedRound?.finalized"
+              @click="importToRound"
+            >
+              {{ importing ? "Importing..." : "Import to live scores" }}
+            </button>
             <button type="button" class="secondary-button" @click="downloadCsv">Download CSV</button>
             <button type="button" class="danger-button" :disabled="loading" @click="deleteGroup">
               Clear date
@@ -332,6 +456,7 @@ h2,
   color: var(--muted);
 }
 
+.primary-button,
 .secondary-button,
 .danger-button {
   border: 1px solid var(--line);
@@ -341,6 +466,12 @@ h2,
   color: var(--text);
   font-weight: 700;
   cursor: pointer;
+}
+
+.primary-button {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
 }
 
 .danger-button {
@@ -431,6 +562,31 @@ button:disabled {
   gap: 0.5rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.round-picker {
+  display: grid;
+  gap: 0.3rem;
+  min-width: min(100%, 18rem);
+}
+
+.round-picker span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.round-picker select {
+  min-height: 2.45rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
 }
 
 .table-wrap {
