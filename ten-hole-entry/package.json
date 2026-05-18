@@ -1,0 +1,18 @@
+{
+  "name": "wags-ten-hole-entry",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.104.0",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "vite": "^7.3.2",
+    "vue": "^3.5.33"
+  },
+  "devDependencies": {}
+}

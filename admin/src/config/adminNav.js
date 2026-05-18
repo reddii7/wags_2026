@@ -13,6 +13,7 @@ export const ADMIN_NAV_GROUPS = [
     items: [
       { to: "/", label: "Overview" },
       { to: "/manage/score-entry", label: "Enter scores" },
+      { to: "/manage/score-submissions", label: "Score submissions" },
       { to: "/manage/6-rounds", label: "Rounds & finalize" },
       { to: "/manage/season-close", label: "Close summer (P/R)" },
     ],

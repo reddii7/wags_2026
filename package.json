@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run build:main && npm run ten-hole:build",
+    "build:main": "vite build",
     "preview": "vite preview",
     "backup": "node backup-supabase.js",
     "backup:list": "node restore-supabase.js list",
@@ -13,6 +14,9 @@
     "admin:dev": "npm --prefix admin run dev",
     "admin:build": "npm --prefix admin run build",
     "admin:preview": "npm --prefix admin run preview",
+    "ten-hole:dev": "npm --prefix ten-hole-entry run dev",
+    "ten-hole:build": "npm --prefix ten-hole-entry run build",
+    "ten-hole:preview": "npm --prefix ten-hole-entry run preview",
     "build:all": "npm run build && npm run admin:build"
   },
   "dependencies": {

@@ -14,6 +14,7 @@ import RpcDevView from "@/views/RpcDevView.vue";
 import SeasonCloseView from "@/views/SeasonCloseView.vue";
 import SendNotificationView from "@/views/SendNotificationView.vue";
 import ScoreEntryView from "@/views/ScoreEntryView.vue";
+import ScoreSubmissionsView from "@/views/ScoreSubmissionsView.vue";
 
 const manageRoutes = ENTITY_ADMIN_PAGES.map((p) => ({
   path: p.path.replace(/^\//, ""),
@@ -33,6 +34,12 @@ const layoutChildren = [
     name: "score-entry",
     component: ScoreEntryView,
     meta: { title: "Enter scores" },
+  },
+  {
+    path: "manage/score-submissions",
+    name: "score-submissions",
+    component: ScoreSubmissionsView,
+    meta: { title: "Score submissions" },
   },
   {
     path: "manage/season-close",
