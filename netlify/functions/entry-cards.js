@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
+const FALLBACK_SUPABASE_URL = "https://iwzqzpzskawxrwhttufq.supabase.co";
+
 function json(statusCode, body) {
   return {
     statusCode,
@@ -27,13 +29,12 @@ function requirePassword(event) {
 }
 
 function getSupabase() {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || FALLBACK_SUPABASE_URL;
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     const missing = [
-      !url ? "SUPABASE_URL or VITE_SUPABASE_URL" : null,
       !key ? "SUPABASE_SERVICE_ROLE_KEY or VITE_SUPABASE_SERVICE_ROLE_KEY" : null,
     ].filter(Boolean);
     throw new Error(`Supabase service credentials are not configured: missing ${missing.join(", ")}`);
