@@ -30,11 +30,7 @@ function getSupabase() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    const missing = [
-      !url ? "SUPABASE_URL or VITE_SUPABASE_URL" : null,
-      !key ? "SUPABASE_SERVICE_ROLE_KEY" : null,
-    ].filter(Boolean);
-    throw new Error(`Supabase service credentials are not configured: missing ${missing.join(", ")}`);
+    throw new Error("Supabase service credentials are not configured");
   }
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -42,13 +38,13 @@ function getSupabase() {
 }
 
 export async function handler(event) {
+  if (!requirePassword(event)) {
+    return json(401, { error: "Entry password required" });
+  }
+
+  const supabase = getSupabase();
+
   try {
-    if (!requirePassword(event)) {
-      return json(401, { error: "Entry password required" });
-    }
-
-    const supabase = getSupabase();
-
     if (event.httpMethod === "GET") {
       const params = event.queryStringParameters || {};
       const { data, error } = await supabase
