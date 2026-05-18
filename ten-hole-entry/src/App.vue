@@ -26,6 +26,8 @@ const HOLES = [
 ];
 const WEEK_ONE_DATE = "2026-04-01";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const ENTRY_AUTH_KEY = "wags-score-entry-auth";
+const ENTRY_AUTH_TTL_MS = 4 * 60 * 60 * 1000;
 
 const metadata = ref(null);
 const loading = ref(false);
@@ -38,7 +40,7 @@ const selectedPlayerId = ref("");
 const playerPickerOpen = ref(false);
 const drafts = ref({});
 const theme = ref(localStorage.getItem("wags-score-entry-theme") || "dark");
-const entryPassword = ref(localStorage.getItem("wags-score-entry-password") || "");
+const entryPassword = ref("");
 const entryUnlocked = ref(false);
 const authLoading = ref(false);
 const authError = ref("");
@@ -155,22 +157,56 @@ async function verifyEntryPassword() {
     if (!response.ok || data?.error) {
       throw new Error(data?.error || "Incorrect password");
     }
-    localStorage.setItem("wags-score-entry-password", entryPassword.value);
+    const expiresAt = Date.now() + ENTRY_AUTH_TTL_MS;
+    localStorage.setItem(
+      ENTRY_AUTH_KEY,
+      JSON.stringify({ password: entryPassword.value, expiresAt }),
+    );
     entryUnlocked.value = true;
     await loadData();
   } catch (e) {
     entryUnlocked.value = false;
     authError.value = e?.message || String(e);
-    localStorage.removeItem("wags-score-entry-password");
+    localStorage.removeItem(ENTRY_AUTH_KEY);
   } finally {
     authLoading.value = false;
   }
 }
 
-function lockEntry() {
+function hasUnsavedSelectedCard() {
+  const row = selectedPlayerRow.value;
+  if (!row || row.saved) return false;
+  return row.holesEntered > 0 || row.snake || row.camel || row.paid;
+}
+
+async function lockEntry() {
+  if (hasUnsavedSelectedCard()) {
+    const ok = await askConfirm({
+      title: "Log out?",
+      message:
+        "The card currently on screen has unsaved entries. Saved cards will remain, but check this card before logging out.",
+      confirmText: "Log out",
+      danger: true,
+    });
+    if (!ok) return;
+  }
   entryUnlocked.value = false;
   entryPassword.value = "";
-  localStorage.removeItem("wags-score-entry-password");
+  localStorage.removeItem(ENTRY_AUTH_KEY);
+}
+
+function restoreEntrySession() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ENTRY_AUTH_KEY) || "{}");
+    if (!saved.password || !saved.expiresAt || Date.now() > Number(saved.expiresAt)) {
+      localStorage.removeItem(ENTRY_AUTH_KEY);
+      return;
+    }
+    entryPassword.value = saved.password;
+    verifyEntryPassword();
+  } catch {
+    localStorage.removeItem(ENTRY_AUTH_KEY);
+  }
 }
 
 async function entryCardsRequest(path = "", options = {}) {
@@ -582,9 +618,7 @@ watch([selectedSeasonId, playedDate], async () => {
 });
 watch(selectedPlayerId, resetUnsavedSelectedDraft);
 watch(drafts, saveDrafts, { deep: true });
-onMounted(() => {
-  if (entryPassword.value) verifyEntryPassword();
-});
+onMounted(restoreEntrySession);
 </script>
 
 <template>
@@ -627,7 +661,7 @@ onMounted(() => {
         {{ theme === "dark" ? "Light" : "Dark" }}
       </button>
       <button type="button" class="theme-button" @click="lockEntry">
-        Lock
+        Log out
       </button>
       <div class="sidebar-foot">
         <span>{{ completedRows.length }}/{{ profiles.length }}</span>
@@ -642,7 +676,7 @@ onMounted(() => {
           {{ theme === "dark" ? "Light" : "Dark" }}
         </button>
         <button type="button" class="theme-button" @click="lockEntry">
-          Lock
+          Log out
         </button>
       </div>
 
