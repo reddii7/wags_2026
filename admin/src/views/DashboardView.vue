@@ -126,6 +126,14 @@ watch(
       </RouterLink>
     </div>
 
+    <h2 class="h2">Communications</h2>
+    <div class="cards">
+      <RouterLink class="card" to="/notifications">
+        <span class="card-title">Send notification</span>
+        <span class="card-sub">Push announcement to members who allow notifications</span>
+      </RouterLink>
+    </div>
+
     <p v-if="error" class="warn">{{ error }}</p>
   </div>
 </template>

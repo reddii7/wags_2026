@@ -12,6 +12,11 @@ export const ADMIN_NAV_GROUPS = [
     ],
   },
   {
+    id: "comms",
+    label: "Communications",
+    items: [{ to: "/notifications", label: "Send notification" }],
+  },
+  {
     id: "setup",
     label: "Setup",
     items: [
