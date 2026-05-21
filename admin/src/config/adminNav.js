@@ -17,6 +17,14 @@ export const ADMIN_NAV_GROUPS = [
     items: [{ to: "/notifications", label: "Send notification" }],
   },
   {
+    id: "rscup",
+    label: "RS Cup",
+    items: [
+      { to: "/manage/13-competitions", label: "Competitions" },
+      { to: "/manage/14-cup-matches", label: "Cup matches" },
+    ],
+  },
+  {
     id: "setup",
     label: "Setup",
     items: [

@@ -126,6 +126,18 @@ watch(
       </RouterLink>
     </div>
 
+    <h2 class="h2">RS Cup</h2>
+    <div class="cards">
+      <RouterLink class="card" to="/manage/13-competitions">
+        <span class="card-title">Competitions</span>
+        <span class="card-sub">RS Cup competition on the summer campaign</span>
+      </RouterLink>
+      <RouterLink class="card" to="/manage/14-cup-matches">
+        <span class="card-title">Cup matches</span>
+        <span class="card-sub">Draw, play-by dates, winners, and result text for the app</span>
+      </RouterLink>
+    </div>
+
     <h2 class="h2">Communications</h2>
     <div class="cards">
       <RouterLink class="card" to="/notifications">
