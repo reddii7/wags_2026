@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20260520-greenfield-v31";
+const BUILD_ID = "20260520-greenfield-v32";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -707,10 +707,10 @@ async function greenfieldFetchAll(
     const sortedFinSummer = finalizedSummerWeekly.slice().sort((a: any, b: any) => {
       const poa = Number.isFinite(Number(a.play_order))
         ? Number(a.play_order)
-        : 2147483647;
+        : -1;
       const pob = Number.isFinite(Number(b.play_order))
         ? Number(b.play_order)
-        : 2147483647;
+        : -1;
       if (poa !== pob) return pob - poa;
       const ta = toTime(a.round_date) || 0;
       const tb = toTime(b.round_date) || 0;
