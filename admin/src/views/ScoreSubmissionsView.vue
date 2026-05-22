@@ -124,13 +124,31 @@ function holeValue(card, holeNo) {
 
 function pickMatchingRound() {
   if (!selectedGroup.value) return;
-  const matching = rounds.value.find(
+  const playedDate = String(selectedGroup.value.playedDate || "");
+  const dateMatches = rounds.value.filter(
     (round) =>
-      String(round.round_date || "") === String(selectedGroup.value.playedDate || "") &&
-      !round.finalized,
+      String(round.round_date || "") === playedDate &&
+      !round.finalized &&
+      String(round.round_type || "") === "summer_weekly",
   );
-  if (matching) selectedRoundId.value = matching.id;
+  const pick = [...dateMatches].sort(
+    (a, b) => (Number(b.play_order) || 0) - (Number(a.play_order) || 0),
+  )[0];
+  if (pick) selectedRoundId.value = pick.id;
 }
+
+const roundDateCollision = computed(() => {
+  if (!selectedGroup.value) return false;
+  const playedDate = String(selectedGroup.value.playedDate || "");
+  return (
+    rounds.value.filter(
+      (round) =>
+        String(round.round_date || "") === playedDate &&
+        !round.finalized &&
+        String(round.round_type || "") === "summer_weekly",
+    ).length > 1
+  );
+});
 
 function downloadCsv() {
   if (!selectedGroup.value) return;
@@ -219,7 +237,8 @@ async function loadRounds() {
     .limit(400);
   if (roundsError) throw roundsError;
   const summer = (data || []).filter((round) => round.campaigns?.kind === "summer_main");
-  rounds.value = summer.length ? summer : data || [];
+  const pool = summer.length ? summer : data || [];
+  rounds.value = pool.filter((round) => String(round.round_type || "") === "summer_weekly");
   pickMatchingRound();
 }
 
@@ -366,6 +385,9 @@ watch(selectedGroup, pickMatchingRound);
                 </option>
               </select>
             </label>
+            <p v-if="roundDateCollision" class="notice notice--warn">
+              Multiple open weekly rounds share this date — confirm Play # in the dropdown before importing.
+            </p>
             <button
               type="button"
               class="primary-button"
