@@ -522,6 +522,10 @@ button:disabled {
   color: var(--ok);
 }
 
+.notice--warn {
+  color: #fbbf24;
+}
+
 .submission-layout {
   display: grid;
   grid-template-columns: minmax(220px, 280px) 1fr;
