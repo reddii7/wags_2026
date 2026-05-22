@@ -396,7 +396,7 @@ export const ENTITY_ADMIN_PAGES = [
         {
           key: "play_order",
           label:
-            "Play order (1, 2, 3… — optional but recommended: fixes rollover if round dates are out of order)",
+            "Play # (1, 2, 3… — required for weekly rounds; auto-filled from name like Week 07)",
           type: "number",
           required: false,
           min: 1,

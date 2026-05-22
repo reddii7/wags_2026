@@ -490,6 +490,25 @@ function coercePayload() {
 
     payload[f.key] = v;
   }
+
+  if (entity.value?.table === "rounds") {
+    const weekMatch = String(payload.name || "").match(/week\s+(\d+)/i);
+    if (
+      (payload.play_order == null || payload.play_order === undefined) &&
+      weekMatch
+    ) {
+      payload.play_order = parseInt(weekMatch[1], 10);
+    }
+    if (
+      String(payload.round_type || "") === "summer_weekly" &&
+      !(Number(payload.play_order) > 0)
+    ) {
+      throw new Error(
+        "Play # is required for weekly rounds (e.g. 7 for Week 07). It drives Home and Results week labels.",
+      );
+    }
+  }
+
   return payload;
 }
 
@@ -540,6 +559,10 @@ async function save() {
       }
     } else {
       const updateBody = { ...payload };
+      // Optional number fields left blank must not erase existing DB values on edit.
+      if (table === "rounds" && updateBody.play_order == null) {
+        delete updateBody.play_order;
+      }
       if (isCompositePk()) {
         for (const k of pk) delete updateBody[k];
       } else if (typeof pk === "string") {
