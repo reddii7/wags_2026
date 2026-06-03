@@ -28,9 +28,10 @@ const layout = useLayoutStore();
 
     <div v-show="!layout.connectCollapsed" class="connect-body">
       <p class="connect-lede">
-        Use the <strong>service role</strong> key (Dashboard → Settings → API). Stored in
-        <code>localStorage</code> after connect; optional <code>admin/.env</code>
-        <code>VITE_SUPABASE_*</code>.
+        Admin needs the <strong>service_role</strong> key (Dashboard → Settings → API), not the
+        member app anon key. Put both in <code>admin/.env</code> as
+        <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_SERVICE_ROLE_KEY</code> — that overrides
+        old saved URLs in <code>localStorage</code>.
       </p>
       <div class="connect-grid">
         <label class="field">
@@ -40,7 +41,7 @@ const layout = useLayoutStore();
             class="input"
             type="url"
             autocomplete="off"
-            placeholder="https://….supabase.co"
+            placeholder="https://iwzqzpzskawxrwhttufq.supabase.co"
           />
         </label>
         <label class="field">
@@ -74,7 +75,7 @@ const layout = useLayoutStore();
       </div>
       <p v-if="admin.connectError.value" class="msg err">{{ admin.connectError.value }}</p>
       <p v-else-if="admin.connected.value && admin.lastProbeOk.value" class="msg ok">
-        Reachability OK (<code>campaigns</code> readable).
+        Reachability OK (live WAGS schema).
       </p>
     </div>
   </section>

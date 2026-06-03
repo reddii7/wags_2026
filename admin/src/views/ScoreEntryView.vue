@@ -98,8 +98,8 @@ async function loadAll() {
       const existing = scores.value.find((s) => s.member_id === m.memberId);
       nextDrafts[m.memberId] = {
         points: existing?.stableford_points ?? "",
-        snakes: existing?.snake_count ?? 0,
-        camels: existing?.camel_count ?? 0,
+        snake: Number(existing?.snake_count) > 0,
+        camel: Number(existing?.camel_count) > 0,
         fee: existing?.entry_fee_pence ?? 500,
         dq: Boolean(existing?.disqualified),
         rowId: existing?.id ?? null,
@@ -139,13 +139,6 @@ const displayList = computed(() => {
     return true;
   });
 });
-
-function rowClass(memberId) {
-  const s = scoreByMember.value.get(memberId);
-  if (!s) return "entry-missing";
-  if (s.disqualified) return "entry-dq";
-  return "entry-done";
-}
 
 function setPointsRef(memberId, el) {
   if (el) pointsRefs.value[memberId] = el;
@@ -207,8 +200,8 @@ async function saveMember(member, { focusNext = false } = {}) {
     round_id: roundId.value,
     member_id: member.memberId,
     stableford_points: pts,
-    snake_count: Number(d.snakes) || 0,
-    camel_count: Number(d.camels) || 0,
+    snake_count: d.snake ? 1 : 0,
+    camel_count: d.camel ? 1 : 0,
     entry_fee_pence: Number(d.fee) || 500,
     entered: true,
     disqualified: Boolean(d.dq),
@@ -285,124 +278,132 @@ watch(filter, (mode) => {
 
 <template>
   <div class="score-entry">
-    <h1 class="h1">Enter scores</h1>
-    <p class="lede">
-      Type points and press <kbd>Enter</kbd> to save and jump to the next missing player. Saved
-      players appear greyed out.
-    </p>
+    <header class="admin-page-header">
+      <div>
+        <p class="eyebrow">Weekly workflow</p>
+        <h1>Enter scores</h1>
+        <p class="lede">
+          Type points and press <kbd>Enter</kbd> to save and jump to the next missing player.
+        </p>
+      </div>
+      <button type="button" class="secondary-button" :disabled="loading" @click="loadAll">
+        {{ loading ? "Refreshing…" : "Refresh" }}
+      </button>
+    </header>
 
-    <p v-if="!admin?.client?.value" class="warn">Connect to Supabase in the header first.</p>
+    <p v-if="!admin?.client?.value" class="notice notice--warn">Connect to Supabase in the header first.</p>
 
     <template v-else>
-      <div class="controls">
-        <label class="field-inline">
-          Round
-          <select v-model="roundId" class="select" :disabled="loading || !roundOptions.length">
+      <section class="toolbar-card">
+        <label class="field-pill">
+          <span>Round</span>
+          <select v-model="roundId" :disabled="loading || !roundOptions.length">
             <option v-for="o in roundOptions" :key="o.id" :value="o.id">{{ o.label }}</option>
           </select>
         </label>
-        <label class="field-inline">
-          Show
-          <select v-model="filter" class="select">
+        <label class="field-pill">
+          <span>Show</span>
+          <select v-model="filter">
             <option value="missing">Missing only</option>
             <option value="all">Everyone</option>
             <option value="scored">Scored only</option>
           </select>
         </label>
-        <label class="field-inline grow">
-          Search
-          <input v-model="search" type="search" class="input" placeholder="Player name…" />
+        <label class="field-pill field-pill--grow">
+          <span>Search</span>
+          <input v-model="search" type="search" placeholder="Player name…" />
         </label>
-        <button type="button" class="btn ghost" :disabled="loading" @click="loadAll">Refresh</button>
-      </div>
+      </section>
 
-      <div
-        v-if="roundId"
-        :class="['banner', roundFinalized ? 'banner-lock' : 'banner-ok']"
-      >
+      <p v-if="roundId" :class="['status-line', roundFinalized ? 'status-line--lock' : '']">
         <template v-if="roundFinalized">
-          <strong>Finalized</strong> — scores are read-only.
+          <strong>Finalized</strong> — read-only.
           <RouterLink to="/manage/6-rounds">Reopen round</RouterLink>
         </template>
         <template v-else>
           <strong>{{ progress.scored }} / {{ progress.total }}</strong> scored
           <span v-if="progress.missing"> · {{ progress.missing }} missing</span>
-          <span v-if="rosterSourceLabel(rosterSource)" class="banner-meta">
+          <span v-if="rosterSourceLabel(rosterSource)">
             · {{ rosterSourceLabel(rosterSource) }}
           </span>
         </template>
-      </div>
+      </p>
 
-      <p v-if="error" class="err">{{ error }}</p>
-      <p v-if="loading" class="muted">Loading…</p>
+      <p v-if="error" class="notice notice--error">{{ error }}</p>
+      <p v-if="loading" class="empty-state">Loading…</p>
 
-      <ul v-else class="entry-list">
-        <li
-          v-for="m in displayList"
-          :key="m.memberId"
-          :class="['entry-row', rowClass(m.memberId)]"
-        >
-          <div class="entry-name">
-            <span class="name">{{ m.fullName }}</span>
-            <span v-if="scoreByMember.has(m.memberId)" class="tag">Saved</span>
-          </div>
-          <div class="entry-fields">
-            <label class="mini">
-              Pts
-              <input
-                :ref="(el) => setPointsRef(m.memberId, el)"
-                v-model="drafts[m.memberId].points"
-                type="number"
-                class="input num points-input"
-                min="0"
-                max="60"
-                inputmode="numeric"
-                autocomplete="off"
-                :disabled="roundFinalized || savingId === m.memberId"
-                @keydown.enter.prevent="onPointsEnter(m)"
-              />
-            </label>
-            <label class="mini">
-              🐍
-              <input
-                v-model.number="drafts[m.memberId].snakes"
-                type="number"
-                class="input num"
-                min="0"
-                :disabled="roundFinalized || savingId === m.memberId"
-              />
-            </label>
-            <label class="mini">
-              🐪
-              <input
-                v-model.number="drafts[m.memberId].camels"
-                type="number"
-                min="0"
-                class="input num"
-                :disabled="roundFinalized || savingId === m.memberId"
-              />
-            </label>
-            <label class="mini check">
-              <input
-                v-model="drafts[m.memberId].dq"
-                type="checkbox"
-                :disabled="roundFinalized || savingId === m.memberId"
-              />
-              DQ
-            </label>
-            <button
-              type="button"
-              class="btn primary"
-              :disabled="roundFinalized || savingId === m.memberId"
-              @click="saveMember(m)"
-            >
-              {{ savingId === m.memberId ? "…" : scoreByMember.has(m.memberId) ? "Update" : "Save" }}
-            </button>
-          </div>
-        </li>
-      </ul>
-
-      <p v-if="!loading && !displayList.length" class="muted">No players match this filter.</p>
+      <section v-else class="entry-panel">
+        <div class="table-wrap">
+          <table class="data-table entry-table">
+            <thead>
+              <tr>
+                <th class="col-player">Player</th>
+                <th class="col-pts">Pts</th>
+                <th class="col-tick">Snake</th>
+                <th class="col-tick">Camel</th>
+                <th class="col-action"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="m in displayList" :key="m.memberId">
+                <td class="col-player">
+                  <span class="player-name">{{ m.fullName }}</span>
+                  <span v-if="scoreByMember.has(m.memberId)" class="saved-tag">Saved</span>
+                </td>
+                <td class="col-pts">
+                  <input
+                    :ref="(el) => setPointsRef(m.memberId, el)"
+                    v-model="drafts[m.memberId].points"
+                    type="number"
+                    class="pts-input"
+                    min="0"
+                    max="60"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    :disabled="roundFinalized || savingId === m.memberId"
+                    @keydown.enter.prevent="onPointsEnter(m)"
+                  />
+                </td>
+                <td class="col-tick">
+                  <input
+                    v-model="drafts[m.memberId].snake"
+                    type="checkbox"
+                    class="tick-input"
+                    :disabled="roundFinalized || savingId === m.memberId"
+                    :aria-label="`Snake for ${m.fullName}`"
+                  />
+                </td>
+                <td class="col-tick">
+                  <input
+                    v-model="drafts[m.memberId].camel"
+                    type="checkbox"
+                    class="tick-input"
+                    :disabled="roundFinalized || savingId === m.memberId"
+                    :aria-label="`Camel for ${m.fullName}`"
+                  />
+                </td>
+                <td class="col-action">
+                  <button
+                    type="button"
+                    class="primary-button primary-button--compact"
+                    :disabled="roundFinalized || savingId === m.memberId"
+                    @click="saveMember(m)"
+                  >
+                    {{
+                      savingId === m.memberId
+                        ? "…"
+                        : scoreByMember.has(m.memberId)
+                          ? "Update"
+                          : "Save"
+                    }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-if="!displayList.length" class="empty-state">No players match this filter.</p>
+      </section>
 
       <p class="footer-links">
         <RouterLink to="/manage/7-scores">Advanced scores table</RouterLink>
@@ -415,212 +416,299 @@ watch(filter, (mode) => {
 
 <style scoped>
 .score-entry {
-  max-width: 900px;
+  display: grid;
+  gap: 1.25rem;
 }
 
-.h1 {
+.admin-page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.eyebrow {
   margin: 0 0 0.35rem;
-  font-size: 1.2rem;
-}
-
-.lede {
-  margin: 0 0 1rem;
   color: var(--muted);
-  font-size: 0.88rem;
-}
-
-.warn {
-  color: #fcd34d;
-}
-
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-  align-items: flex-end;
-  margin-bottom: 0.75rem;
-}
-
-.field-inline {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.field-inline.grow {
-  flex: 1;
-  min-width: 10rem;
+h1,
+.lede {
+  margin: 0;
 }
 
-.select,
-.input {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.4rem 0.55rem;
-  background: var(--bg);
-  color: var(--text);
+.lede {
+  margin-top: 0.4rem;
+  color: var(--muted);
   font-size: 0.88rem;
-}
-
-.input.num {
-  width: 4rem;
-}
-
-.points-input:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-  border-color: var(--accent);
+  line-height: 1.45;
 }
 
 .lede kbd {
-  font-size: 0.8em;
-  padding: 0.1em 0.35em;
-  border-radius: 4px;
+  font-size: 0.85em;
+  padding: 0.12em 0.4em;
+  border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--bg);
   font-family: inherit;
 }
 
-.banner {
-  margin-bottom: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.86rem;
+.primary-button,
+.secondary-button {
   border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.84rem;
+  cursor: pointer;
 }
 
-.banner-ok {
-  background: color-mix(in srgb, var(--ok) 12%, var(--surface));
+.primary-button {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
 }
 
-.banner-lock {
-  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+.primary-button--compact {
+  padding: 0.5rem 0.9rem;
+  font-size: 0.8rem;
 }
 
-.banner-meta {
+.secondary-button:disabled,
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.toolbar-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.field-pill {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 10rem;
+}
+
+.field-pill--grow {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.field-pill span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field-pill select,
+.field-pill input {
+  min-height: 2.45rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.status-line {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--ok) 8%, var(--surface));
+  font-size: 0.86rem;
+}
+
+.status-line--lock {
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
+.status-line span {
   color: var(--muted);
   font-weight: 400;
 }
 
-.err {
-  color: #fecaca;
-  font-size: 0.88rem;
-}
-
-.muted {
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
-.entry-list {
-  list-style: none;
+.notice {
   margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-.entry-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.55rem 0.65rem;
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
   background: var(--surface);
 }
 
-.entry-row.entry-done {
-  opacity: 0.55;
-  background: color-mix(in srgb, var(--muted) 8%, var(--surface));
+.notice--error {
+  color: var(--danger);
 }
 
-.entry-row.entry-missing {
-  border-color: color-mix(in srgb, #f59e0b 40%, var(--line));
+.notice--warn {
+  color: #fbbf24;
 }
 
-.entry-row.entry-dq {
-  opacity: 0.5;
-  text-decoration: line-through;
+.entry-panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  overflow: hidden;
 }
 
-.entry-name {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
+.table-wrap {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.entry-table th,
+.entry-table td {
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.entry-table th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+}
+
+.entry-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.col-player {
+  width: 38%;
   min-width: 10rem;
+  text-align: left;
 }
 
-.name {
+.col-pts {
+  width: 5.5rem;
+  text-align: center;
+}
+
+.col-tick {
+  width: 4.25rem;
+  text-align: center;
+}
+
+.col-action {
+  width: 6.5rem;
+  text-align: right;
+}
+
+.entry-table th.col-pts,
+.entry-table th.col-tick,
+.entry-table th.col-action {
+  text-align: center;
+}
+
+.entry-table th.col-action {
+  text-align: right;
+}
+
+.player-name {
   font-weight: 600;
   font-size: 0.92rem;
 }
 
-.tag {
-  font-size: 0.68rem;
+.saved-tag {
+  display: inline-block;
+  margin-left: 0.45rem;
+  font-size: 0.65rem;
   font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
-.entry-fields {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.45rem;
-}
-
-.mini {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  font-size: 0.68rem;
-  color: var(--muted);
-}
-
-.mini.check {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.25rem;
-  padding-bottom: 0.35rem;
-}
-
-.btn {
-  border-radius: 8px;
-  padding: 0.4rem 0.75rem;
-  font-size: 0.84rem;
-  font-weight: 600;
-  cursor: pointer;
+.pts-input {
+  width: 4.25rem;
+  min-height: 2.35rem;
+  margin: 0 auto;
+  display: block;
   border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.4rem 0.5rem;
   background: var(--bg);
   color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: center;
 }
 
-.btn.primary {
-  background: var(--accent);
+.pts-input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-color: var(--accent);
-  color: #fff;
 }
 
-.btn.ghost {
-  background: transparent;
+.tick-input {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  vertical-align: middle;
 }
 
-.btn:disabled {
+.tick-input:disabled,
+.pts-input:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
+.empty-state {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .footer-links {
-  margin-top: 1.25rem;
+  margin: 0;
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .admin-page-header {
+    display: grid;
+  }
+
+  .toolbar-card {
+    display: grid;
+  }
+
+  .field-pill,
+  .field-pill--grow {
+    min-width: 0;
+  }
 }
 </style>
