@@ -3,6 +3,7 @@ import { computed, inject, onMounted, ref, watch } from "vue";
 import AdminButton from "@/components/AdminButton.vue";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
 import AdminNotice from "@/components/AdminNotice.vue";
+import AdminPageHeader from "@/components/AdminPageHeader.vue";
 
 const admin = inject("adminCtx");
 const loading = ref(false);
@@ -377,18 +378,17 @@ watch(selectedGroup, pickMatchingRound);
 
 <template>
   <div class="score-submissions">
-    <header class="admin-page-header">
-      <div>
-        <p class="eyebrow">Weekly workflow</p>
-        <h1>Held cards</h1>
-        <p class="lede">
-          Saved committee cards appear here live. Check them, import them into the selected round, then finalize.
-        </p>
-      </div>
-      <AdminButton :disabled="loading" pill @click="loadAll">
-        {{ loading ? "Refreshing..." : "Refresh" }}
-      </AdminButton>
-    </header>
+    <AdminPageHeader
+      eyebrow="Weekly workflow"
+      title="Held cards"
+      description="Saved committee cards appear here live. Check them, import them into the selected round, then finalize."
+    >
+      <template #actions>
+        <AdminButton :disabled="loading" pill @click="loadAll">
+          {{ loading ? "Refreshing..." : "Refresh" }}
+        </AdminButton>
+      </template>
+    </AdminPageHeader>
 
     <AdminNotice v-if="error" tone="error">{{ error }}</AdminNotice>
     <AdminNotice v-if="success" tone="success">{{ success }}</AdminNotice>
@@ -503,7 +503,6 @@ watch(selectedGroup, pickMatchingRound);
   gap: 1.25rem;
 }
 
-.admin-page-header,
 .submission-detail__header {
   display: flex;
   justify-content: space-between;
@@ -525,14 +524,11 @@ watch(selectedGroup, pickMatchingRound);
   text-transform: uppercase;
 }
 
-h1,
 h2,
-.lede,
 .cash-line {
   margin: 0;
 }
 
-.lede,
 .cash-line {
   margin-top: 0.4rem;
   color: var(--muted);
@@ -658,13 +654,11 @@ button:disabled {
 }
 
 @media (max-width: 860px) {
-  .admin-page-header,
   .submission-detail__header,
   .submission-layout {
     grid-template-columns: 1fr;
   }
 
-  .admin-page-header,
   .submission-detail__header {
     display: grid;
   }

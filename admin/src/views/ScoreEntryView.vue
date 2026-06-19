@@ -4,6 +4,7 @@ import { useRoute, useRouter, RouterLink } from "vue-router";
 import AdminButton from "@/components/AdminButton.vue";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
 import AdminNotice from "@/components/AdminNotice.vue";
+import AdminPageHeader from "@/components/AdminPageHeader.vue";
 import {
   pickDefaultRoundId,
   mapRoundOptions,
@@ -318,18 +319,16 @@ watch(filter, (mode) => {
 
 <template>
   <div class="score-entry">
-    <header class="admin-page-header">
-      <div>
-        <p class="eyebrow">Weekly workflow</p>
-        <h1>Enter scores</h1>
-        <p class="lede">
-          Type points and press <kbd>Enter</kbd> to save and jump to the next missing player.
-        </p>
-      </div>
-      <AdminButton :disabled="loading" pill @click="loadAll">
-        {{ loading ? "Refreshing…" : "Refresh" }}
-      </AdminButton>
-    </header>
+    <AdminPageHeader eyebrow="Weekly workflow" title="Enter scores">
+      <template #description>
+        Type points and press <kbd>Enter</kbd> to save and jump to the next missing player.
+      </template>
+      <template #actions>
+        <AdminButton :disabled="loading" pill @click="loadAll">
+          {{ loading ? "Refreshing…" : "Refresh" }}
+        </AdminButton>
+      </template>
+    </AdminPageHeader>
 
     <AdminNotice v-if="!admin?.client?.value" tone="warning">
       Connect to Supabase in the header first.
@@ -472,48 +471,6 @@ watch(filter, (mode) => {
 .score-entry {
   display: grid;
   gap: 1.25rem;
-}
-
-.admin-page-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  padding: 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--panel);
-  box-shadow: var(--shadow-soft);
-}
-
-.eyebrow {
-  margin: 0 0 0.35rem;
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-h1,
-.lede {
-  margin: 0;
-}
-
-.lede {
-  margin-top: 0.4rem;
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.45;
-}
-
-.lede kbd {
-  font-size: 0.85em;
-  padding: 0.12em 0.4em;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  font-family: inherit;
 }
 
 .toolbar-card {
@@ -711,10 +668,6 @@ h1,
 }
 
 @media (max-width: 720px) {
-  .admin-page-header {
-    display: grid;
-  }
-
   .toolbar-card {
     display: grid;
   }
