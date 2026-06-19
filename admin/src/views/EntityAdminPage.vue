@@ -1210,13 +1210,17 @@ const formFieldsVisible = computed(() => {
     </div>
 
     <teleport to="body">
-      <div v-if="dialogOpen" class="modal-backdrop" @click.self="closeDialog">
-        <div class="modal" role="dialog" aria-modal="true">
-          <div class="modal-head">
-            <h2>{{ dialogMode === "create" ? "Add" : "Edit" }} — {{ entity.table }}</h2>
+      <div v-if="dialogOpen" class="sheet-backdrop" @click.self="closeDialog">
+        <div class="edit-sheet" role="dialog" aria-modal="true">
+          <div class="sheet-head">
+            <div>
+              <p class="sheet-kicker">{{ dialogMode === "create" ? "Create row" : "Edit row" }}</p>
+              <h2>{{ entity.table }}</h2>
+              <p class="sheet-sub">Live Supabase table</p>
+            </div>
             <button type="button" class="icon-x" aria-label="Close" @click="closeDialog">×</button>
           </div>
-          <div class="modal-body">
+          <div class="sheet-body">
             <p v-if="formError" class="err">{{ formError }}</p>
             <div v-for="f in formFieldsVisible" :key="f.key" class="field">
               <label class="label">{{ f.label }}{{ f.required ? " *" : "" }}</label>
@@ -1305,7 +1309,7 @@ const formFieldsVisible = computed(() => {
               </label>
             </div>
           </div>
-          <div class="modal-foot">
+          <div class="sheet-foot">
             <AdminButton variant="ghost" @click="closeDialog">Cancel</AdminButton>
             <AdminButton variant="primary" :disabled="saving" @click="save">
               {{ saving ? "Saving…" : "Save" }}
@@ -1566,38 +1570,57 @@ th.sorted .sort-indicator {
   color: var(--muted);
 }
 
-.modal-backdrop {
+.sheet-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.58);
   backdrop-filter: blur(8px);
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 2rem 1rem;
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
   z-index: 1000;
+  animation: sheet-backdrop-in 0.18s ease;
 }
-.modal {
-  width: min(580px, 100%);
+.edit-sheet {
+  width: min(620px, 100vw);
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  max-height: 90vh;
+  border-left: 1px solid var(--line);
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow);
+  animation: sheet-in 0.22s ease;
 }
-.modal-head {
+.sheet-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 0.9rem 1rem;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel-strong) 76%, transparent);
+  background: color-mix(in srgb, var(--panel-strong) 86%, var(--panel));
 }
-.modal-head h2 {
+.sheet-head h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.12rem;
+  letter-spacing: -0.02em;
+}
+.sheet-kicker {
+  margin: 0 0 0.2rem;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sheet-sub {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 .icon-x {
   background: none;
@@ -1607,8 +1630,9 @@ th.sorted .sort-indicator {
   cursor: pointer;
   line-height: 1;
 }
-.modal-body {
-  padding: 1rem;
+.sheet-body {
+  flex: 1;
+  padding: 1rem 1.1rem 1.5rem;
   overflow-y: auto;
 }
 .field {
@@ -1660,13 +1684,34 @@ th.sorted .sort-indicator {
   gap: 0.4rem;
   font-size: 0.88rem;
 }
-.modal-foot {
+.sheet-foot {
+  position: sticky;
+  bottom: 0;
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  padding: 0.85rem 1rem;
+  padding: 0.9rem 1.1rem;
   border-top: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel-strong) 60%, transparent);
+  background: color-mix(in srgb, var(--panel-strong) 86%, var(--panel));
+}
+@keyframes sheet-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@media (max-width: 640px) {
+  .edit-sheet {
+    width: 100vw;
+  }
 }
 .toast {
   position: fixed;
