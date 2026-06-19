@@ -47,6 +47,9 @@ const campaignFilterOptions = ref([]);
 const snapshotRoundPickerId = ref("");
 const snapshotRoundPickerOptions = ref([]);
 const rosterMembers = ref([]);
+const tableSearch = ref("");
+const tableDensity = ref(localStorage.getItem("wags_admin_table_density") || "comfortable");
+const tableSort = reactive({ key: "", dir: "asc" });
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -90,6 +93,56 @@ function flattenCell(row, key) {
     return JSON.stringify(v);
   }
   return v;
+}
+
+function cellSearchText(value) {
+  if (value == null) return "";
+  return String(value).toLowerCase();
+}
+
+function compareCellValues(a, b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+
+  const aNum = typeof a === "number" ? a : Number(String(a).replace(/,/g, ""));
+  const bNum = typeof b === "number" ? b : Number(String(b).replace(/,/g, ""));
+  if (Number.isFinite(aNum) && Number.isFinite(bNum)) return aNum - bNum;
+
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function isSortableColumn(column) {
+  return column?.key && column.key !== "_actions";
+}
+
+function toggleSort(column) {
+  if (!isSortableColumn(column)) return;
+  if (tableSort.key === column.key) {
+    tableSort.dir = tableSort.dir === "asc" ? "desc" : "asc";
+    return;
+  }
+  tableSort.key = column.key;
+  tableSort.dir = "asc";
+}
+
+function sortLabel(column) {
+  if (!isSortableColumn(column)) return undefined;
+  if (tableSort.key !== column.key) return `Sort by ${column.label}`;
+  return `Sorted ${tableSort.dir === "asc" ? "ascending" : "descending"} by ${column.label}`;
+}
+
+function ariaSort(column) {
+  if (!isSortableColumn(column) || tableSort.key !== column.key) return "none";
+  return tableSort.dir === "asc" ? "ascending" : "descending";
+}
+
+function setTableDensity(value) {
+  tableDensity.value = value;
+  localStorage.setItem("wags_admin_table_density", value);
 }
 
 function isCompositePk() {
@@ -700,6 +753,9 @@ watch(
     closeDialog();
     error.value = "";
     lastCreateValues.value = {}; // clear memory when switching entity
+    tableSearch.value = "";
+    tableSort.key = "";
+    tableSort.dir = "asc";
     try {
       if (entity.value?.filterByCampaign) {
         await loadCampaignFilterOptions();
@@ -771,13 +827,51 @@ const tableColumns = computed(() => {
   return [...cols, { key: "_actions", label: "Actions" }];
 });
 
+const filteredSortedRowPairs = computed(() => {
+  const cols = entity.value?.listColumns ?? [];
+  const query = tableSearch.value.trim().toLowerCase();
+  const pairs = displayRows.value.map((display, i) => ({
+    display,
+    raw: rows.value[i],
+  }));
+
+  const filtered = query
+    ? pairs.filter(({ display }) =>
+        cols.some((c) => cellSearchText(display[c.key]).includes(query)),
+      )
+    : pairs;
+
+  if (!tableSort.key) return filtered;
+
+  const direction = tableSort.dir === "desc" ? -1 : 1;
+  return [...filtered].sort((a, b) => {
+    const compared = compareCellValues(a.display[tableSort.key], b.display[tableSort.key]);
+    return compared * direction;
+  });
+});
+
 const tableRowsWithActions = computed(() => {
-  return displayRows.value.map((r, i) => ({
-    ...r,
+  return filteredSortedRowPairs.value.map(({ display, raw }) => ({
+    ...display,
     _actions: "",
-    _raw: rows.value[i],
+    _raw: raw,
   }));
 });
+
+const tableResultSummary = computed(() => {
+  const total = rows.value.length;
+  const visible = tableRowsWithActions.value.length;
+  if (loading.value) return "Loading rows";
+  if (!total) return "No loaded rows";
+  if (visible === total) return `${total} row${total === 1 ? "" : "s"}`;
+  return `${visible} of ${total} row${total === 1 ? "" : "s"}`;
+});
+
+const emptyTableMessage = computed(() =>
+  tableSearch.value.trim() && rows.value.length
+    ? "No rows match your search."
+    : "No rows yet.",
+);
 
 const formFieldsVisible = computed(() => {
   const fields = entity.value?.formFields ?? [];
@@ -904,11 +998,68 @@ const formFieldsVisible = computed(() => {
       <button type="button" class="link" style="margin-left:0.75rem" @click="rpcResult=null">✕</button>
     </div>
 
-    <div class="table-wrap">
+    <div class="grid-controls" aria-label="Table controls">
+      <label class="grid-search">
+        <span class="sr-only">Search rows</span>
+        <input
+          v-model="tableSearch"
+          class="grid-search-input"
+          type="search"
+          placeholder="Search visible rows"
+          autocomplete="off"
+        />
+      </label>
+      <button
+        v-if="tableSearch"
+        type="button"
+        class="btn ghost compact-btn"
+        @click="tableSearch = ''"
+      >
+        Clear
+      </button>
+      <div class="density-toggle" aria-label="Table density">
+        <button
+          type="button"
+          :class="['density-btn', tableDensity === 'comfortable' ? 'active' : '']"
+          @click="setTableDensity('comfortable')"
+        >
+          Comfortable
+        </button>
+        <button
+          type="button"
+          :class="['density-btn', tableDensity === 'compact' ? 'active' : '']"
+          @click="setTableDensity('compact')"
+        >
+          Compact
+        </button>
+      </div>
+      <span class="grid-count" aria-live="polite">{{ tableResultSummary }}</span>
+    </div>
+
+    <div :class="['table-wrap', `density-${tableDensity}`]">
       <table class="tbl">
         <thead>
           <tr>
-            <th v-for="c in tableColumns" :key="c.key">{{ c.label }}</th>
+            <th
+              v-for="c in tableColumns"
+              :key="c.key"
+              :aria-sort="ariaSort(c)"
+              :class="{ sortable: isSortableColumn(c), sorted: tableSort.key === c.key }"
+            >
+              <button
+                v-if="isSortableColumn(c)"
+                type="button"
+                class="sort-btn"
+                :aria-label="sortLabel(c)"
+                @click="toggleSort(c)"
+              >
+                <span>{{ c.label }}</span>
+                <span class="sort-indicator" aria-hidden="true">
+                  {{ tableSort.key === c.key ? (tableSort.dir === "asc" ? "↑" : "↓") : "↕" }}
+                </span>
+              </button>
+              <span v-else>{{ c.label }}</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -919,7 +1070,7 @@ const formFieldsVisible = computed(() => {
             <td :colspan="tableColumns.length" class="err">{{ error }}</td>
           </tr>
           <tr v-else-if="!tableRowsWithActions.length">
-            <td :colspan="tableColumns.length" class="muted">No rows yet.</td>
+            <td :colspan="tableColumns.length" class="muted">{{ emptyTableMessage }}</td>
           </tr>
           <tr
             v-for="r in tableRowsWithActions"
@@ -1160,6 +1311,12 @@ const formFieldsVisible = computed(() => {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
+.btn.ghost:not(:disabled):hover {
+  background: var(--panel-strong);
+}
+.compact-btn {
+  padding: 0.45rem 0.7rem;
+}
 .warn {
   display: inline-flex;
   align-items: center;
@@ -1170,6 +1327,76 @@ const formFieldsVisible = computed(() => {
   background: var(--warning-soft);
   color: var(--warning);
   font-size: 0.88rem;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.grid-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.75rem;
+}
+.grid-search {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+}
+.grid-search-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.52rem 0.75rem;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.86rem;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+.grid-search-input::placeholder {
+  color: var(--muted);
+}
+.grid-search-input:focus {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.density-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+}
+.density-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.32rem 0.6rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.density-btn.active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  color: var(--text);
+}
+.grid-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 .table-wrap {
   overflow: auto;
@@ -1198,6 +1425,45 @@ th {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+th.sortable {
+  padding: 0;
+}
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.58rem 0.7rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.sort-btn:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.sort-indicator {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+th.sorted .sort-indicator {
+  color: var(--accent);
+}
+.density-compact td {
+  padding: 0.36rem 0.55rem;
+}
+.density-compact .sort-btn {
+  min-height: 1.95rem;
+  padding: 0.4rem 0.55rem;
 }
 .tbl tbody tr {
   transition: background 0.14s ease;
