@@ -3,6 +3,7 @@ import { ref, inject, watch, computed } from "vue";
 import AdminButton from "@/components/AdminButton.vue";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
 import AdminNotice from "@/components/AdminNotice.vue";
+import AdminPageHeader from "@/components/AdminPageHeader.vue";
 
 const admin = inject("adminCtx");
 
@@ -160,12 +161,14 @@ watch(
 
 <template>
   <div class="view">
-    <h1 class="h1">Close summer season (P/R)</h1>
-    <p class="lede">
-      §4.2: top 3 in divisions 2–4 promoted; bottom 3 in divisions 1–3 relegated (promotion wins on overlap).
-      Standings use each member’s best 10 net stableford scores in <strong>finalized</strong>
-      <code>summer_weekly</code> rounds for the <strong>old</strong> campaign. Handicaps are unchanged.
-    </p>
+    <AdminPageHeader eyebrow="Season workflow" title="Close summer season (P/R)">
+      <template #description>
+        §4.2: top 3 in divisions 2–4 promoted; bottom 3 in divisions 1–3 relegated
+        (promotion wins on overlap). Standings use each member’s best 10 net stableford
+        scores in <strong>finalized</strong> <code>summer_weekly</code> rounds for the
+        <strong>old</strong> campaign. Handicaps are unchanged.
+      </template>
+    </AdminPageHeader>
     <AdminNotice v-if="!admin?.client?.value" tone="warning">
       Connect in the header first.
     </AdminNotice>
@@ -248,21 +251,9 @@ watch(
 
 <style scoped>
 .view {
+  display: grid;
+  gap: 1rem;
   max-width: 980px;
-}
-.h1 {
-  font-size: clamp(1.35rem, 1.1rem + 0.9vw, 1.9rem);
-  margin: 0 0 0.35rem;
-  letter-spacing: -0.03em;
-}
-.lede {
-  color: var(--muted);
-  font-size: 0.85rem;
-  line-height: 1.45;
-  margin: 0 0 1rem;
-}
-.lede code {
-  font-size: 0.85em;
 }
 .grid {
   display: grid;

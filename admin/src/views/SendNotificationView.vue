@@ -2,6 +2,7 @@
 import { computed, ref, inject } from "vue";
 import AdminButton from "@/components/AdminButton.vue";
 import AdminNotice from "@/components/AdminNotice.vue";
+import AdminPageHeader from "@/components/AdminPageHeader.vue";
 
 const admin = inject("adminCtx");
 
@@ -75,11 +76,11 @@ async function send() {
 
 <template>
   <div class="view">
-    <h1 class="h1">Send Notification</h1>
-    <p class="lede">
-      Broadcast a push notification to all subscribed devices.
-      Members receive it even when the app is closed.
-    </p>
+    <AdminPageHeader
+      eyebrow="Communications"
+      title="Send notification"
+      description="Broadcast a push notification to all subscribed devices. Members receive it even when the app is closed."
+    />
 
     <AdminNotice v-if="!admin?.client?.value" tone="warning">
       Connect to Supabase first so the send function receives admin credentials.
@@ -167,20 +168,9 @@ async function send() {
 
 <style scoped>
 .view {
+  display: grid;
+  gap: 1.25rem;
   max-width: 1080px;
-}
-
-.h1 {
-  margin: 0 0 0.35rem;
-  font-size: clamp(1.35rem, 1.1rem + 0.9vw, 1.9rem);
-  letter-spacing: -0.03em;
-}
-
-.lede {
-  margin: 0 0 1.25rem;
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.45;
 }
 
 .compose-layout {
