@@ -28,10 +28,44 @@ const savingId = ref(null);
 const error = ref("");
 const filter = ref("missing");
 const search = ref("");
+const confirmDialog = ref({
+  open: false,
+  title: "",
+  message: "",
+  detail: "",
+  confirmLabel: "Continue",
+  resolve: null,
+});
 
 const drafts = ref({});
 /** @type {import('vue').Ref<Record<string, HTMLInputElement | null>>} */
 const pointsRefs = ref({});
+
+function askConfirm({ title, message, detail = "", confirmLabel }) {
+  return new Promise((resolve) => {
+    confirmDialog.value = {
+      open: true,
+      title,
+      message,
+      detail,
+      confirmLabel,
+      resolve,
+    };
+  });
+}
+
+function closeConfirm(answer) {
+  const resolve = confirmDialog.value.resolve;
+  confirmDialog.value = {
+    open: false,
+    title: "",
+    message: "",
+    detail: "",
+    confirmLabel: "Continue",
+    resolve: null,
+  };
+  if (resolve) resolve(answer);
+}
 
 async function loadRounds() {
   const sb = admin?.client?.value;
@@ -231,9 +265,12 @@ async function saveMember(member, { focusNext = false } = {}) {
     }
 
     if (progress.value.missing === 0 && !roundFinalized.value) {
-      const go = window.confirm(
-        `All ${progress.value.total} roster players have scores. Open Rounds to finalize?`,
-      );
+      const go = await askConfirm({
+        title: "Round scores complete",
+        message: `All ${progress.value.total} roster players have scores.`,
+        detail: "Open the Rounds admin table now to review and finalize this round.",
+        confirmLabel: "Open Rounds",
+      });
       if (go) router.push("/manage/6-rounds");
     }
   } catch (e) {
@@ -411,6 +448,33 @@ watch(filter, (mode) => {
         <RouterLink to="/manage/6-rounds">Rounds</RouterLink>
       </p>
     </template>
+
+    <teleport to="body">
+      <div v-if="confirmDialog.open" class="confirm-backdrop" @click.self="closeConfirm(false)">
+        <div
+          class="confirm-card"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="score-entry-confirm-title"
+          aria-describedby="score-entry-confirm-message"
+        >
+          <div class="confirm-icon" aria-hidden="true">✓</div>
+          <div class="confirm-content">
+            <h2 id="score-entry-confirm-title">{{ confirmDialog.title }}</h2>
+            <p id="score-entry-confirm-message">{{ confirmDialog.message }}</p>
+            <p v-if="confirmDialog.detail" class="confirm-detail">{{ confirmDialog.detail }}</p>
+          </div>
+          <div class="confirm-actions">
+            <button type="button" class="secondary-button" @click="closeConfirm(false)">
+              Stay here
+            </button>
+            <button type="button" class="primary-button" @click="closeConfirm(true)">
+              {{ confirmDialog.confirmLabel }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -427,8 +491,9 @@ watch(filter, (mode) => {
   align-items: flex-start;
   padding: 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 
 .eyebrow {
@@ -466,17 +531,21 @@ h1,
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.65rem 1rem;
-  background: var(--surface);
+  background: var(--panel);
   color: var(--text);
   font-weight: 700;
   font-size: 0.84rem;
   cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .primary-button {
   border-color: var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .primary-button--compact {
@@ -490,6 +559,18 @@ h1,
   opacity: 0.55;
 }
 
+.primary-button:not(:disabled):hover,
+.secondary-button:not(:disabled):hover {
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
+  transform: translateY(-1px);
+}
+
+.primary-button:not(:disabled):hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
 .toolbar-card {
   display: flex;
   flex-wrap: wrap;
@@ -497,8 +578,9 @@ h1,
   align-items: flex-end;
   padding: 1rem 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 
 .field-pill {
@@ -526,7 +608,7 @@ h1,
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.55rem 0.85rem;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
   color: var(--text);
   font: inherit;
   font-size: 0.88rem;
@@ -536,13 +618,14 @@ h1,
   margin: 0;
   padding: 0.75rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--ok) 8%, var(--surface));
+  border-radius: var(--radius-md);
+  background: var(--ok-soft);
   font-size: 0.86rem;
 }
 
 .status-line--lock {
-  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
+  background: var(--danger-soft);
 }
 
 .status-line span {
@@ -553,23 +636,28 @@ h1,
 .notice {
   margin: 0;
   padding: 0.8rem 1rem;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--panel);
 }
 
 .notice--error {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
+  background: var(--danger-soft);
   color: var(--danger);
 }
 
 .notice--warn {
-  color: #fbbf24;
+  border-color: color-mix(in srgb, var(--warning) 36%, var(--line));
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .entry-panel {
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
   overflow: hidden;
 }
 
@@ -595,7 +683,7 @@ h1,
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+  background: color-mix(in srgb, var(--panel-strong) 92%, var(--accent));
 }
 
 .entry-table tbody tr:last-child td {
@@ -656,7 +744,7 @@ h1,
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.4rem 0.5rem;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
   color: var(--text);
   font: inherit;
   font-size: 0.92rem;
@@ -695,6 +783,72 @@ h1,
   margin: 0;
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(8px);
+}
+
+.confirm-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.9rem;
+  width: min(500px, 100%);
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.confirm-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-weight: 900;
+}
+
+.confirm-content h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.confirm-content p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.confirm-detail {
+  margin-top: 0.75rem !important;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-strong) 70%, transparent);
+  color: var(--text) !important;
+}
+
+.confirm-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.2rem;
 }
 
 @media (max-width: 720px) {
