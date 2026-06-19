@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, inject, computed, reactive } from "vue";
+import { ref, watch, inject, computed, reactive, onBeforeUnmount } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { ENUMS } from "@/config/entityAdminConfig.js";
 import {
@@ -34,6 +34,18 @@ const jsonDraft = reactive({});
 // Custom row-action state
 const rpcBusy = ref({});   // rowKey → true while running
 const rpcResult = ref(null); // last result/error message to show inline
+const notice = ref(null);
+let noticeTimer = null;
+const confirmDialog = reactive({
+  open: false,
+  title: "",
+  message: "",
+  detail: "",
+  confirmLabel: "Continue",
+  cancelLabel: "Cancel",
+  tone: "default",
+  resolve: null,
+});
 
 // Remember last-used create values per table so repeat adds are fast.
 // Keyed by table name; reset when navigating to a different entity.
@@ -144,6 +156,56 @@ function setTableDensity(value) {
   tableDensity.value = value;
   localStorage.setItem("wags_admin_table_density", value);
 }
+
+function showNotice(message, tone = "ok") {
+  notice.value = { message, tone };
+  if (noticeTimer) clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => {
+    notice.value = null;
+    noticeTimer = null;
+  }, 4200);
+}
+
+function askConfirm({
+  title,
+  message,
+  detail = "",
+  confirmLabel = "Continue",
+  cancelLabel = "Cancel",
+  tone = "default",
+}) {
+  return new Promise((resolve) => {
+    confirmDialog.title = title;
+    confirmDialog.message = message;
+    confirmDialog.detail = detail;
+    confirmDialog.confirmLabel = confirmLabel;
+    confirmDialog.cancelLabel = cancelLabel;
+    confirmDialog.tone = tone;
+    confirmDialog.resolve = resolve;
+    confirmDialog.open = true;
+  });
+}
+
+function closeConfirm(answer) {
+  const resolve = confirmDialog.resolve;
+  confirmDialog.open = false;
+  confirmDialog.resolve = null;
+  if (resolve) resolve(answer);
+}
+
+function rowSummary(row) {
+  const cols = entity.value?.listColumns ?? [];
+  const parts = cols
+    .map((c) => flattenCell(row, c.key))
+    .filter((v) => v !== null && v !== undefined && v !== "")
+    .map((v) => String(v))
+    .slice(0, 3);
+  return parts.join(" · ") || rowKey(row);
+}
+
+onBeforeUnmount(() => {
+  if (noticeTimer) clearTimeout(noticeTimer);
+});
 
 function isCompositePk() {
   const pk = entity.value?.primaryKey;
@@ -386,8 +448,9 @@ function blankModel() {
 
 function openCreate() {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
-    window.alert(
+    showNotice(
       "This round is finalized. Reopen it on Rounds before adding scores.",
+      "warning",
     );
     return;
   }
@@ -440,8 +503,9 @@ function sanitizeRawForModel(raw) {
 
 function openEdit(row) {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
-    window.alert(
+    showNotice(
       "This round is finalized. Reopen it on Rounds before editing scores.",
+      "warning",
     );
     return;
   }
@@ -637,6 +701,11 @@ async function save() {
     }
     closeDialog();
     await loadRows();
+    showNotice(
+      `${route.meta?.title || entity.value.table} row ${
+        dialogMode.value === "create" ? "created" : "updated"
+      }.`,
+    );
   } catch (e) {
     formError.value = isDuplicateKeyError(e)
       ? friendlyDuplicateScoreMessage()
@@ -648,14 +717,20 @@ async function save() {
 
 async function removeRow(row) {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
-    window.alert("This round is finalized. Reopen it before deleting scores.");
+    showNotice("This round is finalized. Reopen it before deleting scores.", "warning");
     return;
   }
   const sb = admin?.client?.value;
   if (!sb) return;
   const table = entity.value.table;
   const pk = entity.value.primaryKey;
-  const ok = window.confirm("Delete this row?");
+  const ok = await askConfirm({
+    title: "Delete row?",
+    message: "This will permanently delete the selected row from the live Supabase table.",
+    detail: rowSummary(row),
+    confirmLabel: "Delete row",
+    tone: "danger",
+  });
   if (!ok) return;
   try {
     if (isCompositePk()) {
@@ -668,8 +743,10 @@ async function removeRow(row) {
       if (qerr) throw qerr;
     }
     await loadRows();
+    showNotice("Row deleted.");
   } catch (e) {
     error.value = e?.message || String(e);
+    showNotice(error.value, "danger");
   }
 }
 
@@ -710,24 +787,42 @@ async function runRowAction(action, row) {
           .join("\n");
         const more =
           names.length > 12 ? `\n…and ${names.length - 12} more` : "";
-        const override = window.confirm(
-          `Scores look incomplete for "${row.name || "this round"}".\n\n` +
-            `${check.summary}.\n\n` +
-            (bulletList ? `${bulletList}${more}\n\n` : "") +
-            "Enter scores first (Weekly workflow → Enter scores).\n\n" +
-            "Finalize anyway? Handicaps and prize money may be wrong.",
-        );
+        const override = await askConfirm({
+          title: "Finalize incomplete round?",
+          message:
+            `Scores look incomplete for "${row.name || "this round"}". ` +
+            `${check.summary}. Enter scores first if possible.`,
+          detail: bulletList
+            ? `${bulletList}${more}\n\nFinalizing anyway may make handicaps and prize money wrong.`
+            : "Finalizing anyway may make handicaps and prize money wrong.",
+          confirmLabel: "Finalize anyway",
+          tone: "danger",
+        });
         if (!override) return;
       }
     } catch (e) {
-      const override = window.confirm(
-        `Could not verify scores (${e?.message || String(e)}).\n\nFinalize anyway?`,
-      );
+      const override = await askConfirm({
+        title: "Finalize without verification?",
+        message: `Could not verify scores (${e?.message || String(e)}).`,
+        detail: "Only continue if you have manually checked that the round is ready.",
+        confirmLabel: "Finalize anyway",
+        tone: "danger",
+      });
       if (!override) return;
     }
   }
 
-  if (action.confirm && !window.confirm(action.confirm)) return;
+  if (
+    action.confirm &&
+    !(await askConfirm({
+      title: `${action.label}?`,
+      message: action.confirm,
+      confirmLabel: action.label,
+      tone: action.key === "finalize" ? "danger" : "default",
+    }))
+  ) {
+    return;
+  }
   rpcResult.value = null;
   rpcBusy.value = { ...rpcBusy.value, [key]: true };
   try {
@@ -738,8 +833,10 @@ async function runRowAction(action, row) {
     const result = typeof data === "object" ? data : { result: data };
     rpcResult.value = { ok: true, action: action.label, data: result };
     await loadRows();
+    showNotice(`${action.label} complete.`);
   } catch (e) {
     rpcResult.value = { ok: false, action: action.label, msg: e?.message || String(e) };
+    showNotice(rpcResult.value.msg, "danger");
   } finally {
     const next = { ...rpcBusy.value };
     delete next[key];
@@ -1216,6 +1313,48 @@ const formFieldsVisible = computed(() => {
         </div>
       </div>
     </teleport>
+
+    <teleport to="body">
+      <div v-if="confirmDialog.open" class="confirm-backdrop" @click.self="closeConfirm(false)">
+        <div
+          class="confirm-card"
+          :class="`tone-${confirmDialog.tone}`"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="confirm-title"
+          aria-describedby="confirm-message"
+        >
+          <div class="confirm-icon" aria-hidden="true">
+            {{ confirmDialog.tone === "danger" ? "!" : "?" }}
+          </div>
+          <div class="confirm-content">
+            <h2 id="confirm-title">{{ confirmDialog.title }}</h2>
+            <p id="confirm-message">{{ confirmDialog.message }}</p>
+            <p v-if="confirmDialog.detail" class="confirm-detail">{{ confirmDialog.detail }}</p>
+          </div>
+          <div class="confirm-actions">
+            <button type="button" class="btn ghost" @click="closeConfirm(false)">
+              {{ confirmDialog.cancelLabel }}
+            </button>
+            <button
+              type="button"
+              :class="['btn', confirmDialog.tone === 'danger' ? 'danger' : 'primary']"
+              @click="closeConfirm(true)"
+            >
+              {{ confirmDialog.confirmLabel }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
+
+    <teleport to="body">
+      <Transition name="toast">
+        <div v-if="notice" :class="['toast', `tone-${notice.tone}`]" role="status" aria-live="polite">
+          {{ notice.message }}
+        </div>
+      </Transition>
+    </teleport>
   </div>
 </template>
 
@@ -1298,6 +1437,11 @@ const formFieldsVisible = computed(() => {
   border-color: var(--accent);
   color: var(--accent-contrast);
 }
+.btn.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -1310,6 +1454,10 @@ const formFieldsVisible = computed(() => {
 .btn.primary:not(:disabled):hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
+}
+.btn.danger:not(:disabled):hover {
+  background: color-mix(in srgb, var(--danger) 86%, #000);
+  border-color: color-mix(in srgb, var(--danger) 86%, #000);
 }
 .btn.ghost:not(:disabled):hover {
   background: var(--panel-strong);
@@ -1598,6 +1746,104 @@ th.sorted .sort-indicator {
   padding: 0.85rem 1rem;
   border-top: 1px solid var(--line);
   background: color-mix(in srgb, var(--panel-strong) 60%, transparent);
+}
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(8px);
+}
+.confirm-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.9rem;
+  width: min(480px, 100%);
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.confirm-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  color: var(--accent);
+  font-weight: 900;
+}
+.confirm-card.tone-danger .confirm-icon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.confirm-content h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+.confirm-content p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.confirm-detail {
+  margin-top: 0.75rem !important;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-strong) 70%, transparent);
+  color: var(--text) !important;
+  white-space: pre-line;
+}
+.confirm-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.2rem;
+}
+.toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1200;
+  max-width: min(26rem, calc(100vw - 2rem));
+  padding: 0.75rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--ok) 36%, var(--line));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--ok) 12%, var(--panel));
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+.toast.tone-warning {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--line));
+  background: color-mix(in srgb, var(--warning) 14%, var(--panel));
+}
+.toast.tone-danger {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
+  background: color-mix(in srgb, var(--danger) 13%, var(--panel));
+}
+.toast-enter-active,
+.toast-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 .link.accent {
   color: var(--accent);
