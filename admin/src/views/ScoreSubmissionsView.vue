@@ -1,5 +1,6 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
+import AdminButton from "@/components/AdminButton.vue";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
 import AdminNotice from "@/components/AdminNotice.vue";
 
@@ -384,9 +385,9 @@ watch(selectedGroup, pickMatchingRound);
           Saved committee cards appear here live. Check them, import them into the selected round, then finalize.
         </p>
       </div>
-      <button type="button" class="secondary-button" :disabled="loading" @click="loadAll">
+      <AdminButton :disabled="loading" pill @click="loadAll">
         {{ loading ? "Refreshing..." : "Refresh" }}
-      </button>
+      </AdminButton>
     </header>
 
     <AdminNotice v-if="error" tone="error">{{ error }}</AdminNotice>
@@ -436,18 +437,17 @@ watch(selectedGroup, pickMatchingRound);
             <AdminNotice v-if="roundDateCollision" tone="warning">
               Multiple open weekly rounds share this date — confirm Play # in the dropdown before importing.
             </AdminNotice>
-            <button
-              type="button"
-              class="primary-button"
+            <AdminButton
+              variant="primary"
               :disabled="!selectedRoundId || importing || selectedRound?.finalized"
               @click="importToRound"
             >
               {{ importing ? "Importing..." : "Import to live scores" }}
-            </button>
-            <button type="button" class="secondary-button" @click="downloadCsv">Download CSV</button>
-            <button type="button" class="danger-button" :disabled="loading" @click="deleteGroup">
+            </AdminButton>
+            <AdminButton @click="downloadCsv">Download CSV</AdminButton>
+            <AdminButton variant="danger" :disabled="loading" @click="deleteGroup">
               Clear date
-            </button>
+            </AdminButton>
           </div>
         </div>
 
@@ -536,58 +536,6 @@ h2,
 .cash-line {
   margin-top: 0.4rem;
   color: var(--muted);
-}
-
-.primary-button,
-.secondary-button,
-.danger-button {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.65rem 1rem;
-  background: var(--panel);
-  color: var(--text);
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    transform 0.16s ease;
-}
-
-.primary-button {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.danger-button {
-  border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
-  color: var(--danger);
-}
-
-.danger-solid {
-  border-color: var(--danger);
-  background: var(--danger);
-  color: #fff;
-}
-
-.primary-button:not(:disabled):hover,
-.secondary-button:not(:disabled):hover,
-.danger-button:not(:disabled):hover {
-  border-color: var(--line-strong);
-  background: var(--panel-strong);
-  transform: translateY(-1px);
-}
-
-.primary-button:not(:disabled):hover,
-.danger-solid:not(:disabled):hover {
-  border-color: var(--accent-hover);
-  background: var(--accent-hover);
-}
-
-.danger-solid:not(:disabled):hover {
-  border-color: color-mix(in srgb, var(--danger) 86%, #000);
-  background: color-mix(in srgb, var(--danger) 86%, #000);
 }
 
 button:disabled {

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, inject } from "vue";
+import AdminButton from "@/components/AdminButton.vue";
 import AdminNotice from "@/components/AdminNotice.vue";
 
 const admin = inject("adminCtx");
@@ -127,9 +128,9 @@ async function send() {
         </div>
 
         <div class="form-actions">
-          <button class="btn-send" :disabled="!canSend" @click="send">
+          <AdminButton variant="primary" :disabled="!canSend" @click="send">
             {{ sending ? "Sending…" : "Send to all subscribers" }}
-          </button>
+          </AdminButton>
           <span class="send-meta">Destination: {{ url || "/" }}</span>
         </div>
 
@@ -270,32 +271,6 @@ async function send() {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.7rem;
-}
-
-.btn-send {
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-md);
-  padding: 0.62rem 1rem;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-size: 0.9rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    transform 0.16s ease;
-}
-
-.btn-send:not(:disabled):hover {
-  border-color: var(--accent-hover);
-  background: var(--accent-hover);
-  transform: translateY(-1px);
-}
-
-.btn-send:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .phone-preview {

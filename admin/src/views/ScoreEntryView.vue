@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, inject, nextTick } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
+import AdminButton from "@/components/AdminButton.vue";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
 import AdminNotice from "@/components/AdminNotice.vue";
 import {
@@ -325,9 +326,9 @@ watch(filter, (mode) => {
           Type points and press <kbd>Enter</kbd> to save and jump to the next missing player.
         </p>
       </div>
-      <button type="button" class="secondary-button" :disabled="loading" @click="loadAll">
+      <AdminButton :disabled="loading" pill @click="loadAll">
         {{ loading ? "Refreshing…" : "Refresh" }}
-      </button>
+      </AdminButton>
     </header>
 
     <AdminNotice v-if="!admin?.client?.value" tone="warning">
@@ -424,9 +425,9 @@ watch(filter, (mode) => {
                   />
                 </td>
                 <td class="col-action">
-                  <button
-                    type="button"
-                    class="primary-button primary-button--compact"
+                  <AdminButton
+                    variant="primary"
+                    size="compact"
                     :disabled="roundFinalized || savingId === m.memberId"
                     @click="saveMember(m)"
                   >
@@ -437,7 +438,7 @@ watch(filter, (mode) => {
                           ? "Update"
                           : "Save"
                     }}
-                  </button>
+                  </AdminButton>
                 </td>
               </tr>
             </tbody>
@@ -513,51 +514,6 @@ h1,
   border: 1px solid var(--line);
   background: var(--bg);
   font-family: inherit;
-}
-
-.primary-button,
-.secondary-button {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.65rem 1rem;
-  background: var(--panel);
-  color: var(--text);
-  font-weight: 700;
-  font-size: 0.84rem;
-  cursor: pointer;
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    transform 0.16s ease;
-}
-
-.primary-button {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.primary-button--compact {
-  padding: 0.5rem 0.9rem;
-  font-size: 0.8rem;
-}
-
-.secondary-button:disabled,
-.primary-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.primary-button:not(:disabled):hover,
-.secondary-button:not(:disabled):hover {
-  border-color: var(--line-strong);
-  background: var(--panel-strong);
-  transform: translateY(-1px);
-}
-
-.primary-button:not(:disabled):hover {
-  border-color: var(--accent-hover);
-  background: var(--accent-hover);
 }
 
 .toolbar-card {

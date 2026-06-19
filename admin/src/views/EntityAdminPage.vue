@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, inject, computed, reactive, onBeforeUnmount } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
+import AdminButton from "@/components/AdminButton.vue";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
 import AdminNotice from "@/components/AdminNotice.vue";
 import { ENUMS } from "@/config/entityAdminConfig.js";
@@ -1013,33 +1014,29 @@ const formFieldsVisible = computed(() => {
     </div>
 
     <div class="toolbar">
-      <button
+      <AdminButton
         v-if="isScoreEntry"
-        type="button"
-        class="btn primary"
+        variant="primary"
         :disabled="!admin?.client?.value"
         @click="goToScoreEntry"
       >
         Enter scores
-      </button>
-      <button
+      </AdminButton>
+      <AdminButton
         v-if="!isReadOnly"
-        type="button"
-        class="btn"
-        :class="{ primary: !isScoreEntry }"
+        :variant="!isScoreEntry ? 'primary' : 'secondary'"
         :disabled="!admin?.client?.value || !canModifyScores"
         @click="openCreate"
       >
         Add row
-      </button>
-      <button
-        type="button"
-        class="btn ghost"
+      </AdminButton>
+      <AdminButton
+        variant="ghost"
         :disabled="!admin?.client?.value || loading"
         @click="loadRows"
       >
         Refresh
-      </button>
+      </AdminButton>
     </div>
     <div v-if="entity.filterByCampaign" class="campaign-filter-bar">
       <label class="campaign-filter-label">
@@ -1110,14 +1107,14 @@ const formFieldsVisible = computed(() => {
           autocomplete="off"
         />
       </label>
-      <button
+      <AdminButton
         v-if="tableSearch"
-        type="button"
-        class="btn ghost compact-btn"
+        variant="ghost"
+        size="compact"
         @click="tableSearch = ''"
       >
         Clear
-      </button>
+      </AdminButton>
       <div class="density-toggle" aria-label="Table density">
         <button
           type="button"
@@ -1309,10 +1306,10 @@ const formFieldsVisible = computed(() => {
             </div>
           </div>
           <div class="modal-foot">
-            <button type="button" class="btn ghost" @click="closeDialog">Cancel</button>
-            <button type="button" class="btn primary" :disabled="saving" @click="save">
+            <AdminButton variant="ghost" @click="closeDialog">Cancel</AdminButton>
+            <AdminButton variant="primary" :disabled="saving" @click="save">
               {{ saving ? "Saving…" : "Save" }}
-            </button>
+            </AdminButton>
           </div>
         </div>
       </div>
@@ -1399,53 +1396,6 @@ const formFieldsVisible = computed(() => {
 .tbl tbody tr.row-dq {
   opacity: 0.55;
   text-decoration: line-through;
-}
-.btn {
-  border-radius: var(--radius-md);
-  padding: 0.52rem 0.95rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--text);
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    transform 0.16s ease;
-}
-.btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast);
-}
-.btn.danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #fff;
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.btn:not(:disabled):hover {
-  border-color: var(--line-strong);
-  background: var(--panel-strong);
-  transform: translateY(-1px);
-}
-.btn.primary:not(:disabled):hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
-}
-.btn.danger:not(:disabled):hover {
-  background: color-mix(in srgb, var(--danger) 86%, #000);
-  border-color: color-mix(in srgb, var(--danger) 86%, #000);
-}
-.btn.ghost:not(:disabled):hover {
-  background: var(--panel-strong);
-}
-.compact-btn {
-  padding: 0.45rem 0.7rem;
 }
 .sr-only {
   position: absolute;

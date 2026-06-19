@@ -1,5 +1,6 @@
 <script setup>
 import { ref, inject, watch, computed } from "vue";
+import AdminButton from "@/components/AdminButton.vue";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
 import AdminNotice from "@/components/AdminNotice.vue";
 
@@ -196,17 +197,16 @@ watch(
         </label>
       </div>
       <div class="row">
-        <button type="button" class="btn primary" :disabled="busy || !oldId" @click="runPreview">
+        <AdminButton variant="primary" :disabled="busy || !oldId" @click="runPreview">
           {{ busy ? "…" : "Preview P/R" }}
-        </button>
-        <button
-          type="button"
-          class="btn danger"
+        </AdminButton>
+        <AdminButton
+          variant="danger"
           :disabled="busy || !oldId || !nextId || oldId === nextId"
           @click="runApply"
         >
           Close old + apply to next
-        </button>
+        </AdminButton>
       </div>
 
       <table v-if="previewRows.length" class="tbl">
@@ -312,47 +312,6 @@ watch(
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
-}
-.btn {
-  border-radius: var(--radius-md);
-  border: 1px solid var(--line);
-  padding: 0.52rem 0.95rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  background: var(--panel);
-  color: var(--text);
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    transform 0.16s ease;
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast);
-}
-.btn.danger {
-  border-color: color-mix(in srgb, var(--danger) 58%, var(--line));
-  color: var(--danger);
-}
-.btn.danger.solid {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #fff;
-}
-.btn:not(:disabled):hover {
-  border-color: var(--line-strong);
-  background: var(--panel-strong);
-  transform: translateY(-1px);
-}
-.btn.primary:not(:disabled):hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
 }
 .tbl {
   width: 100%;
