@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, inject, computed, reactive, onBeforeUnmount } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
+import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
 import { ENUMS } from "@/config/entityAdminConfig.js";
 import {
   pickDefaultRoundId,
@@ -1314,39 +1315,17 @@ const formFieldsVisible = computed(() => {
       </div>
     </teleport>
 
-    <teleport to="body">
-      <div v-if="confirmDialog.open" class="confirm-backdrop" @click.self="closeConfirm(false)">
-        <div
-          class="confirm-card"
-          :class="`tone-${confirmDialog.tone}`"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="confirm-title"
-          aria-describedby="confirm-message"
-        >
-          <div class="confirm-icon" aria-hidden="true">
-            {{ confirmDialog.tone === "danger" ? "!" : "?" }}
-          </div>
-          <div class="confirm-content">
-            <h2 id="confirm-title">{{ confirmDialog.title }}</h2>
-            <p id="confirm-message">{{ confirmDialog.message }}</p>
-            <p v-if="confirmDialog.detail" class="confirm-detail">{{ confirmDialog.detail }}</p>
-          </div>
-          <div class="confirm-actions">
-            <button type="button" class="btn ghost" @click="closeConfirm(false)">
-              {{ confirmDialog.cancelLabel }}
-            </button>
-            <button
-              type="button"
-              :class="['btn', confirmDialog.tone === 'danger' ? 'danger' : 'primary']"
-              @click="closeConfirm(true)"
-            >
-              {{ confirmDialog.confirmLabel }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </teleport>
+    <AdminConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :detail="confirmDialog.detail"
+      :confirm-label="confirmDialog.confirmLabel"
+      :cancel-label="confirmDialog.cancelLabel"
+      :tone="confirmDialog.tone"
+      @confirm="closeConfirm(true)"
+      @cancel="closeConfirm(false)"
+    />
 
     <teleport to="body">
       <Transition name="toast">
@@ -1746,70 +1725,6 @@ th.sorted .sort-indicator {
   padding: 0.85rem 1rem;
   border-top: 1px solid var(--line);
   background: color-mix(in srgb, var(--panel-strong) 60%, transparent);
-}
-.confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.58);
-  backdrop-filter: blur(8px);
-}
-.confirm-card {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.9rem;
-  width: min(480px, 100%);
-  padding: 1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-}
-.confirm-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
-  color: var(--accent);
-  font-weight: 900;
-}
-.confirm-card.tone-danger .confirm-icon {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-.confirm-content h2 {
-  margin: 0 0 0.35rem;
-  font-size: 1rem;
-  letter-spacing: -0.01em;
-}
-.confirm-content p {
-  margin: 0;
-  color: var(--muted-strong);
-  font-size: 0.88rem;
-  line-height: 1.45;
-}
-.confirm-detail {
-  margin-top: 0.75rem !important;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--panel-strong) 70%, transparent);
-  color: var(--text) !important;
-  white-space: pre-line;
-}
-.confirm-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding-top: 0.2rem;
 }
 .toast {
   position: fixed;

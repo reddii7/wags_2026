@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, inject, nextTick } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
+import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
 import {
   pickDefaultRoundId,
   mapRoundOptions,
@@ -449,32 +450,17 @@ watch(filter, (mode) => {
       </p>
     </template>
 
-    <teleport to="body">
-      <div v-if="confirmDialog.open" class="confirm-backdrop" @click.self="closeConfirm(false)">
-        <div
-          class="confirm-card"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="score-entry-confirm-title"
-          aria-describedby="score-entry-confirm-message"
-        >
-          <div class="confirm-icon" aria-hidden="true">✓</div>
-          <div class="confirm-content">
-            <h2 id="score-entry-confirm-title">{{ confirmDialog.title }}</h2>
-            <p id="score-entry-confirm-message">{{ confirmDialog.message }}</p>
-            <p v-if="confirmDialog.detail" class="confirm-detail">{{ confirmDialog.detail }}</p>
-          </div>
-          <div class="confirm-actions">
-            <button type="button" class="secondary-button" @click="closeConfirm(false)">
-              Stay here
-            </button>
-            <button type="button" class="primary-button" @click="closeConfirm(true)">
-              {{ confirmDialog.confirmLabel }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </teleport>
+    <AdminConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :detail="confirmDialog.detail"
+      :confirm-label="confirmDialog.confirmLabel"
+      cancel-label="Stay here"
+      tone="success"
+      @confirm="closeConfirm(true)"
+      @cancel="closeConfirm(false)"
+    />
   </div>
 </template>
 
@@ -783,72 +769,6 @@ h1,
   margin: 0;
   font-size: 0.82rem;
   color: var(--muted);
-}
-
-.confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.58);
-  backdrop-filter: blur(8px);
-}
-
-.confirm-card {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.9rem;
-  width: min(500px, 100%);
-  padding: 1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-}
-
-.confirm-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 999px;
-  background: var(--ok-soft);
-  color: var(--ok);
-  font-weight: 900;
-}
-
-.confirm-content h2 {
-  margin: 0 0 0.35rem;
-  font-size: 1rem;
-  letter-spacing: -0.01em;
-}
-
-.confirm-content p {
-  margin: 0;
-  color: var(--muted-strong);
-  font-size: 0.88rem;
-  line-height: 1.45;
-}
-
-.confirm-detail {
-  margin-top: 0.75rem !important;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--panel-strong) 70%, transparent);
-  color: var(--text) !important;
-}
-
-.confirm-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding-top: 0.2rem;
 }
 
 @media (max-width: 720px) {
