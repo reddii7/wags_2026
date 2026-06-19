@@ -1,5 +1,6 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { ref } from "vue";
+import { useAdminOverlayFocus } from "@/composables/useAdminOverlayFocus.js";
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -9,36 +10,28 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close"]);
+const sheet = ref(null);
 const closeButton = ref(null);
 
-watch(
-  () => props.open,
-  async (open) => {
-    if (!open) return;
-    await nextTick();
-    closeButton.value?.focus();
-  },
-);
-
-function onKeydown(event) {
-  if (!props.open || event.key !== "Escape") return;
-  event.preventDefault();
-  emit("close");
-}
-
-onMounted(() => {
-  window.addEventListener("keydown", onKeydown);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("keydown", onKeydown);
+useAdminOverlayFocus({
+  isOpen: () => props.open,
+  containerRef: sheet,
+  initialFocusRef: closeButton,
+  onEscape: () => emit("close"),
 });
 </script>
 
 <template>
   <teleport to="body">
     <div v-if="open" class="sheet-backdrop" @click.self="emit('close')">
-      <section class="admin-sheet" role="dialog" aria-modal="true" aria-labelledby="admin-sheet-title">
+      <section
+        ref="sheet"
+        class="admin-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-sheet-title"
+        tabindex="-1"
+      >
         <header class="sheet-head">
           <div>
             <p v-if="kicker" class="sheet-kicker">{{ kicker }}</p>

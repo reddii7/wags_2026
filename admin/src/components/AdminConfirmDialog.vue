@@ -1,5 +1,6 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, ref } from "vue";
+import { useAdminOverlayFocus } from "@/composables/useAdminOverlayFocus.js";
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -13,6 +14,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["confirm", "cancel"]);
+const dialogCard = ref(null);
 const cancelButton = ref(null);
 
 const dialogIcon = computed(() => {
@@ -22,27 +24,11 @@ const dialogIcon = computed(() => {
   return "?";
 });
 
-watch(
-  () => props.open,
-  async (open) => {
-    if (!open) return;
-    await nextTick();
-    cancelButton.value?.focus();
-  },
-);
-
-function onKeydown(event) {
-  if (!props.open || event.key !== "Escape") return;
-  event.preventDefault();
-  emit("cancel");
-}
-
-onMounted(() => {
-  window.addEventListener("keydown", onKeydown);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("keydown", onKeydown);
+useAdminOverlayFocus({
+  isOpen: () => props.open,
+  containerRef: dialogCard,
+  initialFocusRef: cancelButton,
+  onEscape: () => emit("cancel"),
 });
 </script>
 
@@ -50,12 +36,14 @@ onBeforeUnmount(() => {
   <teleport to="body">
     <div v-if="open" class="confirm-backdrop" @click.self="emit('cancel')">
       <div
+        ref="dialogCard"
         class="confirm-card"
         :class="`tone-${tone}`"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="admin-confirm-title"
         aria-describedby="admin-confirm-message"
+        tabindex="-1"
       >
         <div class="confirm-icon" aria-hidden="true">{{ dialogIcon }}</div>
         <div class="confirm-content">
