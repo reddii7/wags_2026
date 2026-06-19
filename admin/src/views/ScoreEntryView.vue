@@ -1,6 +1,10 @@
 <script setup>
 import { ref, computed, watch, inject, nextTick } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
+import AdminButton from "@/components/AdminButton.vue";
+import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
+import AdminNotice from "@/components/AdminNotice.vue";
+import AdminPageHeader from "@/components/AdminPageHeader.vue";
 import {
   pickDefaultRoundId,
   mapRoundOptions,
@@ -28,10 +32,44 @@ const savingId = ref(null);
 const error = ref("");
 const filter = ref("missing");
 const search = ref("");
+const confirmDialog = ref({
+  open: false,
+  title: "",
+  message: "",
+  detail: "",
+  confirmLabel: "Continue",
+  resolve: null,
+});
 
 const drafts = ref({});
 /** @type {import('vue').Ref<Record<string, HTMLInputElement | null>>} */
 const pointsRefs = ref({});
+
+function askConfirm({ title, message, detail = "", confirmLabel }) {
+  return new Promise((resolve) => {
+    confirmDialog.value = {
+      open: true,
+      title,
+      message,
+      detail,
+      confirmLabel,
+      resolve,
+    };
+  });
+}
+
+function closeConfirm(answer) {
+  const resolve = confirmDialog.value.resolve;
+  confirmDialog.value = {
+    open: false,
+    title: "",
+    message: "",
+    detail: "",
+    confirmLabel: "Continue",
+    resolve: null,
+  };
+  if (resolve) resolve(answer);
+}
 
 async function loadRounds() {
   const sb = admin?.client?.value;
@@ -231,9 +269,12 @@ async function saveMember(member, { focusNext = false } = {}) {
     }
 
     if (progress.value.missing === 0 && !roundFinalized.value) {
-      const go = window.confirm(
-        `All ${progress.value.total} roster players have scores. Open Rounds to finalize?`,
-      );
+      const go = await askConfirm({
+        title: "Round scores complete",
+        message: `All ${progress.value.total} roster players have scores.`,
+        detail: "Open the Rounds admin table now to review and finalize this round.",
+        confirmLabel: "Open Rounds",
+      });
       if (go) router.push("/manage/6-rounds");
     }
   } catch (e) {
@@ -278,20 +319,20 @@ watch(filter, (mode) => {
 
 <template>
   <div class="score-entry">
-    <header class="admin-page-header">
-      <div>
-        <p class="eyebrow">Weekly workflow</p>
-        <h1>Enter scores</h1>
-        <p class="lede">
-          Type points and press <kbd>Enter</kbd> to save and jump to the next missing player.
-        </p>
-      </div>
-      <button type="button" class="secondary-button" :disabled="loading" @click="loadAll">
-        {{ loading ? "Refreshing…" : "Refresh" }}
-      </button>
-    </header>
+    <AdminPageHeader eyebrow="Weekly workflow" title="Enter scores">
+      <template #description>
+        Type points and press <kbd>Enter</kbd> to save and jump to the next missing player.
+      </template>
+      <template #actions>
+        <AdminButton :disabled="loading" pill @click="loadAll">
+          {{ loading ? "Refreshing…" : "Refresh" }}
+        </AdminButton>
+      </template>
+    </AdminPageHeader>
 
-    <p v-if="!admin?.client?.value" class="notice notice--warn">Connect to Supabase in the header first.</p>
+    <AdminNotice v-if="!admin?.client?.value" tone="warning">
+      Connect to Supabase in the header first.
+    </AdminNotice>
 
     <template v-else>
       <section class="toolbar-card">
@@ -329,7 +370,7 @@ watch(filter, (mode) => {
         </template>
       </p>
 
-      <p v-if="error" class="notice notice--error">{{ error }}</p>
+      <AdminNotice v-if="error" tone="error">{{ error }}</AdminNotice>
       <p v-if="loading" class="empty-state">Loading…</p>
 
       <section v-else class="entry-panel">
@@ -383,9 +424,9 @@ watch(filter, (mode) => {
                   />
                 </td>
                 <td class="col-action">
-                  <button
-                    type="button"
-                    class="primary-button primary-button--compact"
+                  <AdminButton
+                    variant="primary"
+                    size="compact"
                     :disabled="roundFinalized || savingId === m.memberId"
                     @click="saveMember(m)"
                   >
@@ -396,7 +437,7 @@ watch(filter, (mode) => {
                           ? "Update"
                           : "Save"
                     }}
-                  </button>
+                  </AdminButton>
                 </td>
               </tr>
             </tbody>
@@ -411,6 +452,18 @@ watch(filter, (mode) => {
         <RouterLink to="/manage/6-rounds">Rounds</RouterLink>
       </p>
     </template>
+
+    <AdminConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :detail="confirmDialog.detail"
+      :confirm-label="confirmDialog.confirmLabel"
+      cancel-label="Stay here"
+      tone="success"
+      @confirm="closeConfirm(true)"
+      @cancel="closeConfirm(false)"
+    />
   </div>
 </template>
 
@@ -420,76 +473,6 @@ watch(filter, (mode) => {
   gap: 1.25rem;
 }
 
-.admin-page-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  padding: 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
-}
-
-.eyebrow {
-  margin: 0 0 0.35rem;
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-h1,
-.lede {
-  margin: 0;
-}
-
-.lede {
-  margin-top: 0.4rem;
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.45;
-}
-
-.lede kbd {
-  font-size: 0.85em;
-  padding: 0.12em 0.4em;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  font-family: inherit;
-}
-
-.primary-button,
-.secondary-button {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.65rem 1rem;
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 700;
-  font-size: 0.84rem;
-  cursor: pointer;
-}
-
-.primary-button {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-.primary-button--compact {
-  padding: 0.5rem 0.9rem;
-  font-size: 0.8rem;
-}
-
-.secondary-button:disabled,
-.primary-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
 .toolbar-card {
   display: flex;
   flex-wrap: wrap;
@@ -497,8 +480,9 @@ h1,
   align-items: flex-end;
   padding: 1rem 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 
 .field-pill {
@@ -526,7 +510,7 @@ h1,
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.55rem 0.85rem;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
   color: var(--text);
   font: inherit;
   font-size: 0.88rem;
@@ -536,13 +520,14 @@ h1,
   margin: 0;
   padding: 0.75rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--ok) 8%, var(--surface));
+  border-radius: var(--radius-md);
+  background: var(--ok-soft);
   font-size: 0.86rem;
 }
 
 .status-line--lock {
-  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
+  background: var(--danger-soft);
 }
 
 .status-line span {
@@ -550,26 +535,11 @@ h1,
   font-weight: 400;
 }
 
-.notice {
-  margin: 0;
-  padding: 0.8rem 1rem;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-}
-
-.notice--error {
-  color: var(--danger);
-}
-
-.notice--warn {
-  color: #fbbf24;
-}
-
 .entry-panel {
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
   overflow: hidden;
 }
 
@@ -595,7 +565,7 @@ h1,
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+  background: color-mix(in srgb, var(--panel-strong) 92%, var(--accent));
 }
 
 .entry-table tbody tr:last-child td {
@@ -656,7 +626,7 @@ h1,
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.4rem 0.5rem;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
   color: var(--text);
   font: inherit;
   font-size: 0.92rem;
@@ -698,10 +668,6 @@ h1,
 }
 
 @media (max-width: 720px) {
-  .admin-page-header {
-    display: grid;
-  }
-
   .toolbar-card {
     display: grid;
   }

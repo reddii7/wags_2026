@@ -1,5 +1,9 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
+import AdminButton from "@/components/AdminButton.vue";
+import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
+import AdminNotice from "@/components/AdminNotice.vue";
+import AdminPageHeader from "@/components/AdminPageHeader.vue";
 
 const admin = inject("adminCtx");
 const loading = ref(false);
@@ -10,6 +14,15 @@ const cards = ref([]);
 const rounds = ref([]);
 const selectedRoundId = ref("");
 const selectedKey = ref("");
+const confirmDialog = ref({
+  open: false,
+  title: "",
+  message: "",
+  detail: "",
+  confirmLabel: "Continue",
+  tone: "default",
+  resolve: null,
+});
 
 const groups = computed(() => {
   const map = new Map();
@@ -110,6 +123,34 @@ function formatDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function askConfirm({ title, message, detail = "", confirmLabel, tone = "default" }) {
+  return new Promise((resolve) => {
+    confirmDialog.value = {
+      open: true,
+      title,
+      message,
+      detail,
+      confirmLabel,
+      tone,
+      resolve,
+    };
+  });
+}
+
+function closeConfirm(answer) {
+  const resolve = confirmDialog.value.resolve;
+  confirmDialog.value = {
+    open: false,
+    title: "",
+    message: "",
+    detail: "",
+    confirmLabel: "Continue",
+    tone: "default",
+    resolve: null,
+  };
+  if (resolve) resolve(answer);
 }
 
 function csvEscape(value) {
@@ -262,9 +303,14 @@ async function importToRound() {
     error.value = "This round is finalized. Reopen it before importing held cards.";
     return;
   }
-  const ok = window.confirm(
-    `Import ${selectedRows.value.length} held cards into ${selectedRound.value?.name || "the selected round"}?\n\nExisting scores for these players in that round will be updated.`,
-  );
+  const ok = await askConfirm({
+    title: "Import held cards?",
+    message: `Import ${selectedRows.value.length} staged card${selectedRows.value.length === 1 ? "" : "s"} into ${selectedRound.value?.name || "the selected round"}.`,
+    detail:
+      "Existing scores for these players in that round will be updated.\n" +
+      "Review the score table after import before finalizing the round.",
+    confirmLabel: "Import to live scores",
+  });
   if (!ok) return;
 
   importing.value = true;
@@ -297,9 +343,13 @@ async function deleteGroup() {
   const sb = admin?.client?.value;
   if (!sb || !selectedGroup.value) return;
   if (!selectedGroup.value) return;
-  const ok = window.confirm(
-    `Clear ${selectedRows.value.length} staged cards for ${formatDate(selectedGroup.value.playedDate)}? Live competition scores will not be touched.`,
-  );
+  const ok = await askConfirm({
+    title: "Clear staged cards?",
+    message: `Clear ${selectedRows.value.length} staged card${selectedRows.value.length === 1 ? "" : "s"} for ${formatDate(selectedGroup.value.playedDate)}?`,
+    detail: "Live competition scores will not be touched. Only the held/staged cards for this date will be deleted.",
+    confirmLabel: "Clear staged cards",
+    tone: "danger",
+  });
   if (!ok) return;
   loading.value = true;
   error.value = "";
@@ -328,21 +378,20 @@ watch(selectedGroup, pickMatchingRound);
 
 <template>
   <div class="score-submissions">
-    <header class="admin-page-header">
-      <div>
-        <p class="eyebrow">Weekly workflow</p>
-        <h1>Held cards</h1>
-        <p class="lede">
-          Saved committee cards appear here live. Check them, import them into the selected round, then finalize.
-        </p>
-      </div>
-      <button type="button" class="secondary-button" :disabled="loading" @click="loadAll">
-        {{ loading ? "Refreshing..." : "Refresh" }}
-      </button>
-    </header>
+    <AdminPageHeader
+      eyebrow="Weekly workflow"
+      title="Held cards"
+      description="Saved committee cards appear here live. Check them, import them into the selected round, then finalize."
+    >
+      <template #actions>
+        <AdminButton :disabled="loading" pill @click="loadAll">
+          {{ loading ? "Refreshing..." : "Refresh" }}
+        </AdminButton>
+      </template>
+    </AdminPageHeader>
 
-    <p v-if="error" class="notice notice--error">{{ error }}</p>
-    <p v-if="success" class="notice notice--success">{{ success }}</p>
+    <AdminNotice v-if="error" tone="error">{{ error }}</AdminNotice>
+    <AdminNotice v-if="success" tone="success">{{ success }}</AdminNotice>
 
     <section class="submission-layout">
       <aside class="submission-list">
@@ -385,21 +434,20 @@ watch(selectedGroup, pickMatchingRound);
                 </option>
               </select>
             </label>
-            <p v-if="roundDateCollision" class="notice notice--warn">
+            <AdminNotice v-if="roundDateCollision" tone="warning">
               Multiple open weekly rounds share this date — confirm Play # in the dropdown before importing.
-            </p>
-            <button
-              type="button"
-              class="primary-button"
+            </AdminNotice>
+            <AdminButton
+              variant="primary"
               :disabled="!selectedRoundId || importing || selectedRound?.finalized"
               @click="importToRound"
             >
               {{ importing ? "Importing..." : "Import to live scores" }}
-            </button>
-            <button type="button" class="secondary-button" @click="downloadCsv">Download CSV</button>
-            <button type="button" class="danger-button" :disabled="loading" @click="deleteGroup">
+            </AdminButton>
+            <AdminButton @click="downloadCsv">Download CSV</AdminButton>
+            <AdminButton variant="danger" :disabled="loading" @click="deleteGroup">
               Clear date
-            </button>
+            </AdminButton>
           </div>
         </div>
 
@@ -435,6 +483,17 @@ watch(selectedGroup, pickMatchingRound);
         </div>
       </section>
     </section>
+
+    <AdminConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :detail="confirmDialog.detail"
+      :confirm-label="confirmDialog.confirmLabel"
+      :tone="confirmDialog.tone"
+      @confirm="closeConfirm(true)"
+      @cancel="closeConfirm(false)"
+    />
   </div>
 </template>
 
@@ -444,7 +503,6 @@ watch(selectedGroup, pickMatchingRound);
   gap: 1.25rem;
 }
 
-.admin-page-header,
 .submission-detail__header {
   display: flex;
   justify-content: space-between;
@@ -452,8 +510,9 @@ watch(selectedGroup, pickMatchingRound);
   align-items: flex-start;
   padding: 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 
 .eyebrow {
@@ -465,65 +524,19 @@ watch(selectedGroup, pickMatchingRound);
   text-transform: uppercase;
 }
 
-h1,
 h2,
-.lede,
 .cash-line {
   margin: 0;
 }
 
-.lede,
 .cash-line {
   margin-top: 0.4rem;
   color: var(--muted);
 }
 
-.primary-button,
-.secondary-button,
-.danger-button {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.65rem 1rem;
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.primary-button {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-.danger-button {
-  border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
-  color: var(--danger);
-}
-
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
-}
-
-.notice {
-  margin: 0;
-  padding: 0.8rem 1rem;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-}
-
-.notice--error {
-  color: var(--danger);
-}
-
-.notice--success {
-  color: var(--ok);
-}
-
-.notice--warn {
-  color: #fbbf24;
 }
 
 .submission-layout {
@@ -535,8 +548,9 @@ button:disabled {
 .submission-list,
 .submission-detail {
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 
 .submission-list {
@@ -610,7 +624,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.55rem 0.85rem;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
   color: var(--text);
   font: inherit;
 }
@@ -640,13 +654,11 @@ button:disabled {
 }
 
 @media (max-width: 860px) {
-  .admin-page-header,
   .submission-detail__header,
   .submission-layout {
     grid-template-columns: 1fr;
   }
 
-  .admin-page-header,
   .submission-detail__header {
     display: grid;
   }

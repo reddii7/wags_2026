@@ -1,6 +1,10 @@
 <script setup>
 import { ref, watch, inject, computed, reactive } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
+import AdminButton from "@/components/AdminButton.vue";
+import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
+import AdminNotice from "@/components/AdminNotice.vue";
+import AdminSheet from "@/components/AdminSheet.vue";
 import { ENUMS } from "@/config/entityAdminConfig.js";
 import {
   pickDefaultRoundId,
@@ -13,6 +17,7 @@ import {
   checkRoundFinalizeReady,
   setActiveCampaignId,
 } from "@/composables/useRoundScores.js";
+import { useAdminToasts } from "@/composables/useAdminToasts.js";
 
 const admin = inject("adminCtx");
 const route = useRoute();
@@ -34,6 +39,17 @@ const jsonDraft = reactive({});
 // Custom row-action state
 const rpcBusy = ref({});   // rowKey → true while running
 const rpcResult = ref(null); // last result/error message to show inline
+const confirmDialog = reactive({
+  open: false,
+  title: "",
+  message: "",
+  detail: "",
+  confirmLabel: "Continue",
+  cancelLabel: "Cancel",
+  tone: "default",
+  resolve: null,
+});
+const { pushToast } = useAdminToasts();
 
 // Remember last-used create values per table so repeat adds are fast.
 // Keyed by table name; reset when navigating to a different entity.
@@ -47,6 +63,12 @@ const campaignFilterOptions = ref([]);
 const snapshotRoundPickerId = ref("");
 const snapshotRoundPickerOptions = ref([]);
 const rosterMembers = ref([]);
+const tableSearch = ref("");
+const tableDensity = ref(localStorage.getItem("wags_admin_table_density") || "comfortable");
+const tableSort = reactive({ key: "", dir: "asc" });
+const tablePage = ref(1);
+const tablePageSize = ref(Number(localStorage.getItem("wags_admin_table_page_size")) || 50);
+const totalRowCount = ref(0);
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -90,6 +112,126 @@ function flattenCell(row, key) {
     return JSON.stringify(v);
   }
   return v;
+}
+
+function cellSearchText(value) {
+  if (value == null) return "";
+  return String(value).toLowerCase();
+}
+
+function compareCellValues(a, b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+
+  const aNum = typeof a === "number" ? a : Number(String(a).replace(/,/g, ""));
+  const bNum = typeof b === "number" ? b : Number(String(b).replace(/,/g, ""));
+  if (Number.isFinite(aNum) && Number.isFinite(bNum)) return aNum - bNum;
+
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function isSortableColumn(column) {
+  return column?.key && column.key !== "_actions";
+}
+
+function toggleSort(column) {
+  if (!isSortableColumn(column)) return;
+  if (tableSort.key === column.key) {
+    tableSort.dir = tableSort.dir === "asc" ? "desc" : "asc";
+    return;
+  }
+  tableSort.key = column.key;
+  tableSort.dir = "asc";
+}
+
+function sortLabel(column) {
+  if (!isSortableColumn(column)) return undefined;
+  if (tableSort.key !== column.key) return `Sort by ${column.label}`;
+  return `Sorted ${tableSort.dir === "asc" ? "ascending" : "descending"} by ${column.label}`;
+}
+
+function ariaSort(column) {
+  if (!isSortableColumn(column) || tableSort.key !== column.key) return "none";
+  return tableSort.dir === "asc" ? "ascending" : "descending";
+}
+
+function setTableDensity(value) {
+  tableDensity.value = value;
+  localStorage.setItem("wags_admin_table_density", value);
+}
+
+const pageSizeOptions = [25, 50, 100, 250];
+
+const pageCount = computed(() =>
+  Math.max(1, Math.ceil((totalRowCount.value || 0) / tablePageSize.value)),
+);
+
+const tablePageStart = computed(() =>
+  totalRowCount.value ? (tablePage.value - 1) * tablePageSize.value + 1 : 0,
+);
+
+const tablePageEnd = computed(() =>
+  Math.min(tablePage.value * tablePageSize.value, totalRowCount.value),
+);
+
+function setTablePageSize(value) {
+  tablePageSize.value = Number(value) || 50;
+  localStorage.setItem("wags_admin_table_page_size", String(tablePageSize.value));
+  tablePage.value = 1;
+  void loadRows();
+}
+
+function goToTablePage(page) {
+  const next = Math.min(Math.max(1, page), pageCount.value);
+  if (next === tablePage.value) return;
+  tablePage.value = next;
+  void loadRows();
+}
+
+function resetPageAndLoadRows() {
+  tablePage.value = 1;
+  void loadRows();
+}
+
+function askConfirm({
+  title,
+  message,
+  detail = "",
+  confirmLabel = "Continue",
+  cancelLabel = "Cancel",
+  tone = "default",
+}) {
+  return new Promise((resolve) => {
+    confirmDialog.title = title;
+    confirmDialog.message = message;
+    confirmDialog.detail = detail;
+    confirmDialog.confirmLabel = confirmLabel;
+    confirmDialog.cancelLabel = cancelLabel;
+    confirmDialog.tone = tone;
+    confirmDialog.resolve = resolve;
+    confirmDialog.open = true;
+  });
+}
+
+function closeConfirm(answer) {
+  const resolve = confirmDialog.resolve;
+  confirmDialog.open = false;
+  confirmDialog.resolve = null;
+  if (resolve) resolve(answer);
+}
+
+function rowSummary(row) {
+  const cols = entity.value?.listColumns ?? [];
+  const parts = cols
+    .map((c) => flattenCell(row, c.key))
+    .filter((v) => v !== null && v !== undefined && v !== "")
+    .map((v) => String(v))
+    .slice(0, 3);
+  return parts.join(" · ") || rowKey(row);
 }
 
 function isCompositePk() {
@@ -173,20 +315,30 @@ async function loadRows() {
   error.value = "";
   const sb = admin?.client?.value;
   const e = entity.value;
-  if (!sb || !e?.table) return;
+  if (!sb || !e?.table) {
+    totalRowCount.value = 0;
+    return;
+  }
   if (e.filterByCampaign && !campaignFilterId.value) {
     rows.value = [];
+    totalRowCount.value = 0;
     loading.value = false;
     return;
   }
   if (e.filterBySelectedRound && !snapshotRoundPickerId.value) {
     rows.value = [];
+    totalRowCount.value = 0;
     loading.value = false;
     return;
   }
   loading.value = true;
   try {
-    let q = sb.from(e.table).select(e.listSelect ?? "*").limit(500);
+    const from = (tablePage.value - 1) * tablePageSize.value;
+    const to = from + tablePageSize.value - 1;
+    let q = sb
+      .from(e.table)
+      .select(e.listSelect ?? "*", { count: "exact" })
+      .range(from, to);
     if (e.filterByCampaign && campaignFilterId.value) {
       q = q.eq("campaign_id", campaignFilterId.value);
     }
@@ -202,12 +354,20 @@ async function loadRows() {
         q = q.order(o.column, opts);
       }
     }
-    const { data, error: qerr } = await q;
+    const { data, error: qerr, count } = await q;
     if (qerr) throw qerr;
+    totalRowCount.value = count ?? data?.length ?? 0;
+    const nextPageCount = Math.max(1, Math.ceil(totalRowCount.value / tablePageSize.value));
+    if (tablePage.value > nextPageCount) {
+      tablePage.value = nextPageCount;
+      await loadRows();
+      return;
+    }
     rows.value = data ?? [];
   } catch (err) {
     error.value = err?.message || String(err);
     rows.value = [];
+    totalRowCount.value = 0;
   } finally {
     loading.value = false;
   }
@@ -333,8 +493,9 @@ function blankModel() {
 
 function openCreate() {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
-    window.alert(
+    pushToast(
       "This round is finalized. Reopen it on Rounds before adding scores.",
+      "warning",
     );
     return;
   }
@@ -387,8 +548,9 @@ function sanitizeRawForModel(raw) {
 
 function openEdit(row) {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
-    window.alert(
+    pushToast(
       "This round is finalized. Reopen it on Rounds before editing scores.",
+      "warning",
     );
     return;
   }
@@ -584,6 +746,11 @@ async function save() {
     }
     closeDialog();
     await loadRows();
+    pushToast(
+      `${route.meta?.title || entity.value.table} row ${
+        dialogMode.value === "create" ? "created" : "updated"
+      }.`,
+    );
   } catch (e) {
     formError.value = isDuplicateKeyError(e)
       ? friendlyDuplicateScoreMessage()
@@ -595,14 +762,20 @@ async function save() {
 
 async function removeRow(row) {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
-    window.alert("This round is finalized. Reopen it before deleting scores.");
+    pushToast("This round is finalized. Reopen it before deleting scores.", "warning");
     return;
   }
   const sb = admin?.client?.value;
   if (!sb) return;
   const table = entity.value.table;
   const pk = entity.value.primaryKey;
-  const ok = window.confirm("Delete this row?");
+  const ok = await askConfirm({
+    title: "Delete row?",
+    message: "This will permanently delete the selected row from the live Supabase table.",
+    detail: rowSummary(row),
+    confirmLabel: "Delete row",
+    tone: "danger",
+  });
   if (!ok) return;
   try {
     if (isCompositePk()) {
@@ -615,8 +788,10 @@ async function removeRow(row) {
       if (qerr) throw qerr;
     }
     await loadRows();
+    pushToast("Row deleted.");
   } catch (e) {
     error.value = e?.message || String(e);
+    pushToast(error.value, "danger");
   }
 }
 
@@ -657,24 +832,42 @@ async function runRowAction(action, row) {
           .join("\n");
         const more =
           names.length > 12 ? `\n…and ${names.length - 12} more` : "";
-        const override = window.confirm(
-          `Scores look incomplete for "${row.name || "this round"}".\n\n` +
-            `${check.summary}.\n\n` +
-            (bulletList ? `${bulletList}${more}\n\n` : "") +
-            "Enter scores first (Weekly workflow → Enter scores).\n\n" +
-            "Finalize anyway? Handicaps and prize money may be wrong.",
-        );
+        const override = await askConfirm({
+          title: "Finalize incomplete round?",
+          message:
+            `Scores look incomplete for "${row.name || "this round"}". ` +
+            `${check.summary}. Enter scores first if possible.`,
+          detail: bulletList
+            ? `${bulletList}${more}\n\nFinalizing anyway may make handicaps and prize money wrong.`
+            : "Finalizing anyway may make handicaps and prize money wrong.",
+          confirmLabel: "Finalize anyway",
+          tone: "danger",
+        });
         if (!override) return;
       }
     } catch (e) {
-      const override = window.confirm(
-        `Could not verify scores (${e?.message || String(e)}).\n\nFinalize anyway?`,
-      );
+      const override = await askConfirm({
+        title: "Finalize without verification?",
+        message: `Could not verify scores (${e?.message || String(e)}).`,
+        detail: "Only continue if you have manually checked that the round is ready.",
+        confirmLabel: "Finalize anyway",
+        tone: "danger",
+      });
       if (!override) return;
     }
   }
 
-  if (action.confirm && !window.confirm(action.confirm)) return;
+  if (
+    action.confirm &&
+    !(await askConfirm({
+      title: `${action.label}?`,
+      message: action.confirm,
+      confirmLabel: action.label,
+      tone: action.key === "finalize" ? "danger" : "default",
+    }))
+  ) {
+    return;
+  }
   rpcResult.value = null;
   rpcBusy.value = { ...rpcBusy.value, [key]: true };
   try {
@@ -685,8 +878,10 @@ async function runRowAction(action, row) {
     const result = typeof data === "object" ? data : { result: data };
     rpcResult.value = { ok: true, action: action.label, data: result };
     await loadRows();
+    pushToast(`${action.label} complete.`);
   } catch (e) {
     rpcResult.value = { ok: false, action: action.label, msg: e?.message || String(e) };
+    pushToast(rpcResult.value.msg, "danger");
   } finally {
     const next = { ...rpcBusy.value };
     delete next[key];
@@ -700,6 +895,10 @@ watch(
     closeDialog();
     error.value = "";
     lastCreateValues.value = {}; // clear memory when switching entity
+    tableSearch.value = "";
+    tableSort.key = "";
+    tableSort.dir = "asc";
+    tablePage.value = 1;
     try {
       if (entity.value?.filterByCampaign) {
         await loadCampaignFilterOptions();
@@ -743,10 +942,10 @@ const canModifyScores = computed(() => !isScoreEntry.value || !roundIsFinalized.
 
 const scoreProgress = computed(() => {
   if (!isScoreEntry.value) return null;
-  const scored = rows.value.length;
+  const scored = totalRowCount.value || rows.value.length;
   const roster = rosterMembers.value.length;
   const missing =
-    roster > 0 ? rosterMembers.value.filter((m) => !rows.value.some((r) => r.member_id === m.memberId)).length : null;
+    roster > 0 ? Math.max(0, roster - scored) : null;
   return { scored, roster, missing };
 });
 
@@ -771,13 +970,54 @@ const tableColumns = computed(() => {
   return [...cols, { key: "_actions", label: "Actions" }];
 });
 
+const filteredSortedRowPairs = computed(() => {
+  const cols = entity.value?.listColumns ?? [];
+  const query = tableSearch.value.trim().toLowerCase();
+  const pairs = displayRows.value.map((display, i) => ({
+    display,
+    raw: rows.value[i],
+  }));
+
+  const filtered = query
+    ? pairs.filter(({ display }) =>
+        cols.some((c) => cellSearchText(display[c.key]).includes(query)),
+      )
+    : pairs;
+
+  if (!tableSort.key) return filtered;
+
+  const direction = tableSort.dir === "desc" ? -1 : 1;
+  return [...filtered].sort((a, b) => {
+    const compared = compareCellValues(a.display[tableSort.key], b.display[tableSort.key]);
+    return compared * direction;
+  });
+});
+
 const tableRowsWithActions = computed(() => {
-  return displayRows.value.map((r, i) => ({
-    ...r,
+  return filteredSortedRowPairs.value.map(({ display, raw }) => ({
+    ...display,
     _actions: "",
-    _raw: rows.value[i],
+    _raw: raw,
   }));
 });
+
+const tableResultSummary = computed(() => {
+  const total = totalRowCount.value;
+  const visible = tableRowsWithActions.value.length;
+  if (loading.value) return "Loading rows";
+  if (!total) return "No loaded rows";
+  const pageRange = `${tablePageStart.value}-${tablePageEnd.value}`;
+  if (visible === rows.value.length) {
+    return `${pageRange} of ${total} row${total === 1 ? "" : "s"}`;
+  }
+  return `${visible} match${visible === 1 ? "" : "es"} on this page · ${pageRange} of ${total}`;
+});
+
+const emptyTableMessage = computed(() =>
+  tableSearch.value.trim() && rows.value.length
+    ? "No rows match your search."
+    : "No rows yet.",
+);
 
 const formFieldsVisible = computed(() => {
   const fields = entity.value?.formFields ?? [];
@@ -820,33 +1060,29 @@ const formFieldsVisible = computed(() => {
     </div>
 
     <div class="toolbar">
-      <button
+      <AdminButton
         v-if="isScoreEntry"
-        type="button"
-        class="btn primary"
+        variant="primary"
         :disabled="!admin?.client?.value"
         @click="goToScoreEntry"
       >
         Enter scores
-      </button>
-      <button
+      </AdminButton>
+      <AdminButton
         v-if="!isReadOnly"
-        type="button"
-        class="btn"
-        :class="{ primary: !isScoreEntry }"
+        :variant="!isScoreEntry ? 'primary' : 'secondary'"
         :disabled="!admin?.client?.value || !canModifyScores"
         @click="openCreate"
       >
         Add row
-      </button>
-      <button
-        type="button"
-        class="btn ghost"
+      </AdminButton>
+      <AdminButton
+        variant="ghost"
         :disabled="!admin?.client?.value || loading"
         @click="loadRows"
       >
         Refresh
-      </button>
+      </AdminButton>
     </div>
     <div v-if="entity.filterByCampaign" class="campaign-filter-bar">
       <label class="campaign-filter-label">
@@ -855,7 +1091,7 @@ const formFieldsVisible = computed(() => {
           v-model="campaignFilterId"
           class="campaign-filter-select"
           :disabled="!admin?.client?.value || !campaignFilterOptions.length"
-          @change="loadRows"
+          @change="resetPageAndLoadRows"
         >
           <option v-for="c in campaignFilterOptions" :key="c.id" :value="c.id">
             {{ c.label }} ({{ c.year }})
@@ -872,7 +1108,7 @@ const formFieldsVisible = computed(() => {
           v-model="snapshotRoundPickerId"
           class="campaign-filter-select"
           :disabled="!admin?.client?.value || !snapshotRoundPickerOptions.length"
-          @change="loadRows"
+          @change="resetPageAndLoadRows"
         >
           <option v-for="o in snapshotRoundPickerOptions" :key="o.id" :value="o.id">
             {{ o.label }}
@@ -882,7 +1118,9 @@ const formFieldsVisible = computed(() => {
       <span v-if="!snapshotRoundPickerOptions.length" class="muted">No rounds in scope.</span>
     </div>
 
-    <p v-if="!admin?.client?.value" class="warn">Connect in the header first.</p>
+    <AdminNotice v-if="!admin?.client?.value" tone="warning">
+      Connect in the header first.
+    </AdminNotice>
 
     <div v-if="rpcResult" :class="['rpc-banner', rpcResult.ok ? 'rpc-ok' : 'rpc-err']">
       <strong>{{ rpcResult.action }}:</strong>
@@ -904,11 +1142,100 @@ const formFieldsVisible = computed(() => {
       <button type="button" class="link" style="margin-left:0.75rem" @click="rpcResult=null">✕</button>
     </div>
 
-    <div class="table-wrap">
+    <div class="grid-controls" aria-label="Table controls">
+      <label class="grid-search">
+        <span class="sr-only">Search rows</span>
+        <input
+          v-model="tableSearch"
+          class="grid-search-input"
+          type="search"
+          placeholder="Search visible rows"
+          autocomplete="off"
+        />
+      </label>
+      <AdminButton
+        v-if="tableSearch"
+        variant="ghost"
+        size="compact"
+        @click="tableSearch = ''"
+      >
+        Clear
+      </AdminButton>
+      <div class="density-toggle" aria-label="Table density">
+        <button
+          type="button"
+          :class="['density-btn', tableDensity === 'comfortable' ? 'active' : '']"
+          @click="setTableDensity('comfortable')"
+        >
+          Comfortable
+        </button>
+        <button
+          type="button"
+          :class="['density-btn', tableDensity === 'compact' ? 'active' : '']"
+          @click="setTableDensity('compact')"
+        >
+          Compact
+        </button>
+      </div>
+      <div class="page-size-control">
+        <span>Rows</span>
+        <select
+          :value="tablePageSize"
+          class="page-size-select"
+          :disabled="loading"
+          @change="setTablePageSize($event.target.value)"
+        >
+          <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
+        </select>
+      </div>
+      <div class="pagination-controls" aria-label="Table pagination">
+        <AdminButton
+          variant="ghost"
+          size="compact"
+          :disabled="loading || tablePage <= 1"
+          @click="goToTablePage(tablePage - 1)"
+        >
+          Prev
+        </AdminButton>
+        <span class="page-status">
+          Page {{ tablePage }} / {{ pageCount }}
+        </span>
+        <AdminButton
+          variant="ghost"
+          size="compact"
+          :disabled="loading || tablePage >= pageCount"
+          @click="goToTablePage(tablePage + 1)"
+        >
+          Next
+        </AdminButton>
+      </div>
+      <span class="grid-count" aria-live="polite">{{ tableResultSummary }}</span>
+    </div>
+
+    <div :class="['table-wrap', `density-${tableDensity}`]">
       <table class="tbl">
         <thead>
           <tr>
-            <th v-for="c in tableColumns" :key="c.key">{{ c.label }}</th>
+            <th
+              v-for="c in tableColumns"
+              :key="c.key"
+              :aria-sort="ariaSort(c)"
+              :class="{ sortable: isSortableColumn(c), sorted: tableSort.key === c.key }"
+            >
+              <button
+                v-if="isSortableColumn(c)"
+                type="button"
+                class="sort-btn"
+                :aria-label="sortLabel(c)"
+                @click="toggleSort(c)"
+              >
+                <span>{{ c.label }}</span>
+                <span class="sort-indicator" aria-hidden="true">
+                  {{ tableSort.key === c.key ? (tableSort.dir === "asc" ? "↑" : "↓") : "↕" }}
+                </span>
+              </button>
+              <span v-else>{{ c.label }}</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -919,7 +1246,7 @@ const formFieldsVisible = computed(() => {
             <td :colspan="tableColumns.length" class="err">{{ error }}</td>
           </tr>
           <tr v-else-if="!tableRowsWithActions.length">
-            <td :colspan="tableColumns.length" class="muted">No rows yet.</td>
+            <td :colspan="tableColumns.length" class="muted">{{ emptyTableMessage }}</td>
           </tr>
           <tr
             v-for="r in tableRowsWithActions"
@@ -960,117 +1287,125 @@ const formFieldsVisible = computed(() => {
       </table>
     </div>
 
-    <teleport to="body">
-      <div v-if="dialogOpen" class="modal-backdrop" @click.self="closeDialog">
-        <div class="modal" role="dialog" aria-modal="true">
-          <div class="modal-head">
-            <h2>{{ dialogMode === "create" ? "Add" : "Edit" }} — {{ entity.table }}</h2>
-            <button type="button" class="icon-x" aria-label="Close" @click="closeDialog">×</button>
-          </div>
-          <div class="modal-body">
-            <p v-if="formError" class="err">{{ formError }}</p>
-            <div v-for="f in formFieldsVisible" :key="f.key" class="field">
-              <label class="label">{{ f.label }}{{ f.required ? " *" : "" }}</label>
-              <p v-if="fkLoadErrors[f.key]" class="fk-err">{{ fkLoadErrors[f.key] }}</p>
-              <input
-                v-if="f.type === 'text'"
-                v-model="model[f.key]"
-                class="input"
-                type="text"
-                :disabled="fieldDisabled(f)"
-              />
-              <input
-                v-else-if="f.type === 'number'"
-                v-model.number="model[f.key]"
-                class="input"
-                type="number"
-                :min="f.min"
-                :step="f.step || 1"
-                :disabled="fieldDisabled(f)"
-              />
-              <input
-                v-else-if="f.type === 'decimal'"
-                v-model="model[f.key]"
-                class="input"
-                type="number"
-                :step="f.step ?? 0.1"
-                :disabled="fieldDisabled(f)"
-              />
-              <input
-                v-else-if="f.type === 'date'"
-                v-model="model[f.key]"
-                class="input"
-                type="date"
-                :disabled="fieldDisabled(f)"
-              />
-              <input
-                v-else-if="f.type === 'datetime'"
-                v-model="model[f.key]"
-                class="input"
-                type="datetime-local"
-                :disabled="fieldDisabled(f)"
-              />
-              <textarea
-                v-else-if="f.type === 'textarea'"
-                v-model="model[f.key]"
-                class="textarea"
-                rows="3"
-                :disabled="fieldDisabled(f)"
-              />
-              <textarea
-                v-else-if="f.type === 'json'"
-                v-model="jsonDraft[f.key]"
-                class="textarea mono"
-                rows="6"
-              />
-              <select
-                v-else-if="f.type === 'enum'"
-                v-model="model[f.key]"
-                class="input"
-                :disabled="fieldDisabled(f)"
-              >
-                <option v-if="f.required" disabled value="">— select —</option>
-                <option v-for="opt in enumOptions(f.enumKey)" :key="opt" :value="opt">
-                  {{ opt }}
-                </option>
-              </select>
-              <select
-                v-else-if="f.type === 'fk'"
-                v-model="model[f.key]"
-                class="input"
-                :disabled="fieldDisabled(f)"
-              >
-                <option :value="null">— none —</option>
-                <option
-                  v-for="opt in fkOptions[f.key] || []"
-                  :key="String(opt.value)"
-                  :value="opt.value"
-                  :disabled="opt.disabled"
-                >
-                  {{ opt.label }}
-                </option>
-              </select>
-              <label v-else-if="f.type === 'boolean'" class="check">
-                <input v-model="model[f.key]" type="checkbox" :disabled="fieldDisabled(f)" />
-                <span>Yes</span>
-              </label>
-            </div>
-          </div>
-          <div class="modal-foot">
-            <button type="button" class="btn ghost" @click="closeDialog">Cancel</button>
-            <button type="button" class="btn primary" :disabled="saving" @click="save">
-              {{ saving ? "Saving…" : "Save" }}
-            </button>
-          </div>
-        </div>
+    <AdminSheet
+      :open="dialogOpen"
+      :kicker="dialogMode === 'create' ? 'Create row' : 'Edit row'"
+      :title="entity.table"
+      subtitle="Live Supabase table"
+      @close="closeDialog"
+    >
+      <p v-if="formError" class="err">{{ formError }}</p>
+      <div v-for="f in formFieldsVisible" :key="f.key" class="field">
+        <label class="label">{{ f.label }}{{ f.required ? " *" : "" }}</label>
+        <p v-if="fkLoadErrors[f.key]" class="fk-err">{{ fkLoadErrors[f.key] }}</p>
+        <input
+          v-if="f.type === 'text'"
+          v-model="model[f.key]"
+          class="input"
+          type="text"
+          :disabled="fieldDisabled(f)"
+        />
+        <input
+          v-else-if="f.type === 'number'"
+          v-model.number="model[f.key]"
+          class="input"
+          type="number"
+          :min="f.min"
+          :step="f.step || 1"
+          :disabled="fieldDisabled(f)"
+        />
+        <input
+          v-else-if="f.type === 'decimal'"
+          v-model="model[f.key]"
+          class="input"
+          type="number"
+          :step="f.step ?? 0.1"
+          :disabled="fieldDisabled(f)"
+        />
+        <input
+          v-else-if="f.type === 'date'"
+          v-model="model[f.key]"
+          class="input"
+          type="date"
+          :disabled="fieldDisabled(f)"
+        />
+        <input
+          v-else-if="f.type === 'datetime'"
+          v-model="model[f.key]"
+          class="input"
+          type="datetime-local"
+          :disabled="fieldDisabled(f)"
+        />
+        <textarea
+          v-else-if="f.type === 'textarea'"
+          v-model="model[f.key]"
+          class="textarea"
+          rows="3"
+          :disabled="fieldDisabled(f)"
+        />
+        <textarea
+          v-else-if="f.type === 'json'"
+          v-model="jsonDraft[f.key]"
+          class="textarea mono"
+          rows="6"
+        />
+        <select
+          v-else-if="f.type === 'enum'"
+          v-model="model[f.key]"
+          class="input"
+          :disabled="fieldDisabled(f)"
+        >
+          <option v-if="f.required" disabled value="">— select —</option>
+          <option v-for="opt in enumOptions(f.enumKey)" :key="opt" :value="opt">
+            {{ opt }}
+          </option>
+        </select>
+        <select
+          v-else-if="f.type === 'fk'"
+          v-model="model[f.key]"
+          class="input"
+          :disabled="fieldDisabled(f)"
+        >
+          <option :value="null">— none —</option>
+          <option
+            v-for="opt in fkOptions[f.key] || []"
+            :key="String(opt.value)"
+            :value="opt.value"
+            :disabled="opt.disabled"
+          >
+            {{ opt.label }}
+          </option>
+        </select>
+        <label v-else-if="f.type === 'boolean'" class="check">
+          <input v-model="model[f.key]" type="checkbox" :disabled="fieldDisabled(f)" />
+          <span>Yes</span>
+        </label>
       </div>
-    </teleport>
+      <template #footer>
+        <AdminButton variant="ghost" @click="closeDialog">Cancel</AdminButton>
+        <AdminButton variant="primary" :disabled="saving" @click="save">
+          {{ saving ? "Saving…" : "Save" }}
+        </AdminButton>
+      </template>
+    </AdminSheet>
+
+    <AdminConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :detail="confirmDialog.detail"
+      :confirm-label="confirmDialog.confirmLabel"
+      :cancel-label="confirmDialog.cancelLabel"
+      :tone="confirmDialog.tone"
+      @confirm="closeConfirm(true)"
+      @cancel="closeConfirm(false)"
+    />
   </div>
 </template>
 
 <style scoped>
 .entity-admin {
-  max-width: 1100px;
+  max-width: 1180px;
 }
 .hint {
   margin: 0;
@@ -1081,30 +1416,31 @@ const formFieldsVisible = computed(() => {
   color: var(--muted);
 }
 .lead {
-  margin: 0.25rem 0 1rem;
+  margin: 0.25rem 0 1.1rem;
   color: var(--muted);
   font-size: 0.88rem;
 }
 .status-banner {
   margin: 0 0 0.75rem;
-  padding: 0.55rem 0.75rem;
-  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-md);
   font-size: 0.84rem;
   line-height: 1.45;
   border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
 }
 
 .banner-scores {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
 }
 
 .banner-finalized {
-  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
-  color: #fecaca;
+  background: color-mix(in srgb, var(--danger) 12%, var(--panel));
+  color: var(--danger);
 }
 
 .banner-warn {
-  color: #fcd34d;
+  color: var(--warning);
   font-weight: 600;
 }
 
@@ -1112,7 +1448,7 @@ const formFieldsVisible = computed(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.9rem;
 }
 
 .tbl tbody tr.row-scored {
@@ -1120,40 +1456,118 @@ const formFieldsVisible = computed(() => {
 }
 
 .tbl tbody tr.row-incomplete {
-  background: color-mix(in srgb, #f59e0b 8%, transparent);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
 }
 
 .tbl tbody tr.row-dq {
   opacity: 0.55;
   text-decoration: line-through;
 }
-.btn {
-  border-radius: 8px;
-  padding: 0.45rem 0.9rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.grid-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.75rem;
+}
+.grid-search {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+}
+.grid-search-input {
+  width: 100%;
   border: 1px solid var(--line);
-  background: var(--bg);
+  border-radius: var(--radius-md);
+  padding: 0.52rem 0.75rem;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.86rem;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+.grid-search-input::placeholder {
+  color: var(--muted);
+}
+.grid-search-input:focus {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.density-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+}
+.density-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.32rem 0.6rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.density-btn.active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
   color: var(--text);
 }
-.btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+.grid-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
 }
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.page-size-control,
+.pagination-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
 }
-.warn {
-  color: #fcd34d;
-  font-size: 0.88rem;
+.page-size-control {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.page-size-select {
+  min-height: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.page-status {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .table-wrap {
   overflow: auto;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 .tbl {
   width: 100%;
@@ -1162,15 +1576,67 @@ const formFieldsVisible = computed(() => {
 }
 th,
 td {
-  padding: 0.45rem 0.55rem;
+  padding: 0.58rem 0.7rem;
   border-bottom: 1px solid var(--line);
   text-align: left;
 }
 th {
-  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--panel-strong) 92%, var(--accent));
   color: var(--muted);
   font-size: 0.68rem;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+th.sortable {
+  padding: 0;
+}
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.58rem 0.7rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.sort-btn:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.sort-indicator {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+th.sorted .sort-indicator {
+  color: var(--accent);
+}
+.density-compact td {
+  padding: 0.36rem 0.55rem;
+}
+.density-compact .sort-btn {
+  min-height: 1.95rem;
+  padding: 0.4rem 0.55rem;
+}
+.tbl tbody tr {
+  transition: background 0.14s ease;
+}
+.tbl tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.tbl tbody tr:last-child td {
+  border-bottom: none;
 }
 .actions {
   white-space: nowrap;
@@ -1182,59 +1648,19 @@ th {
   cursor: pointer;
   font-size: 0.8rem;
   margin-right: 0.5rem;
+  border-radius: 6px;
+  padding: 0.12rem 0.16rem;
 }
 .link.danger {
-  color: #f87171;
+  color: var(--danger);
 }
 .err {
-  color: #fecaca;
+  color: var(--danger);
 }
 .muted {
   color: var(--muted);
 }
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 2rem 1rem;
-  z-index: 1000;
-}
-.modal {
-  width: min(520px, 100%);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-.modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--line);
-}
-.modal-head h2 {
-  margin: 0;
-  font-size: 1rem;
-}
-.icon-x {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 1.5rem;
-  cursor: pointer;
-  line-height: 1;
-}
-.modal-body {
-  padding: 1rem;
-  overflow-y: auto;
-}
 .field {
   margin-bottom: 0.85rem;
 }
@@ -1249,16 +1675,27 @@ th {
   font-weight: 600;
   color: var(--muted);
   margin-bottom: 0.25rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 .input,
 .textarea {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.45rem 0.55rem;
-  background: var(--bg);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.7rem;
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
   color: var(--text);
   font-size: 0.88rem;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+.input:focus,
+.textarea:focus {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 .textarea {
   resize: vertical;
@@ -1273,29 +1710,22 @@ th {
   gap: 0.4rem;
   font-size: 0.88rem;
 }
-.modal-foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--line);
-}
 .link.accent {
-  color: #60a5fa;
+  color: var(--accent);
   font-weight: 600;
 }
 .active-round-bar {
   margin-bottom: 0.6rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-md);
   font-size: 0.83rem;
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .campaign-filter-bar {
-  margin-bottom: 0.6rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-md);
   font-size: 0.83rem;
   display: flex;
   align-items: center;
@@ -1311,8 +1741,8 @@ th {
 }
 .campaign-filter-select {
   min-width: 12rem;
-  padding: 0.25rem 0.45rem;
-  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--panel);
   color: inherit;
@@ -1320,14 +1750,14 @@ th {
 }
 .rpc-banner {
   margin: 0 0 0.75rem;
-  padding: 0.6rem 0.85rem;
-  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-md);
   font-size: 0.85rem;
   display: flex;
   align-items: center;
   gap: 0.4rem;
   flex-wrap: wrap;
 }
-.rpc-ok  { background: #163b24; color: #86efac; border: 1px solid #166534; }
-.rpc-err { background: #3b1212; color: #fca5a5; border: 1px solid #991b1b; }
+.rpc-ok  { background: var(--ok-soft); color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 42%, var(--line)); }
+.rpc-err { background: var(--danger-soft); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--line)); }
 </style>

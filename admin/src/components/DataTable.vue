@@ -37,7 +37,9 @@ defineProps({
   overflow: auto;
   max-height: min(70vh, 640px);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 .tbl {
   width: 100%;
@@ -47,28 +49,42 @@ defineProps({
 th,
 td {
   text-align: left;
-  padding: 0.4rem 0.55rem;
+  padding: 0.55rem 0.7rem;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
 th {
-  background: var(--bg);
+  background: color-mix(in srgb, var(--panel-strong) 92%, var(--accent));
   position: sticky;
   top: 0;
   z-index: 1;
-  font-weight: 600;
+  font-weight: 750;
   color: var(--muted);
   text-transform: uppercase;
   font-size: 0.68rem;
   letter-spacing: 0.04em;
 }
+
+tbody tr {
+  transition: background 0.14s ease;
+}
+
+tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .cell code {
   font-size: 0.72rem;
   word-break: break-all;
+  color: var(--muted-strong);
 }
 .err {
   margin: 0;
-  color: #fecaca;
+  color: var(--danger);
   font-size: 0.88rem;
 }
 .muted {

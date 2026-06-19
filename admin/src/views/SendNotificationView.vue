@@ -1,5 +1,8 @@
 <script setup>
-import { ref, inject } from "vue";
+import { computed, ref, inject } from "vue";
+import AdminButton from "@/components/AdminButton.vue";
+import AdminNotice from "@/components/AdminNotice.vue";
+import AdminPageHeader from "@/components/AdminPageHeader.vue";
 
 const admin = inject("adminCtx");
 
@@ -17,7 +20,17 @@ const appUrl = import.meta.env.VITE_APP_URL || "https://wags.netlify.app";
 
 const SEND_PUSH_URL = SUPABASE_URL.replace(".supabase.co", ".functions.supabase.co") + "/send-push";
 
+const titleCount = computed(() => title.value.length);
+const bodyCount = computed(() => body.value.length);
+const canSend = computed(
+  () => Boolean(admin?.client?.value) && title.value.trim() && body.value.trim() && !sending.value,
+);
+
 async function send() {
+  if (!admin?.client?.value) {
+    result.value = { ok: false, message: "Connect to Supabase before sending notifications." };
+    return;
+  }
   if (!title.value.trim() || !body.value.trim()) {
     result.value = { ok: false, message: "Title and message are required." };
     return;
@@ -63,125 +76,260 @@ async function send() {
 
 <template>
   <div class="view">
-    <h1 class="h1">Send Notification</h1>
-    <p class="lede">
-      Broadcast a push notification to all subscribed devices.
-      Members receive it even when the app is closed.
-    </p>
+    <AdminPageHeader
+      eyebrow="Communications"
+      title="Send notification"
+      description="Broadcast a push notification to all subscribed devices. Members receive it even when the app is closed."
+    />
 
-    <div class="form-card">
-      <div class="field">
-        <label class="label">Title</label>
-        <input v-model="title" class="input" placeholder="e.g. Week 8 results are in" maxlength="80" />
-      </div>
+    <AdminNotice v-if="!admin?.client?.value" tone="warning">
+      Connect to Supabase first so the send function receives admin credentials.
+    </AdminNotice>
 
-      <div class="field">
-        <label class="label">Message</label>
-        <textarea v-model="body" class="input textarea" placeholder="e.g. Mark Ready wins with 22 points, £7.50 added to his season winnings." maxlength="200" rows="3" />
-      </div>
+    <div class="compose-layout">
+      <section class="form-card" aria-label="Compose push notification">
+        <div class="field">
+          <div class="label-row">
+            <label class="label" for="notification-title">Title</label>
+            <span class="counter">{{ titleCount }}/80</span>
+          </div>
+          <input
+            id="notification-title"
+            v-model="title"
+            class="input"
+            placeholder="e.g. Week 8 results are in"
+            maxlength="80"
+          />
+        </div>
 
-      <div class="field">
-        <label class="label">Open URL (optional)</label>
-        <select v-model="url" class="input">
-          <option value="/">Home</option>
-          <option value="/results">Results</option>
-          <option value="/rscup">RS Cup</option>
-          <option value="/handicaps">Handicaps</option>
-          <option value="/stats">Stats</option>
-        </select>
-      </div>
+        <div class="field">
+          <div class="label-row">
+            <label class="label" for="notification-body">Message</label>
+            <span class="counter">{{ bodyCount }}/200</span>
+          </div>
+          <textarea
+            id="notification-body"
+            v-model="body"
+            class="input textarea"
+            placeholder="e.g. Mark Ready wins with 22 points, £7.50 added to his season winnings."
+            maxlength="200"
+            rows="4"
+          />
+        </div>
 
-      <button class="btn-send" :disabled="sending" @click="send">
-        {{ sending ? "Sending…" : "Send to all subscribers" }}
-      </button>
+        <div class="field">
+          <label class="label" for="notification-url">Open URL</label>
+          <select id="notification-url" v-model="url" class="input">
+            <option value="/">Home</option>
+            <option value="/results">Results</option>
+            <option value="/rscup">RS Cup</option>
+            <option value="/handicaps">Handicaps</option>
+            <option value="/stats">Stats</option>
+          </select>
+        </div>
 
-      <p v-if="result" :class="['result', result.ok ? 'ok' : 'err']">
-        {{ result.message }}
-      </p>
-    </div>
+        <div class="form-actions">
+          <AdminButton variant="primary" :disabled="!canSend" @click="send">
+            {{ sending ? "Sending…" : "Send to all subscribers" }}
+          </AdminButton>
+          <span class="send-meta">Destination: {{ url || "/" }}</span>
+        </div>
 
-    <div class="tips">
-      <h2 class="tips-h">Tips</h2>
-      <ul class="tips-list">
-        <li>Members must have tapped <strong>Allow</strong> in the app at least once to receive notifications.</li>
-        <li>iOS requires the app to be added to the home screen before push works.</li>
-        <li>Stale subscriptions (uninstalled apps) are cleaned up automatically on send.</li>
-      </ul>
-    </div>
+        <AdminNotice v-if="result" :tone="result.ok ? 'success' : 'error'">
+          {{ result.message }}
+        </AdminNotice>
+      </section>
 
-    <div class="debug-section">
-      <h2 class="tips-h">Re-prompt a device</h2>
-      <p class="tips-p">If the Allow banner isn't showing, open this link on the device from the home screen icon:</p>
-      <code class="debug-url">{{ appUrl }}?enablePush=1</code>
+      <aside class="preview-card" aria-label="Notification preview and tips">
+        <div class="phone-preview">
+          <span class="preview-app">WAGS</span>
+          <strong>{{ title.trim() || "Notification title" }}</strong>
+          <p>{{ body.trim() || "Your message preview appears here before sending." }}</p>
+        </div>
+
+        <div class="tips">
+          <h2 class="tips-h">Delivery notes</h2>
+          <ul class="tips-list">
+            <li>Members must have tapped <strong>Allow</strong> in the app at least once.</li>
+            <li>iOS requires the app to be added to the home screen before push works.</li>
+            <li>Stale subscriptions are cleaned up automatically on send.</li>
+          </ul>
+        </div>
+
+        <div class="debug-section">
+          <h2 class="tips-h">Re-prompt a device</h2>
+          <p class="tips-p">Open this link on the device from the home screen icon:</p>
+          <code class="debug-url">{{ appUrl }}?enablePush=1</code>
+        </div>
+      </aside>
     </div>
   </div>
 </template>
 
 <style scoped>
-.h1 { margin: 0 0 0.35rem; font-size: 1.15rem; }
-.lede { margin: 0 0 1.5rem; color: var(--muted); font-size: 0.88rem; line-height: 1.45; }
+.view {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 1080px;
+}
+
+.compose-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 0.75fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.form-card,
+.preview-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+}
 
 .form-card {
-  background: var(--surface, #1e1e1e);
-  border: 1px solid var(--line, #333);
-  border-radius: 10px;
-  padding: 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  max-width: 520px;
-  margin-bottom: 2rem;
+  padding: 1.25rem;
 }
 
-.field { display: flex; flex-direction: column; gap: 0.35rem; }
-.label { font-size: 0.8rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.preview-card {
+  display: grid;
+  gap: 1.2rem;
+  padding: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.counter,
+.send-meta {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
 
 .input {
-  background: var(--bg, #111);
-  border: 1px solid var(--line, #333);
-  border-radius: 6px;
-  color: var(--text, #eee);
-  font-size: 0.9rem;
-  padding: 0.55rem 0.75rem;
-  font-family: inherit;
   width: 100%;
   box-sizing: border-box;
-}
-.input:focus { outline: none; border-color: var(--accent, #30d158); }
-.textarea { resize: vertical; min-height: 72px; }
-
-.btn-send {
-  align-self: flex-start;
-  background: var(--accent, #30d158);
-  color: #000;
-  border: none;
-  border-radius: 8px;
-  padding: 0.6rem 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.75rem;
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
+  color: var(--text);
+  font-family: inherit;
   font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
 }
-.btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.result { font-size: 0.88rem; margin: 0; padding: 0.5rem 0.75rem; border-radius: 6px; }
-.result.ok { background: color-mix(in srgb, #30d158 15%, transparent); color: #30d158; }
-.result.err { background: color-mix(in srgb, #c44 15%, transparent); color: #f87171; }
+.input:focus {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
 
-.tips { max-width: 520px; }
-.tips-h { font-size: 0.9rem; margin: 0 0 0.5rem; color: var(--muted); }
-.tips-list { margin: 0; padding-left: 1.2rem; font-size: 0.85rem; color: var(--muted); line-height: 1.8; }
+.textarea {
+  resize: vertical;
+  min-height: 7.5rem;
+  line-height: 1.45;
+}
 
-.debug-section { max-width: 520px; margin-top: 1.5rem; }
-.tips-p { font-size: 0.85rem; color: var(--muted); margin: 0 0 0.5rem; }
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.phone-preview {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 16%, transparent), transparent 9rem),
+    color-mix(in srgb, var(--panel-strong) 82%, var(--bg));
+}
+
+.preview-app {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.phone-preview strong {
+  font-size: 0.98rem;
+}
+
+.phone-preview p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.tips-h {
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+  color: var(--muted-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tips-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.tips-p {
+  font-size: 0.84rem;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
 .debug-url {
   display: block;
-  background: var(--bg, #111);
-  border: 1px solid var(--line, #333);
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.8rem;
-  color: var(--accent, #30d158);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.75rem;
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
+  color: var(--accent);
+  font-size: 0.78rem;
   word-break: break-all;
   user-select: all;
+}
+
+@media (max-width: 860px) {
+  .compose-layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

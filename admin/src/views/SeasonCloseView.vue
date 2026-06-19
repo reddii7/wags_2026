@@ -1,5 +1,9 @@
 <script setup>
 import { ref, inject, watch, computed } from "vue";
+import AdminButton from "@/components/AdminButton.vue";
+import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
+import AdminNotice from "@/components/AdminNotice.vue";
+import AdminPageHeader from "@/components/AdminPageHeader.vue";
 
 const admin = inject("adminCtx");
 
@@ -11,6 +15,15 @@ const previewRows = ref([]);
 const loading = ref(false);
 const busy = ref(false);
 const err = ref("");
+const success = ref("");
+const confirmDialog = ref({
+  open: false,
+  title: "",
+  message: "",
+  detail: "",
+  confirmLabel: "Continue",
+  resolve: null,
+});
 
 function normalizePreviewRpc(data) {
   if (data == null) return [];
@@ -24,6 +37,37 @@ function normalizePreviewRpc(data) {
     }
   }
   return [];
+}
+
+function selectedCampaignLabel(id) {
+  const campaign = campaigns.value.find((c) => c.id === id);
+  return campaign ? `${campaign.label} (${campaign.year})` : "selected campaign";
+}
+
+function askConfirm({ title, message, detail, confirmLabel }) {
+  return new Promise((resolve) => {
+    confirmDialog.value = {
+      open: true,
+      title,
+      message,
+      detail,
+      confirmLabel,
+      resolve,
+    };
+  });
+}
+
+function closeConfirm(answer) {
+  const resolve = confirmDialog.value.resolve;
+  confirmDialog.value = {
+    open: false,
+    title: "",
+    message: "",
+    detail: "",
+    confirmLabel: "Continue",
+    resolve: null,
+  };
+  if (resolve) resolve(answer);
 }
 
 const summerCampaigns = computed(() =>
@@ -57,6 +101,7 @@ async function runPreview() {
   const sb = admin?.client?.value;
   if (!sb || !oldId.value) return;
   err.value = "";
+  success.value = "";
   busy.value = true;
   previewRows.value = [];
   try {
@@ -75,15 +120,19 @@ async function runPreview() {
 async function runApply() {
   const sb = admin?.client?.value;
   if (!sb || !oldId.value || !nextId.value) return;
-  const ok = window.confirm(
-    "Close the old summer campaign and apply P/R?\n\n" +
-      "• Old campaign → status closed\n" +
-      "• Next campaign → league_assignments upserted (tier from §4.2)\n" +
-      "• Handicaps are NOT reset — they keep rolling from last round\n" +
-      "• Next campaign opens if it was draft",
-  );
+  const ok = await askConfirm({
+    title: "Close summer campaign?",
+    message: `Apply promotion/relegation from ${selectedCampaignLabel(oldId.value)} into ${selectedCampaignLabel(nextId.value)}.`,
+    detail:
+      "Old campaign -> status closed\n" +
+      "Next campaign -> league assignments upserted from section 4.2\n" +
+      "Handicaps are not reset; they keep rolling from the last round\n" +
+      "Next campaign opens if it was draft",
+    confirmLabel: "Close + apply P/R",
+  });
   if (!ok) return;
   err.value = "";
+  success.value = "";
   busy.value = true;
   try {
     const { data, error: q } = await sb.rpc("apply_summer_close_with_pr", {
@@ -95,9 +144,7 @@ async function runApply() {
     await loadCampaigns();
     previewRows.value = [];
     err.value = "";
-    window.alert(
-      `Done. League rows upserted: ${data?.league_assignments_upserted ?? "?"}. ${data?.handicap_note ?? ""}`,
-    );
+    success.value = `Done. League rows upserted: ${data?.league_assignments_upserted ?? "?"}. ${data?.handicap_note ?? ""}`;
   } catch (e) {
     err.value = e?.message || String(e);
   } finally {
@@ -114,15 +161,20 @@ watch(
 
 <template>
   <div class="view">
-    <h1 class="h1">Close summer season (P/R)</h1>
-    <p class="lede">
-      §4.2: top 3 in divisions 2–4 promoted; bottom 3 in divisions 1–3 relegated (promotion wins on overlap).
-      Standings use each member’s best 10 net stableford scores in <strong>finalized</strong>
-      <code>summer_weekly</code> rounds for the <strong>old</strong> campaign. Handicaps are unchanged.
-    </p>
-    <p v-if="!admin?.client?.value" class="warn">Connect in the header first.</p>
+    <AdminPageHeader eyebrow="Season workflow" title="Close summer season (P/R)">
+      <template #description>
+        §4.2: top 3 in divisions 2–4 promoted; bottom 3 in divisions 1–3 relegated
+        (promotion wins on overlap). Standings use each member’s best 10 net stableford
+        scores in <strong>finalized</strong> <code>summer_weekly</code> rounds for the
+        <strong>old</strong> campaign. Handicaps are unchanged.
+      </template>
+    </AdminPageHeader>
+    <AdminNotice v-if="!admin?.client?.value" tone="warning">
+      Connect in the header first.
+    </AdminNotice>
     <template v-else>
-      <p v-if="err" class="err">{{ err }}</p>
+      <AdminNotice v-if="err" tone="error">{{ err }}</AdminNotice>
+      <AdminNotice v-if="success" tone="success">{{ success }}</AdminNotice>
       <div class="grid">
         <label class="field">
           <span class="lab">Closing campaign (summer)</span>
@@ -148,17 +200,16 @@ watch(
         </label>
       </div>
       <div class="row">
-        <button type="button" class="btn primary" :disabled="busy || !oldId" @click="runPreview">
+        <AdminButton variant="primary" :disabled="busy || !oldId" @click="runPreview">
           {{ busy ? "…" : "Preview P/R" }}
-        </button>
-        <button
-          type="button"
-          class="btn danger"
+        </AdminButton>
+        <AdminButton
+          variant="danger"
           :disabled="busy || !oldId || !nextId || oldId === nextId"
           @click="runApply"
         >
           Close old + apply to next
-        </button>
+        </AdminButton>
       </div>
 
       <table v-if="previewRows.length" class="tbl">
@@ -184,39 +235,36 @@ watch(
         </tbody>
       </table>
     </template>
+
+    <AdminConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :detail="confirmDialog.detail"
+      :confirm-label="confirmDialog.confirmLabel"
+      tone="danger"
+      @confirm="closeConfirm(true)"
+      @cancel="closeConfirm(false)"
+    />
   </div>
 </template>
 
 <style scoped>
 .view {
-  max-width: 900px;
-}
-.h1 {
-  font-size: 1.1rem;
-  margin: 0 0 0.35rem;
-}
-.lede {
-  color: var(--muted);
-  font-size: 0.85rem;
-  line-height: 1.45;
-  margin: 0 0 1rem;
-}
-.lede code {
-  font-size: 0.85em;
-}
-.warn {
-  color: #fcd34d;
-}
-.err {
-  color: #fecaca;
-  font-size: 0.88rem;
-  margin-bottom: 0.75rem;
+  display: grid;
+  gap: 1rem;
+  max-width: 980px;
 }
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem 1rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 @media (max-width: 720px) {
   .grid {
@@ -236,11 +284,19 @@ watch(
 }
 .input {
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.45rem 0.55rem;
-  background: var(--bg);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.7rem;
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
   color: var(--text);
   font-size: 0.88rem;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+.input:focus {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 .row {
   display: flex;
@@ -248,42 +304,30 @@ watch(
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
-.btn {
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  padding: 0.45rem 0.85rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  background: var(--bg);
-  color: var(--text);
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.btn.danger {
-  border-color: #b91c1c;
-  color: #fecaca;
-}
 .tbl {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.82rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 .tbl th,
 .tbl td {
-  border: 1px solid var(--line);
-  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.55rem 0.7rem;
   text-align: left;
 }
 .tbl th {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--panel-strong) 92%, var(--accent));
   color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.tbl tbody tr:last-child td {
+  border-bottom: none;
 }
 </style>

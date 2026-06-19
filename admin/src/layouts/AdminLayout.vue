@@ -12,6 +12,7 @@ import AdminSidebar from "@/components/layout/AdminSidebar.vue";
 import AdminTopBar from "@/components/layout/AdminTopBar.vue";
 import AdminBreadcrumbs from "@/components/layout/AdminBreadcrumbs.vue";
 import AdminConnectPanel from "@/components/AdminConnectPanel.vue";
+import AdminToastStack from "@/components/AdminToastStack.vue";
 import { useLayoutStore } from "@/stores/useLayoutStore.js";
 
 const layout = useLayoutStore();
@@ -50,6 +51,7 @@ const drawerOpen = computed({
         </RouterView>
       </main>
     </div>
+    <AdminToastStack />
   </div>
 </template>
 
@@ -57,7 +59,9 @@ const drawerOpen = computed({
 .admin-layout {
   display: flex;
   min-height: 100vh;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 16%, transparent), transparent 34rem),
+    var(--bg);
   color: var(--text);
 }
 
@@ -79,7 +83,7 @@ const drawerOpen = computed({
 
 .main-content {
   flex: 1;
-  padding: 1rem 1.25rem 2rem;
+  padding: 1.1rem clamp(1rem, 2vw, 1.75rem) 2.5rem;
   overflow-x: auto;
 }
 
@@ -87,7 +91,8 @@ const drawerOpen = computed({
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgb(0 0 0 / 0.55);
+  background: rgb(0 0 0 / 0.58);
+  backdrop-filter: blur(8px);
 }
 
 .drawer-panel {
@@ -98,7 +103,7 @@ const drawerOpen = computed({
   height: 100%;
   width: min(280px, 88vw);
   outline: none;
-  box-shadow: 4px 0 24px rgb(0 0 0 / 0.35);
+  box-shadow: var(--shadow);
 }
 
 .page-enter-active,
