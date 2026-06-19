@@ -10,6 +10,15 @@ const cards = ref([]);
 const rounds = ref([]);
 const selectedRoundId = ref("");
 const selectedKey = ref("");
+const confirmDialog = ref({
+  open: false,
+  title: "",
+  message: "",
+  detail: "",
+  confirmLabel: "Continue",
+  tone: "default",
+  resolve: null,
+});
 
 const groups = computed(() => {
   const map = new Map();
@@ -110,6 +119,34 @@ function formatDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function askConfirm({ title, message, detail = "", confirmLabel, tone = "default" }) {
+  return new Promise((resolve) => {
+    confirmDialog.value = {
+      open: true,
+      title,
+      message,
+      detail,
+      confirmLabel,
+      tone,
+      resolve,
+    };
+  });
+}
+
+function closeConfirm(answer) {
+  const resolve = confirmDialog.value.resolve;
+  confirmDialog.value = {
+    open: false,
+    title: "",
+    message: "",
+    detail: "",
+    confirmLabel: "Continue",
+    tone: "default",
+    resolve: null,
+  };
+  if (resolve) resolve(answer);
 }
 
 function csvEscape(value) {
@@ -262,9 +299,14 @@ async function importToRound() {
     error.value = "This round is finalized. Reopen it before importing held cards.";
     return;
   }
-  const ok = window.confirm(
-    `Import ${selectedRows.value.length} held cards into ${selectedRound.value?.name || "the selected round"}?\n\nExisting scores for these players in that round will be updated.`,
-  );
+  const ok = await askConfirm({
+    title: "Import held cards?",
+    message: `Import ${selectedRows.value.length} staged card${selectedRows.value.length === 1 ? "" : "s"} into ${selectedRound.value?.name || "the selected round"}.`,
+    detail:
+      "Existing scores for these players in that round will be updated.\n" +
+      "Review the score table after import before finalizing the round.",
+    confirmLabel: "Import to live scores",
+  });
   if (!ok) return;
 
   importing.value = true;
@@ -297,9 +339,13 @@ async function deleteGroup() {
   const sb = admin?.client?.value;
   if (!sb || !selectedGroup.value) return;
   if (!selectedGroup.value) return;
-  const ok = window.confirm(
-    `Clear ${selectedRows.value.length} staged cards for ${formatDate(selectedGroup.value.playedDate)}? Live competition scores will not be touched.`,
-  );
+  const ok = await askConfirm({
+    title: "Clear staged cards?",
+    message: `Clear ${selectedRows.value.length} staged card${selectedRows.value.length === 1 ? "" : "s"} for ${formatDate(selectedGroup.value.playedDate)}?`,
+    detail: "Live competition scores will not be touched. Only the held/staged cards for this date will be deleted.",
+    confirmLabel: "Clear staged cards",
+    tone: "danger",
+  });
   if (!ok) return;
   loading.value = true;
   error.value = "";
@@ -435,6 +481,38 @@ watch(selectedGroup, pickMatchingRound);
         </div>
       </section>
     </section>
+
+    <teleport to="body">
+      <div v-if="confirmDialog.open" class="confirm-backdrop" @click.self="closeConfirm(false)">
+        <div
+          class="confirm-card"
+          :class="`tone-${confirmDialog.tone}`"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="held-confirm-title"
+          aria-describedby="held-confirm-message"
+        >
+          <div class="confirm-icon" aria-hidden="true">
+            {{ confirmDialog.tone === "danger" ? "!" : "?" }}
+          </div>
+          <div class="confirm-content">
+            <h2 id="held-confirm-title">{{ confirmDialog.title }}</h2>
+            <p id="held-confirm-message">{{ confirmDialog.message }}</p>
+            <p v-if="confirmDialog.detail" class="confirm-detail">{{ confirmDialog.detail }}</p>
+          </div>
+          <div class="confirm-actions">
+            <button type="button" class="secondary-button" @click="closeConfirm(false)">Cancel</button>
+            <button
+              type="button"
+              :class="['primary-button', confirmDialog.tone === 'danger' ? 'danger-solid' : '']"
+              @click="closeConfirm(true)"
+            >
+              {{ confirmDialog.confirmLabel }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -452,8 +530,9 @@ watch(selectedGroup, pickMatchingRound);
   align-items: flex-start;
   padding: 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 
 .eyebrow {
@@ -484,21 +563,50 @@ h2,
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.65rem 1rem;
-  background: var(--surface);
+  background: var(--panel);
   color: var(--text);
   font-weight: 700;
   cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .primary-button {
   border-color: var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .danger-button {
   border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
   color: var(--danger);
+}
+
+.danger-solid {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.primary-button:not(:disabled):hover,
+.secondary-button:not(:disabled):hover,
+.danger-button:not(:disabled):hover {
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
+  transform: translateY(-1px);
+}
+
+.primary-button:not(:disabled):hover,
+.danger-solid:not(:disabled):hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.danger-solid:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--danger) 86%, #000);
+  background: color-mix(in srgb, var(--danger) 86%, #000);
 }
 
 button:disabled {
@@ -509,21 +617,27 @@ button:disabled {
 .notice {
   margin: 0;
   padding: 0.8rem 1rem;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--panel);
 }
 
 .notice--error {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
+  background: var(--danger-soft);
   color: var(--danger);
 }
 
 .notice--success {
+  border-color: color-mix(in srgb, var(--ok) 36%, var(--line));
+  background: var(--ok-soft);
   color: var(--ok);
 }
 
 .notice--warn {
-  color: #fbbf24;
+  border-color: color-mix(in srgb, var(--warning) 36%, var(--line));
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .submission-layout {
@@ -535,8 +649,9 @@ button:disabled {
 .submission-list,
 .submission-detail {
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 
 .submission-list {
@@ -610,7 +725,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.55rem 0.85rem;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
   color: var(--text);
   font: inherit;
 }
@@ -637,6 +752,78 @@ button:disabled {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(8px);
+}
+
+.confirm-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.9rem;
+  width: min(520px, 100%);
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.confirm-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  color: var(--accent);
+  font-weight: 900;
+}
+
+.confirm-card.tone-danger .confirm-icon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.confirm-content h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.confirm-content p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.confirm-detail {
+  margin-top: 0.75rem !important;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-strong) 70%, transparent);
+  color: var(--text) !important;
+  white-space: pre-line;
+}
+
+.confirm-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.2rem;
 }
 
 @media (max-width: 860px) {
