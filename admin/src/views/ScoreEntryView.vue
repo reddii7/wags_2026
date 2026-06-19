@@ -2,6 +2,7 @@
 import { ref, computed, watch, inject, nextTick } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
+import AdminNotice from "@/components/AdminNotice.vue";
 import {
   pickDefaultRoundId,
   mapRoundOptions,
@@ -329,7 +330,9 @@ watch(filter, (mode) => {
       </button>
     </header>
 
-    <p v-if="!admin?.client?.value" class="notice notice--warn">Connect to Supabase in the header first.</p>
+    <AdminNotice v-if="!admin?.client?.value" tone="warning">
+      Connect to Supabase in the header first.
+    </AdminNotice>
 
     <template v-else>
       <section class="toolbar-card">
@@ -367,7 +370,7 @@ watch(filter, (mode) => {
         </template>
       </p>
 
-      <p v-if="error" class="notice notice--error">{{ error }}</p>
+      <AdminNotice v-if="error" tone="error">{{ error }}</AdminNotice>
       <p v-if="loading" class="empty-state">Loading…</p>
 
       <section v-else class="entry-panel">
@@ -617,26 +620,6 @@ h1,
 .status-line span {
   color: var(--muted);
   font-weight: 400;
-}
-
-.notice {
-  margin: 0;
-  padding: 0.8rem 1rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--line);
-  background: var(--panel);
-}
-
-.notice--error {
-  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.notice--warn {
-  border-color: color-mix(in srgb, var(--warning) 36%, var(--line));
-  background: var(--warning-soft);
-  color: var(--warning);
 }
 
 .entry-panel {

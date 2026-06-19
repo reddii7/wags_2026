@@ -1,6 +1,7 @@
 <script setup>
 import { ref, inject, watch, computed } from "vue";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
+import AdminNotice from "@/components/AdminNotice.vue";
 
 const admin = inject("adminCtx");
 
@@ -164,10 +165,12 @@ watch(
       Standings use each member’s best 10 net stableford scores in <strong>finalized</strong>
       <code>summer_weekly</code> rounds for the <strong>old</strong> campaign. Handicaps are unchanged.
     </p>
-    <p v-if="!admin?.client?.value" class="warn">Connect in the header first.</p>
+    <AdminNotice v-if="!admin?.client?.value" tone="warning">
+      Connect in the header first.
+    </AdminNotice>
     <template v-else>
-      <p v-if="err" class="err">{{ err }}</p>
-      <p v-if="success" class="success">{{ success }}</p>
+      <AdminNotice v-if="err" tone="error">{{ err }}</AdminNotice>
+      <AdminNotice v-if="success" tone="success">{{ success }}</AdminNotice>
       <div class="grid">
         <label class="field">
           <span class="lab">Closing campaign (summer)</span>
@@ -260,34 +263,6 @@ watch(
 }
 .lede code {
   font-size: 0.85em;
-}
-.warn {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.25rem;
-  padding: 0.55rem 0.8rem;
-  border: 1px solid color-mix(in srgb, var(--warning) 32%, var(--line));
-  border-radius: var(--radius-md);
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-.err {
-  padding: 0.65rem 0.8rem;
-  border: 1px solid color-mix(in srgb, var(--danger) 36%, var(--line));
-  border-radius: var(--radius-md);
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: 0.88rem;
-  margin-bottom: 0.75rem;
-}
-.success {
-  padding: 0.65rem 0.8rem;
-  border: 1px solid color-mix(in srgb, var(--ok) 36%, var(--line));
-  border-radius: var(--radius-md);
-  background: var(--ok-soft);
-  color: var(--ok);
-  font-size: 0.88rem;
-  margin: 0 0 0.75rem;
 }
 .grid {
   display: grid;

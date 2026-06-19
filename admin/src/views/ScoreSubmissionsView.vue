@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
+import AdminNotice from "@/components/AdminNotice.vue";
 
 const admin = inject("adminCtx");
 const loading = ref(false);
@@ -388,8 +389,8 @@ watch(selectedGroup, pickMatchingRound);
       </button>
     </header>
 
-    <p v-if="error" class="notice notice--error">{{ error }}</p>
-    <p v-if="success" class="notice notice--success">{{ success }}</p>
+    <AdminNotice v-if="error" tone="error">{{ error }}</AdminNotice>
+    <AdminNotice v-if="success" tone="success">{{ success }}</AdminNotice>
 
     <section class="submission-layout">
       <aside class="submission-list">
@@ -432,9 +433,9 @@ watch(selectedGroup, pickMatchingRound);
                 </option>
               </select>
             </label>
-            <p v-if="roundDateCollision" class="notice notice--warn">
+            <AdminNotice v-if="roundDateCollision" tone="warning">
               Multiple open weekly rounds share this date — confirm Play # in the dropdown before importing.
-            </p>
+            </AdminNotice>
             <button
               type="button"
               class="primary-button"
@@ -592,32 +593,6 @@ h2,
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
-}
-
-.notice {
-  margin: 0;
-  padding: 0.8rem 1rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--line);
-  background: var(--panel);
-}
-
-.notice--error {
-  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.notice--success {
-  border-color: color-mix(in srgb, var(--ok) 36%, var(--line));
-  background: var(--ok-soft);
-  color: var(--ok);
-}
-
-.notice--warn {
-  border-color: color-mix(in srgb, var(--warning) 36%, var(--line));
-  background: var(--warning-soft);
-  color: var(--warning);
 }
 
 .submission-layout {

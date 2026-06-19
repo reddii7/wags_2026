@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, inject } from "vue";
 import { RouterLink } from "vue-router";
+import AdminNotice from "@/components/AdminNotice.vue";
 import {
   pickDefaultRoundId,
   formatRoundLabel,
@@ -156,7 +157,9 @@ watch(
     <h1 class="h1">Overview</h1>
     <p class="lede">The normal weekly flow, in order.</p>
 
-    <p v-if="!admin?.client?.value" class="warn">Connect to Supabase first.</p>
+    <AdminNotice v-if="!admin?.client?.value" tone="warning">
+      Connect to Supabase first.
+    </AdminNotice>
 
     <div v-else class="status-grid" aria-label="Admin status overview">
       <RouterLink
@@ -241,7 +244,7 @@ watch(
       </RouterLink>
     </div>
 
-    <p v-if="error" class="warn">{{ error }}</p>
+    <AdminNotice v-if="error" tone="warning">{{ error }}</AdminNotice>
   </div>
 </template>
 
@@ -270,18 +273,6 @@ watch(
   color: var(--muted);
   font-size: 0.88rem;
   line-height: 1.45;
-}
-
-.warn {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.25rem;
-  padding: 0.55rem 0.8rem;
-  border: 1px solid color-mix(in srgb, var(--warning) 32%, var(--line));
-  border-radius: var(--radius-md);
-  background: var(--warning-soft);
-  color: var(--warning);
-  font-size: 0.88rem;
 }
 
 .status-grid {

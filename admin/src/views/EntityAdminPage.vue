@@ -2,6 +2,7 @@
 import { ref, watch, inject, computed, reactive, onBeforeUnmount } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
+import AdminNotice from "@/components/AdminNotice.vue";
 import { ENUMS } from "@/config/entityAdminConfig.js";
 import {
   pickDefaultRoundId,
@@ -1074,7 +1075,9 @@ const formFieldsVisible = computed(() => {
       <span v-if="!snapshotRoundPickerOptions.length" class="muted">No rounds in scope.</span>
     </div>
 
-    <p v-if="!admin?.client?.value" class="warn">Connect in the header first.</p>
+    <AdminNotice v-if="!admin?.client?.value" tone="warning">
+      Connect in the header first.
+    </AdminNotice>
 
     <div v-if="rpcResult" :class="['rpc-banner', rpcResult.ok ? 'rpc-ok' : 'rpc-err']">
       <strong>{{ rpcResult.action }}:</strong>
@@ -1443,17 +1446,6 @@ const formFieldsVisible = computed(() => {
 }
 .compact-btn {
   padding: 0.45rem 0.7rem;
-}
-.warn {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.25rem;
-  padding: 0.55rem 0.8rem;
-  border: 1px solid color-mix(in srgb, var(--warning) 32%, var(--line));
-  border-radius: var(--radius-md);
-  background: var(--warning-soft);
-  color: var(--warning);
-  font-size: 0.88rem;
 }
 .sr-only {
   position: absolute;

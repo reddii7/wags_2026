@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, inject } from "vue";
+import AdminNotice from "@/components/AdminNotice.vue";
 
 const admin = inject("adminCtx");
 
@@ -79,9 +80,9 @@ async function send() {
       Members receive it even when the app is closed.
     </p>
 
-    <p v-if="!admin?.client?.value" class="notice notice--warn">
+    <AdminNotice v-if="!admin?.client?.value" tone="warning">
       Connect to Supabase first so the send function receives admin credentials.
-    </p>
+    </AdminNotice>
 
     <div class="compose-layout">
       <section class="form-card" aria-label="Compose push notification">
@@ -132,9 +133,9 @@ async function send() {
           <span class="send-meta">Destination: {{ url || "/" }}</span>
         </div>
 
-        <p v-if="result" :class="['notice', result.ok ? 'notice--success' : 'notice--error']">
+        <AdminNotice v-if="result" :tone="result.ok ? 'success' : 'error'">
           {{ result.message }}
-        </p>
+        </AdminNotice>
       </section>
 
       <aside class="preview-card" aria-label="Notification preview and tips">
@@ -295,37 +296,6 @@ async function send() {
 .btn-send:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.notice {
-  margin: 0 0 1rem;
-  padding: 0.8rem 1rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--line);
-  background: var(--panel);
-  font-size: 0.88rem;
-}
-
-.form-card .notice {
-  margin-bottom: 0;
-}
-
-.notice--error {
-  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.notice--success {
-  border-color: color-mix(in srgb, var(--ok) 36%, var(--line));
-  background: var(--ok-soft);
-  color: var(--ok);
-}
-
-.notice--warn {
-  border-color: color-mix(in srgb, var(--warning) 36%, var(--line));
-  background: var(--warning-soft);
-  color: var(--warning);
 }
 
 .phone-preview {
