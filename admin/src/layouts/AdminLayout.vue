@@ -12,6 +12,7 @@ import AdminSidebar from "@/components/layout/AdminSidebar.vue";
 import AdminTopBar from "@/components/layout/AdminTopBar.vue";
 import AdminBreadcrumbs from "@/components/layout/AdminBreadcrumbs.vue";
 import AdminConnectPanel from "@/components/AdminConnectPanel.vue";
+import AdminToastStack from "@/components/AdminToastStack.vue";
 import { useLayoutStore } from "@/stores/useLayoutStore.js";
 
 const layout = useLayoutStore();
@@ -50,6 +51,7 @@ const drawerOpen = computed({
         </RouterView>
       </main>
     </div>
+    <AdminToastStack />
   </div>
 </template>
 

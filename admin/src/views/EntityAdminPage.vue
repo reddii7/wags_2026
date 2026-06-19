@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, inject, computed, reactive, onBeforeUnmount } from "vue";
+import { ref, watch, inject, computed, reactive } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import AdminButton from "@/components/AdminButton.vue";
 import AdminConfirmDialog from "@/components/AdminConfirmDialog.vue";
@@ -16,6 +16,7 @@ import {
   checkRoundFinalizeReady,
   setActiveCampaignId,
 } from "@/composables/useRoundScores.js";
+import { useAdminToasts } from "@/composables/useAdminToasts.js";
 
 const admin = inject("adminCtx");
 const route = useRoute();
@@ -37,8 +38,6 @@ const jsonDraft = reactive({});
 // Custom row-action state
 const rpcBusy = ref({});   // rowKey → true while running
 const rpcResult = ref(null); // last result/error message to show inline
-const notice = ref(null);
-let noticeTimer = null;
 const confirmDialog = reactive({
   open: false,
   title: "",
@@ -49,6 +48,7 @@ const confirmDialog = reactive({
   tone: "default",
   resolve: null,
 });
+const { pushToast } = useAdminToasts();
 
 // Remember last-used create values per table so repeat adds are fast.
 // Keyed by table name; reset when navigating to a different entity.
@@ -196,15 +196,6 @@ function resetPageAndLoadRows() {
   void loadRows();
 }
 
-function showNotice(message, tone = "ok") {
-  notice.value = { message, tone };
-  if (noticeTimer) clearTimeout(noticeTimer);
-  noticeTimer = setTimeout(() => {
-    notice.value = null;
-    noticeTimer = null;
-  }, 4200);
-}
-
 function askConfirm({
   title,
   message,
@@ -241,10 +232,6 @@ function rowSummary(row) {
     .slice(0, 3);
   return parts.join(" · ") || rowKey(row);
 }
-
-onBeforeUnmount(() => {
-  if (noticeTimer) clearTimeout(noticeTimer);
-});
 
 function isCompositePk() {
   const pk = entity.value?.primaryKey;
@@ -505,7 +492,7 @@ function blankModel() {
 
 function openCreate() {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
-    showNotice(
+    pushToast(
       "This round is finalized. Reopen it on Rounds before adding scores.",
       "warning",
     );
@@ -560,7 +547,7 @@ function sanitizeRawForModel(raw) {
 
 function openEdit(row) {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
-    showNotice(
+    pushToast(
       "This round is finalized. Reopen it on Rounds before editing scores.",
       "warning",
     );
@@ -758,7 +745,7 @@ async function save() {
     }
     closeDialog();
     await loadRows();
-    showNotice(
+    pushToast(
       `${route.meta?.title || entity.value.table} row ${
         dialogMode.value === "create" ? "created" : "updated"
       }.`,
@@ -774,7 +761,7 @@ async function save() {
 
 async function removeRow(row) {
   if (entity.value?.lockWhenRoundFinalized && roundIsFinalized.value) {
-    showNotice("This round is finalized. Reopen it before deleting scores.", "warning");
+    pushToast("This round is finalized. Reopen it before deleting scores.", "warning");
     return;
   }
   const sb = admin?.client?.value;
@@ -800,10 +787,10 @@ async function removeRow(row) {
       if (qerr) throw qerr;
     }
     await loadRows();
-    showNotice("Row deleted.");
+    pushToast("Row deleted.");
   } catch (e) {
     error.value = e?.message || String(e);
-    showNotice(error.value, "danger");
+    pushToast(error.value, "danger");
   }
 }
 
@@ -890,10 +877,10 @@ async function runRowAction(action, row) {
     const result = typeof data === "object" ? data : { result: data };
     rpcResult.value = { ok: true, action: action.label, data: result };
     await loadRows();
-    showNotice(`${action.label} complete.`);
+    pushToast(`${action.label} complete.`);
   } catch (e) {
     rpcResult.value = { ok: false, action: action.label, msg: e?.message || String(e) };
-    showNotice(rpcResult.value.msg, "danger");
+    pushToast(rpcResult.value.msg, "danger");
   } finally {
     const next = { ...rpcBusy.value };
     delete next[key];
@@ -1420,14 +1407,6 @@ const formFieldsVisible = computed(() => {
       @confirm="closeConfirm(true)"
       @cancel="closeConfirm(false)"
     />
-
-    <teleport to="body">
-      <Transition name="toast">
-        <div v-if="notice" :class="['toast', `tone-${notice.tone}`]" role="status" aria-live="polite">
-          {{ notice.message }}
-        </div>
-      </Transition>
-    </teleport>
   </div>
 </template>
 
@@ -1831,40 +1810,6 @@ th.sorted .sort-indicator {
   .edit-sheet {
     width: 100vw;
   }
-}
-.toast {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 1200;
-  max-width: min(26rem, calc(100vw - 2rem));
-  padding: 0.75rem 0.9rem;
-  border: 1px solid color-mix(in srgb, var(--ok) 36%, var(--line));
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--ok) 12%, var(--panel));
-  color: var(--text);
-  box-shadow: var(--shadow);
-  font-size: 0.88rem;
-  font-weight: 650;
-}
-.toast.tone-warning {
-  border-color: color-mix(in srgb, var(--warning) 42%, var(--line));
-  background: color-mix(in srgb, var(--warning) 14%, var(--panel));
-}
-.toast.tone-danger {
-  border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
-  background: color-mix(in srgb, var(--danger) 13%, var(--panel));
-}
-.toast-enter-active,
-.toast-leave-active {
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-}
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateY(8px);
 }
 .link.accent {
   color: var(--accent);
