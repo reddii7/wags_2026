@@ -65,6 +65,9 @@ const rosterMembers = ref([]);
 const tableSearch = ref("");
 const tableDensity = ref(localStorage.getItem("wags_admin_table_density") || "comfortable");
 const tableSort = reactive({ key: "", dir: "asc" });
+const tablePage = ref(1);
+const tablePageSize = ref(Number(localStorage.getItem("wags_admin_table_page_size")) || 50);
+const totalRowCount = ref(0);
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -158,6 +161,39 @@ function ariaSort(column) {
 function setTableDensity(value) {
   tableDensity.value = value;
   localStorage.setItem("wags_admin_table_density", value);
+}
+
+const pageSizeOptions = [25, 50, 100, 250];
+
+const pageCount = computed(() =>
+  Math.max(1, Math.ceil((totalRowCount.value || 0) / tablePageSize.value)),
+);
+
+const tablePageStart = computed(() =>
+  totalRowCount.value ? (tablePage.value - 1) * tablePageSize.value + 1 : 0,
+);
+
+const tablePageEnd = computed(() =>
+  Math.min(tablePage.value * tablePageSize.value, totalRowCount.value),
+);
+
+function setTablePageSize(value) {
+  tablePageSize.value = Number(value) || 50;
+  localStorage.setItem("wags_admin_table_page_size", String(tablePageSize.value));
+  tablePage.value = 1;
+  void loadRows();
+}
+
+function goToTablePage(page) {
+  const next = Math.min(Math.max(1, page), pageCount.value);
+  if (next === tablePage.value) return;
+  tablePage.value = next;
+  void loadRows();
+}
+
+function resetPageAndLoadRows() {
+  tablePage.value = 1;
+  void loadRows();
 }
 
 function showNotice(message, tone = "ok") {
@@ -291,20 +327,30 @@ async function loadRows() {
   error.value = "";
   const sb = admin?.client?.value;
   const e = entity.value;
-  if (!sb || !e?.table) return;
+  if (!sb || !e?.table) {
+    totalRowCount.value = 0;
+    return;
+  }
   if (e.filterByCampaign && !campaignFilterId.value) {
     rows.value = [];
+    totalRowCount.value = 0;
     loading.value = false;
     return;
   }
   if (e.filterBySelectedRound && !snapshotRoundPickerId.value) {
     rows.value = [];
+    totalRowCount.value = 0;
     loading.value = false;
     return;
   }
   loading.value = true;
   try {
-    let q = sb.from(e.table).select(e.listSelect ?? "*").limit(500);
+    const from = (tablePage.value - 1) * tablePageSize.value;
+    const to = from + tablePageSize.value - 1;
+    let q = sb
+      .from(e.table)
+      .select(e.listSelect ?? "*", { count: "exact" })
+      .range(from, to);
     if (e.filterByCampaign && campaignFilterId.value) {
       q = q.eq("campaign_id", campaignFilterId.value);
     }
@@ -320,12 +366,20 @@ async function loadRows() {
         q = q.order(o.column, opts);
       }
     }
-    const { data, error: qerr } = await q;
+    const { data, error: qerr, count } = await q;
     if (qerr) throw qerr;
+    totalRowCount.value = count ?? data?.length ?? 0;
+    const nextPageCount = Math.max(1, Math.ceil(totalRowCount.value / tablePageSize.value));
+    if (tablePage.value > nextPageCount) {
+      tablePage.value = nextPageCount;
+      await loadRows();
+      return;
+    }
     rows.value = data ?? [];
   } catch (err) {
     error.value = err?.message || String(err);
     rows.value = [];
+    totalRowCount.value = 0;
   } finally {
     loading.value = false;
   }
@@ -856,6 +910,7 @@ watch(
     tableSearch.value = "";
     tableSort.key = "";
     tableSort.dir = "asc";
+    tablePage.value = 1;
     try {
       if (entity.value?.filterByCampaign) {
         await loadCampaignFilterOptions();
@@ -899,10 +954,10 @@ const canModifyScores = computed(() => !isScoreEntry.value || !roundIsFinalized.
 
 const scoreProgress = computed(() => {
   if (!isScoreEntry.value) return null;
-  const scored = rows.value.length;
+  const scored = totalRowCount.value || rows.value.length;
   const roster = rosterMembers.value.length;
   const missing =
-    roster > 0 ? rosterMembers.value.filter((m) => !rows.value.some((r) => r.member_id === m.memberId)).length : null;
+    roster > 0 ? Math.max(0, roster - scored) : null;
   return { scored, roster, missing };
 });
 
@@ -959,12 +1014,15 @@ const tableRowsWithActions = computed(() => {
 });
 
 const tableResultSummary = computed(() => {
-  const total = rows.value.length;
+  const total = totalRowCount.value;
   const visible = tableRowsWithActions.value.length;
   if (loading.value) return "Loading rows";
   if (!total) return "No loaded rows";
-  if (visible === total) return `${total} row${total === 1 ? "" : "s"}`;
-  return `${visible} of ${total} row${total === 1 ? "" : "s"}`;
+  const pageRange = `${tablePageStart.value}-${tablePageEnd.value}`;
+  if (visible === rows.value.length) {
+    return `${pageRange} of ${total} row${total === 1 ? "" : "s"}`;
+  }
+  return `${visible} match${visible === 1 ? "" : "es"} on this page · ${pageRange} of ${total}`;
 });
 
 const emptyTableMessage = computed(() =>
@@ -1045,7 +1103,7 @@ const formFieldsVisible = computed(() => {
           v-model="campaignFilterId"
           class="campaign-filter-select"
           :disabled="!admin?.client?.value || !campaignFilterOptions.length"
-          @change="loadRows"
+          @change="resetPageAndLoadRows"
         >
           <option v-for="c in campaignFilterOptions" :key="c.id" :value="c.id">
             {{ c.label }} ({{ c.year }})
@@ -1062,7 +1120,7 @@ const formFieldsVisible = computed(() => {
           v-model="snapshotRoundPickerId"
           class="campaign-filter-select"
           :disabled="!admin?.client?.value || !snapshotRoundPickerOptions.length"
-          @change="loadRows"
+          @change="resetPageAndLoadRows"
         >
           <option v-for="o in snapshotRoundPickerOptions" :key="o.id" :value="o.id">
             {{ o.label }}
@@ -1130,6 +1188,38 @@ const formFieldsVisible = computed(() => {
         >
           Compact
         </button>
+      </div>
+      <div class="page-size-control">
+        <span>Rows</span>
+        <select
+          :value="tablePageSize"
+          class="page-size-select"
+          :disabled="loading"
+          @change="setTablePageSize($event.target.value)"
+        >
+          <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
+        </select>
+      </div>
+      <div class="pagination-controls" aria-label="Table pagination">
+        <AdminButton
+          variant="ghost"
+          size="compact"
+          :disabled="loading || tablePage <= 1"
+          @click="goToTablePage(tablePage - 1)"
+        >
+          Prev
+        </AdminButton>
+        <span class="page-status">
+          Page {{ tablePage }} / {{ pageCount }}
+        </span>
+        <AdminButton
+          variant="ghost"
+          size="compact"
+          :disabled="loading || tablePage >= pageCount"
+          @click="goToTablePage(tablePage + 1)"
+        >
+          Next
+        </AdminButton>
       </div>
       <span class="grid-count" aria-live="polite">{{ tableResultSummary }}</span>
     </div>
@@ -1470,6 +1560,35 @@ const formFieldsVisible = computed(() => {
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 700;
+}
+.page-size-control,
+.pagination-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.page-size-control {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.page-size-select {
+  min-height: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.page-status {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .table-wrap {
   overflow: auto;
