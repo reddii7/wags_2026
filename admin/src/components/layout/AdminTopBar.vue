@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watchEffect } from "vue";
+import { computed, inject, watchEffect } from "vue";
 import { useDark, useToggle, usePreferredDark, useStorage } from "@vueuse/core";
 import { useLayoutStore } from "@/stores/useLayoutStore.js";
 
@@ -10,6 +10,7 @@ defineProps({
 const emit = defineEmits(["open-drawer"]);
 
 const layout = useLayoutStore();
+const admin = inject("adminCtx");
 
 /** @type {import('vue').Ref<'light'|'dark'|'auto'>} */
 const themePref = useStorage("wags-admin-theme", "dark");
@@ -27,7 +28,7 @@ watchEffect(() => {
 const themeCycle = ["light", "dark", "auto"];
 const themeLabels = { light: "Light", dark: "Dark", auto: "System" };
 
-const { toggle: toggleDark } = useToggle(isDark);
+const toggleDark = useToggle(isDark);
 
 function onThemeClick() {
   const idx = themeCycle.indexOf(themePref.value);
@@ -43,6 +44,11 @@ function onThemePointerDown(e) {
 }
 
 const themeLabel = computed(() => themeLabels[themePref.value] ?? "Theme");
+
+const connectionLabel = computed(() => {
+  if (admin?.connecting?.value) return "Connecting";
+  return admin?.connected?.value ? "Connected" : "Offline";
+});
 
 const themeIcon = computed(() => {
   if (themePref.value === "light") return "☀";
@@ -75,9 +81,16 @@ const themeIcon = computed(() => {
       </button>
     </div>
 
-    <div class="topbar-title">WAGS Admin</div>
+    <div class="topbar-title">
+      <span class="title-main">WAGS Admin</span>
+      <span class="title-sub">Operations console</span>
+    </div>
 
     <div class="topbar-end">
+      <span class="connection-pill" :data-on="admin?.connected?.value">
+        <span class="connection-dot" aria-hidden="true" />
+        {{ connectionLabel }}
+      </span>
       <button
         type="button"
         class="theme-btn"
@@ -94,13 +107,18 @@ const themeIcon = computed(() => {
 
 <style scoped>
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.55rem 1rem;
+  min-height: var(--topbar-height);
+  padding: 0.6rem clamp(0.85rem, 2vw, 1.25rem);
   border-bottom: 1px solid var(--line);
-  background: var(--surface);
-  min-height: 3.25rem;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.04);
 }
 
 .topbar-start {
@@ -114,14 +132,20 @@ const themeIcon = computed(() => {
   width: 2.25rem;
   height: 2.25rem;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg);
+  border-radius: var(--radius-md);
+  background: var(--panel);
   color: var(--text);
   cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .icon-btn:hover {
-  border-color: var(--muted);
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
+  transform: translateY(-1px);
 }
 
 .hamburger {
@@ -139,10 +163,25 @@ const themeIcon = computed(() => {
 
 .topbar-title {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
   min-width: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
+}
+
+.title-main {
+  color: var(--text);
+  font-size: 0.95rem;
   font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.title-sub {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .topbar-end {
@@ -153,6 +192,33 @@ const themeIcon = computed(() => {
   flex-shrink: 0;
 }
 
+.connection-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.connection-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--danger);
+  box-shadow: 0 0 0 4px var(--danger-soft);
+}
+
+.connection-pill[data-on="true"] .connection-dot {
+  background: var(--ok);
+  box-shadow: 0 0 0 4px var(--ok-soft);
+}
+
 .theme-btn {
   display: inline-flex;
   align-items: center;
@@ -160,15 +226,21 @@ const themeIcon = computed(() => {
   padding: 0.35rem 0.65rem;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--bg);
+  background: var(--panel);
   color: var(--text);
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .theme-btn:hover {
-  border-color: var(--muted);
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
+  transform: translateY(-1px);
 }
 
 .theme-icon {
@@ -176,6 +248,11 @@ const themeIcon = computed(() => {
 }
 
 @media (max-width: 640px) {
+  .title-sub,
+  .connection-pill {
+    display: none;
+  }
+
   .theme-text {
     display: none;
   }

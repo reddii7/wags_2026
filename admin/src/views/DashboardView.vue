@@ -152,19 +152,22 @@ watch(
 
 <style scoped>
 .view {
-  max-width: 960px;
+  max-width: 1040px;
 }
 
 .h1 {
   margin: 0 0 0.35rem;
-  font-size: 1.15rem;
+  font-size: clamp(1.35rem, 1.1rem + 0.9vw, 1.9rem);
+  letter-spacing: -0.03em;
 }
 
 .h2 {
-  margin: 1.5rem 0 0.65rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--muted);
+  margin: 1.75rem 0 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--muted-strong);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .lede {
@@ -175,7 +178,14 @@ watch(
 }
 
 .warn {
-  color: #fcd34d;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--warning) 32%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  color: var(--warning);
   font-size: 0.88rem;
 }
 
@@ -190,24 +200,35 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 1rem;
+  min-height: 9.5rem;
+  padding: 1.1rem;
   border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--panel) 94%, white), var(--panel)),
+    var(--panel);
   text-decoration: none;
   color: var(--text);
+  box-shadow: var(--shadow-soft);
   transition:
-    border-color 0.15s,
-    background 0.15s;
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
 }
 
 .card:hover {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
 }
 
 .card-primary {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 18%, transparent), transparent 12rem),
+    var(--panel);
 }
 
 .card-step {
@@ -218,7 +239,7 @@ watch(
   height: 1.7rem;
   margin-bottom: 0.35rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
   color: var(--accent);
   font-size: 0.78rem;
   font-weight: 800;

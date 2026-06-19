@@ -1070,7 +1070,7 @@ const formFieldsVisible = computed(() => {
 
 <style scoped>
 .entity-admin {
-  max-width: 1100px;
+  max-width: 1180px;
 }
 .hint {
   margin: 0;
@@ -1081,30 +1081,31 @@ const formFieldsVisible = computed(() => {
   color: var(--muted);
 }
 .lead {
-  margin: 0.25rem 0 1rem;
+  margin: 0.25rem 0 1.1rem;
   color: var(--muted);
   font-size: 0.88rem;
 }
 .status-banner {
   margin: 0 0 0.75rem;
-  padding: 0.55rem 0.75rem;
-  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-md);
   font-size: 0.84rem;
   line-height: 1.45;
   border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
 }
 
 .banner-scores {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
 }
 
 .banner-finalized {
-  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
-  color: #fecaca;
+  background: color-mix(in srgb, var(--danger) 12%, var(--panel));
+  color: var(--danger);
 }
 
 .banner-warn {
-  color: #fcd34d;
+  color: var(--warning);
   font-weight: 600;
 }
 
@@ -1112,7 +1113,7 @@ const formFieldsVisible = computed(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.9rem;
 }
 
 .tbl tbody tr.row-scored {
@@ -1120,7 +1121,7 @@ const formFieldsVisible = computed(() => {
 }
 
 .tbl tbody tr.row-incomplete {
-  background: color-mix(in srgb, #f59e0b 8%, transparent);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
 }
 
 .tbl tbody tr.row-dq {
@@ -1128,32 +1129,54 @@ const formFieldsVisible = computed(() => {
   text-decoration: line-through;
 }
 .btn {
-  border-radius: 8px;
-  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-md);
+  padding: 0.52rem 0.95rem;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid var(--line);
-  background: var(--bg);
+  background: var(--panel);
   color: var(--text);
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
+.btn:not(:disabled):hover {
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
+  transform: translateY(-1px);
+}
+.btn.primary:not(:disabled):hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
 .warn {
-  color: #fcd34d;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--warning) 32%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  color: var(--warning);
   font-size: 0.88rem;
 }
 .table-wrap {
   overflow: auto;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 .tbl {
   width: 100%;
@@ -1162,15 +1185,28 @@ const formFieldsVisible = computed(() => {
 }
 th,
 td {
-  padding: 0.45rem 0.55rem;
+  padding: 0.58rem 0.7rem;
   border-bottom: 1px solid var(--line);
   text-align: left;
 }
 th {
-  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--panel-strong) 92%, var(--accent));
   color: var(--muted);
   font-size: 0.68rem;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.tbl tbody tr {
+  transition: background 0.14s ease;
+}
+.tbl tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.tbl tbody tr:last-child td {
+  border-bottom: none;
 }
 .actions {
   white-space: nowrap;
@@ -1182,12 +1218,14 @@ th {
   cursor: pointer;
   font-size: 0.8rem;
   margin-right: 0.5rem;
+  border-radius: 6px;
+  padding: 0.12rem 0.16rem;
 }
 .link.danger {
-  color: #f87171;
+  color: var(--danger);
 }
 .err {
-  color: #fecaca;
+  color: var(--danger);
 }
 .muted {
   color: var(--muted);
@@ -1196,7 +1234,8 @@ th {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -1204,20 +1243,22 @@ th {
   z-index: 1000;
 }
 .modal {
-  width: min(520px, 100%);
-  background: var(--surface);
+  width: min(580px, 100%);
+  background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow);
 }
 .modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
+  padding: 0.9rem 1rem;
   border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel-strong) 76%, transparent);
 }
 .modal-head h2 {
   margin: 0;
@@ -1249,16 +1290,27 @@ th {
   font-weight: 600;
   color: var(--muted);
   margin-bottom: 0.25rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 .input,
 .textarea {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.45rem 0.55rem;
-  background: var(--bg);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.7rem;
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
   color: var(--text);
   font-size: 0.88rem;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+.input:focus,
+.textarea:focus {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 .textarea {
   resize: vertical;
@@ -1277,25 +1329,26 @@ th {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1rem;
   border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel-strong) 60%, transparent);
 }
 .link.accent {
-  color: #60a5fa;
+  color: var(--accent);
   font-weight: 600;
 }
 .active-round-bar {
   margin-bottom: 0.6rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-md);
   font-size: 0.83rem;
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .campaign-filter-bar {
-  margin-bottom: 0.6rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-md);
   font-size: 0.83rem;
   display: flex;
   align-items: center;
@@ -1311,8 +1364,8 @@ th {
 }
 .campaign-filter-select {
   min-width: 12rem;
-  padding: 0.25rem 0.45rem;
-  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--panel);
   color: inherit;
@@ -1320,14 +1373,14 @@ th {
 }
 .rpc-banner {
   margin: 0 0 0.75rem;
-  padding: 0.6rem 0.85rem;
-  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-md);
   font-size: 0.85rem;
   display: flex;
   align-items: center;
   gap: 0.4rem;
   flex-wrap: wrap;
 }
-.rpc-ok  { background: #163b24; color: #86efac; border: 1px solid #166534; }
-.rpc-err { background: #3b1212; color: #fca5a5; border: 1px solid #991b1b; }
+.rpc-ok  { background: var(--ok-soft); color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 42%, var(--line)); }
+.rpc-err { background: var(--danger-soft); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--line)); }
 </style>

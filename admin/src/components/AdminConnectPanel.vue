@@ -84,7 +84,8 @@ const layout = useLayoutStore();
 <style scoped>
 .connect {
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(16px);
 }
 
 .connect-toggle {
@@ -92,7 +93,7 @@ const layout = useLayoutStore();
   align-items: center;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.5rem 1rem;
+  padding: 0.55rem clamp(0.85rem, 2vw, 1.25rem);
   border: none;
   background: transparent;
   color: var(--text);
@@ -103,7 +104,7 @@ const layout = useLayoutStore();
 }
 
 .connect-toggle:hover {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 
 .status-dot {
@@ -111,11 +112,13 @@ const layout = useLayoutStore();
   height: 0.5rem;
   border-radius: 999px;
   background: var(--danger);
+  box-shadow: 0 0 0 4px var(--danger-soft);
   flex-shrink: 0;
 }
 
 .status-dot[data-on="true"] {
   background: var(--ok);
+  box-shadow: 0 0 0 4px var(--ok-soft);
 }
 
 .connect-toggle-label {
@@ -128,12 +131,17 @@ const layout = useLayoutStore();
 }
 
 .connect-body {
-  padding: 0 1rem 0.75rem;
+  padding: 0 clamp(0.85rem, 2vw, 1.25rem) 0.95rem;
 }
 
 .connect-lede {
-  margin: 0 0 0.6rem;
-  font-size: 0.78rem;
+  max-width: 960px;
+  margin: 0 0 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--warning) 9%, var(--panel));
+  font-size: 0.8rem;
   color: var(--muted);
   line-height: 1.45;
 }
@@ -142,14 +150,15 @@ const layout = useLayoutStore();
   font-size: 0.78em;
   padding: 0.06em 0.25em;
   border-radius: 4px;
-  background: var(--bg);
+  background: var(--panel);
   border: 1px solid var(--line);
 }
 
 .connect-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.6rem 0.85rem;
+  gap: 0.7rem 0.9rem;
+  max-width: 960px;
 }
 
 @media (max-width: 720px) {
@@ -175,11 +184,20 @@ const layout = useLayoutStore();
 .input {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.42rem 0.55rem;
-  background: var(--bg);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.7rem;
+  background: var(--panel);
   color: var(--text);
   font-size: 0.86rem;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.input:focus {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .row {
@@ -191,14 +209,18 @@ const layout = useLayoutStore();
 }
 
 .btn {
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--line);
-  padding: 0.42rem 0.85rem;
+  padding: 0.5rem 0.95rem;
   font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
-  background: var(--bg);
+  background: var(--panel);
   color: var(--text);
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .btn:disabled {
@@ -209,11 +231,16 @@ const layout = useLayoutStore();
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
+}
+
+.btn:not(:disabled):hover {
+  transform: translateY(-1px);
 }
 
 .btn.ghost:hover {
-  border-color: var(--muted);
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
 }
 
 .msg {
@@ -222,10 +249,10 @@ const layout = useLayoutStore();
 }
 
 .err {
-  color: #fecaca;
+  color: var(--danger);
 }
 
 .ok {
-  color: #bbf7d0;
+  color: var(--ok);
 }
 </style>
