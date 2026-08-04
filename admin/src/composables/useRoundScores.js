@@ -284,3 +284,68 @@ export function rosterSourceLabel(source) {
       return "";
   }
 }
+
+/**
+ * Normalize a draft row for dirty checks / payloads.
+ * @param {{ points?: unknown, snake?: boolean, camel?: boolean, fee?: unknown, dq?: boolean, rowId?: string | null }} draft
+ */
+export function normalizeScoreDraft(draft) {
+  const rawPts = draft?.points;
+  const pts =
+    rawPts === "" || rawPts == null ? null : parseInt(String(rawPts), 10);
+  return {
+    points: pts != null && !Number.isNaN(pts) ? pts : null,
+    snake: Boolean(draft?.snake),
+    camel: Boolean(draft?.camel),
+    fee: Number(draft?.fee) || 500,
+    dq: Boolean(draft?.dq),
+    rowId: draft?.rowId ?? null,
+  };
+}
+
+/** True when draft values differ from the last loaded baseline. */
+export function isScoreDraftDirty(draft, baseline) {
+  const a = normalizeScoreDraft(draft);
+  const b = normalizeScoreDraft(baseline);
+  return (
+    a.points !== b.points ||
+    a.snake !== b.snake ||
+    a.camel !== b.camel ||
+    a.fee !== b.fee ||
+    a.dq !== b.dq
+  );
+}
+
+/**
+ * Build round_players upsert payload from a draft.
+ * Returns null when points are missing (unless disqualified).
+ */
+export function buildRoundPlayerPayload(roundId, memberId, draft) {
+  const d = normalizeScoreDraft(draft);
+  if (d.points == null && !d.dq) return null;
+  return {
+    round_id: roundId,
+    member_id: memberId,
+    stableford_points: d.dq && d.points == null ? 0 : d.points,
+    snake_count: d.snake ? 1 : 0,
+    camel_count: d.camel ? 1 : 0,
+    entry_fee_pence: d.fee,
+    entered: true,
+    disqualified: d.dq,
+  };
+}
+
+/**
+ * Upsert many round_players rows in one request.
+ * @param {import('@supabase/supabase-js').SupabaseClient} sb
+ * @param {Array<object>} payloads
+ */
+export async function upsertRoundPlayerScores(sb, payloads) {
+  if (!sb) throw new Error("Supabase client required");
+  if (!payloads?.length) return { count: 0 };
+  const { error } = await sb
+    .from("round_players")
+    .upsert(payloads, { onConflict: "round_id,member_id" });
+  if (error) throw error;
+  return { count: payloads.length };
+}
