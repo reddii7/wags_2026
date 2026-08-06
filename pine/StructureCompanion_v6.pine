@@ -163,13 +163,6 @@ deleteBox(box bx) =>
     if not na(bx)
         box.delete(bx)
 
-pushBosLabel(StructureEngine eng, label lb) =>
-    array.push(eng.bosLabels, lb)
-    while array.size(eng.bosLabels) > 80
-        label old = array.shift(eng.bosLabels)
-        deleteLabel(old)
-    eng
-
 // Confirm swing pivots once (history-safe: ta.* always evaluated)
 float pivotHigh = ta.pivothigh(high, swingLen, swingLen)
 float pivotLow  = ta.pivotlow(low, swingLen, swingLen)
@@ -178,72 +171,74 @@ float iPivotLow  = ta.pivotlow(low, intLen, intLen)
 float atr = ta.atr(14)
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STRUCTURE UPDATE (close-through BOS / CHoCH — Step 1 mechanical rules)
+// STRUCTURE UPDATE — methods mutate `this` (params themselves are never reassigned)
 // ═══════════════════════════════════════════════════════════════════════════
 
-updateSwings(StructureEngine eng, float ph, float pl, int confirmDelay) =>
-    if not na(ph)
-        eng.lastSwingHigh := ph
-        eng.lastSwingHighBar := bar_index - confirmDelay
-        // Validate / refresh range high while bullish or unset
-        if eng.bias != -1 or na(eng.rangeHigh)
-            eng.rangeHigh := ph
-            eng.rangeHighBar := bar_index - confirmDelay
-    if not na(pl)
-        eng.lastSwingLow := pl
-        eng.lastSwingLowBar := bar_index - confirmDelay
-        if eng.bias != 1 or na(eng.rangeLow)
-            eng.rangeLow := pl
-            eng.rangeLowBar := bar_index - confirmDelay
-    eng
+method pushBosLabel(StructureEngine this, label lb) =>
+    array.push(this.bosLabels, lb)
+    while array.size(this.bosLabels) > 80
+        label old = array.shift(this.bosLabels)
+        deleteLabel(old)
+    this
 
-resolveWeakExtremes(StructureEngine eng) =>
-    if array.size(eng.events) > 0
-        for i = 0 to array.size(eng.events) - 1
-            StructEvent ev = array.get(eng.events, i)
+method registerEvent(StructureEngine this, int dir, bool isCho, float lvl, float opp) =>
+    StructEvent ev = StructEvent.new(dir, isCho, lvl, bar_index, opp, false, false)
+    array.push(this.events, ev)
+    this
+
+method updateSwings(StructureEngine this, float ph, float pl, int confirmDelay) =>
+    if not na(ph)
+        this.lastSwingHigh := ph
+        this.lastSwingHighBar := bar_index - confirmDelay
+        if this.bias != -1 or na(this.rangeHigh)
+            this.rangeHigh := ph
+            this.rangeHighBar := bar_index - confirmDelay
+    if not na(pl)
+        this.lastSwingLow := pl
+        this.lastSwingLowBar := bar_index - confirmDelay
+        if this.bias != 1 or na(this.rangeLow)
+            this.rangeLow := pl
+            this.rangeLowBar := bar_index - confirmDelay
+    this
+
+method resolveWeakExtremes(StructureEngine this) =>
+    if array.size(this.events) > 0
+        for i = 0 to array.size(this.events) - 1
+            StructEvent ev = array.get(this.events, i)
             if not ev.resolved and not na(ev.oppExtreme)
                 bool hit = ev.dir == 1 ? high >= ev.oppExtreme : low <= ev.oppExtreme
-                // Resolve if hit, or if structure flipped again, or aged out
                 bool aged = bar_index - ev.bar > statsLookback
                 if hit or aged
                     ev.oppHit := hit
                     ev.resolved := true
                     if ev.dir == 1
-                        // Bullish event → opposite extreme was prior high (weak high target)
-                        eng.weakHighTotal += 1
+                        this.weakHighTotal := this.weakHighTotal + 1
                         if hit
-                            eng.weakHighHits += 1
+                            this.weakHighHits := this.weakHighHits + 1
                     else
-                        eng.weakLowTotal += 1
+                        this.weakLowTotal := this.weakLowTotal + 1
                         if hit
-                            eng.weakLowHits += 1
-                    array.set(eng.events, i, ev)
-    // Cap event history
-    while array.size(eng.events) > statsLookback
-        array.shift(eng.events)
-    eng
+                            this.weakLowHits := this.weakLowHits + 1
+                    array.set(this.events, i, ev)
+    while array.size(this.events) > statsLookback
+        array.shift(this.events)
+    this
 
-registerEvent(StructureEngine eng, int dir, bool isCho, float lvl, float opp) =>
-    StructEvent ev = StructEvent.new(dir, isCho, lvl, bar_index, opp, false, false)
-    array.push(eng.events, ev)
-    eng
-
-applyBullBreak(StructureEngine eng, float breakLevel, bool showLabels, color col, string prefix) =>
-    bool isCho = eng.bias == -1
-    bool isBos = eng.bias == 1
-    float opp = eng.rangeHigh
-    // Anchor new range low from last swing low (impulse origin)
-    if not na(eng.lastSwingLow)
-        eng.rangeLow := eng.lastSwingLow
-        eng.rangeLowBar := eng.lastSwingLowBar
-    eng.rangeHigh := na
-    eng.rangeHighBar := na
-    eng.bias := 1
-    eng.lastBosLevel := breakLevel
-    eng.lastBosBar := bar_index
-    eng.lastBosDir := 1
-    eng.lastWasChoCh := isCho
-    eng := registerEvent(eng, 1, isCho, breakLevel, opp)
+method applyBullBreak(StructureEngine this, float breakLevel, bool showLabels, color col, string prefix) =>
+    bool isCho = this.bias == -1
+    bool isBos = this.bias == 1
+    float opp = this.rangeHigh
+    if not na(this.lastSwingLow)
+        this.rangeLow := this.lastSwingLow
+        this.rangeLowBar := this.lastSwingLowBar
+    this.rangeHigh := na
+    this.rangeHighBar := na
+    this.bias := 1
+    this.lastBosLevel := breakLevel
+    this.lastBosBar := bar_index
+    this.lastBosDir := 1
+    this.lastWasChoCh := isCho
+    this.registerEvent(1, isCho, breakLevel, opp)
     if showLabels and showBosLabels
         string txt = prefix + (isCho ? "CHoCH" : isBos ? "BOS" : "CHoCH")
         label lb = label.new(
@@ -252,24 +247,24 @@ applyBullBreak(StructureEngine eng, float breakLevel, bool showLabels, color col
              color = color.new(col, 15),
              textcolor = color.white,
              size = labelSize)
-        eng := pushBosLabel(eng, lb)
-    eng
+        this.pushBosLabel(lb)
+    this
 
-applyBearBreak(StructureEngine eng, float breakLevel, bool showLabels, color col, string prefix) =>
-    bool isCho = eng.bias == 1
-    bool isBos = eng.bias == -1
-    float opp = eng.rangeLow
-    if not na(eng.lastSwingHigh)
-        eng.rangeHigh := eng.lastSwingHigh
-        eng.rangeHighBar := eng.lastSwingHighBar
-    eng.rangeLow := na
-    eng.rangeLowBar := na
-    eng.bias := -1
-    eng.lastBosLevel := breakLevel
-    eng.lastBosBar := bar_index
-    eng.lastBosDir := -1
-    eng.lastWasChoCh := isCho
-    eng := registerEvent(eng, -1, isCho, breakLevel, opp)
+method applyBearBreak(StructureEngine this, float breakLevel, bool showLabels, color col, string prefix) =>
+    bool isCho = this.bias == 1
+    bool isBos = this.bias == -1
+    float opp = this.rangeLow
+    if not na(this.lastSwingHigh)
+        this.rangeHigh := this.lastSwingHigh
+        this.rangeHighBar := this.lastSwingHighBar
+    this.rangeLow := na
+    this.rangeLowBar := na
+    this.bias := -1
+    this.lastBosLevel := breakLevel
+    this.lastBosBar := bar_index
+    this.lastBosDir := -1
+    this.lastWasChoCh := isCho
+    this.registerEvent(-1, isCho, breakLevel, opp)
     if showLabels and showBosLabels
         string txt = prefix + (isCho ? "CHoCH" : isBos ? "BOS" : "CHoCH")
         label lb = label.new(
@@ -278,89 +273,84 @@ applyBearBreak(StructureEngine eng, float breakLevel, bool showLabels, color col
              color = color.new(col, 15),
              textcolor = color.white,
              size = labelSize)
-        eng := pushBosLabel(eng, lb)
-    eng
+        this.pushBosLabel(lb)
+    this
 
-processBreaks(StructureEngine eng, bool showLabels, color upCol, color dnCol, string prefix) =>
-    // Candle CLOSE through last confirmed swing (wicks alone = liquidity sweep, not BOS)
-    bool bullBreak = not na(eng.lastSwingHigh) and close > eng.lastSwingHigh
-    bool bearBreak = not na(eng.lastSwingLow) and close < eng.lastSwingLow
+method processBreaks(StructureEngine this, bool showLabels, color upCol, color dnCol, string prefix) =>
+    bool bullBreak = not na(this.lastSwingHigh) and close > this.lastSwingHigh
+    bool bearBreak = not na(this.lastSwingLow) and close < this.lastSwingLow
 
-    // Prefer the break that closes further beyond its level if both somehow fire
     if bullBreak and bearBreak
-        if (close - eng.lastSwingHigh) >= (eng.lastSwingLow - close)
+        if (close - this.lastSwingHigh) >= (this.lastSwingLow - close)
             bearBreak := false
         else
             bullBreak := false
 
     if bullBreak
-        bool fresh = na(eng.lastBosBar) or eng.lastSwingHighBar >= eng.lastBosBar or eng.bias != 1 or eng.lastSwingHigh != eng.lastBosLevel
+        bool fresh = na(this.lastBosBar) or this.lastSwingHighBar >= this.lastBosBar or this.bias != 1 or this.lastSwingHigh != this.lastBosLevel
         if fresh
-            float lvl = eng.lastSwingHigh
-            eng := applyBullBreak(eng, lvl, showLabels, upCol, prefix)
-            eng.lastSwingHigh := na
-
+            float lvl = this.lastSwingHigh
+            this.applyBullBreak(lvl, showLabels, upCol, prefix)
+            this.lastSwingHigh := na
     else if bearBreak
-        bool fresh = na(eng.lastBosBar) or eng.lastSwingLowBar >= eng.lastBosBar or eng.bias != -1 or eng.lastSwingLow != eng.lastBosLevel
+        bool fresh = na(this.lastBosBar) or this.lastSwingLowBar >= this.lastBosBar or this.bias != -1 or this.lastSwingLow != this.lastBosLevel
         if fresh
-            float lvl = eng.lastSwingLow
-            eng := applyBearBreak(eng, lvl, showLabels, dnCol, prefix)
-            eng.lastSwingLow := na
-    eng
+            float lvl = this.lastSwingLow
+            this.applyBearBreak(lvl, showLabels, dnCol, prefix)
+            this.lastSwingLow := na
+    this
 
-drawRange(StructureEngine eng, color upCol, color dnCol, bool visible, string hiTag, string loTag, int width, bool dashed, bool drawEq) =>
-    deleteLine(eng.hiLine)
-    deleteLine(eng.loLine)
-    deleteLine(eng.eqLine)
-    deleteLabel(eng.hiLbl)
-    deleteLabel(eng.loLbl)
-    eng.hiLine := na
-    eng.loLine := na
-    eng.eqLine := na
-    eng.hiLbl := na
-    eng.loLbl := na
+method drawRange(StructureEngine this, color upCol, color dnCol, bool visible, string hiTag, string loTag, int width, bool dashed, bool drawEq) =>
+    deleteLine(this.hiLine)
+    deleteLine(this.loLine)
+    deleteLine(this.eqLine)
+    deleteLabel(this.hiLbl)
+    deleteLabel(this.loLbl)
+    this.hiLine := na
+    this.loLine := na
+    this.eqLine := na
+    this.hiLbl := na
+    this.loLbl := na
 
     if visible
-        color c = biasColor(eng.bias, upCol, dnCol)
+        color c = biasColor(this.bias, upCol, dnCol)
         int x2 = extendRange ? bar_index + 20 : bar_index
         string stile = dashed ? line.style_dashed : line.style_solid
-        if not na(eng.rangeHigh) and not na(eng.rangeHighBar)
-            eng.hiLine := line.new(eng.rangeHighBar, eng.rangeHigh, x2, eng.rangeHigh, color = c, width = width, style = stile)
-            eng.hiLbl := label.new(x2, eng.rangeHigh, hiTag, style = label.style_label_left, color = color.new(c, 70), textcolor = c, size = labelSize)
-        if not na(eng.rangeLow) and not na(eng.rangeLowBar)
-            eng.loLine := line.new(eng.rangeLowBar, eng.rangeLow, x2, eng.rangeLow, color = c, width = width, style = stile)
-            eng.loLbl := label.new(x2, eng.rangeLow, loTag, style = label.style_label_left, color = color.new(c, 70), textcolor = c, size = labelSize)
-        if drawEq and showMid and not na(eng.rangeHigh) and not na(eng.rangeLow)
-            float mid = math.avg(eng.rangeHigh, eng.rangeLow)
-            int x1 = math.min(nz(eng.rangeHighBar, bar_index), nz(eng.rangeLowBar, bar_index))
-            eng.eqLine := line.new(x1, mid, x2, mid, color = eqColor, width = 1, style = line.style_dotted)
-    eng
+        if not na(this.rangeHigh) and not na(this.rangeHighBar)
+            this.hiLine := line.new(this.rangeHighBar, this.rangeHigh, x2, this.rangeHigh, color = c, width = width, style = stile)
+            this.hiLbl := label.new(x2, this.rangeHigh, hiTag, style = label.style_label_left, color = color.new(c, 70), textcolor = c, size = labelSize)
+        if not na(this.rangeLow) and not na(this.rangeLowBar)
+            this.loLine := line.new(this.rangeLowBar, this.rangeLow, x2, this.rangeLow, color = c, width = width, style = stile)
+            this.loLbl := label.new(x2, this.rangeLow, loTag, style = label.style_label_left, color = color.new(c, 70), textcolor = c, size = labelSize)
+        if drawEq and showMid and not na(this.rangeHigh) and not na(this.rangeLow)
+            float midPx = math.avg(this.rangeHigh, this.rangeLow)
+            int x1 = math.min(nz(this.rangeHighBar, bar_index), nz(this.rangeLowBar, bar_index))
+            this.eqLine := line.new(x1, midPx, x2, midPx, color = eqColor, width = 1, style = line.style_dotted)
+    this
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CHART (SWING) ENGINE
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Persist engines
 var StructureEngine swing = newEngine()
 var StructureEngine internal = newEngine()
 
-// Mark confirmed pivots with dots
 plotshape(showSwing and not na(pivotHigh) ? pivotHigh : na, title = "Swing High", style = shape.triangledown, location = location.absolute, color = bearColor, size = size.tiny, offset = -swingLen)
 plotshape(showSwing and not na(pivotLow) ? pivotLow : na, title = "Swing Low", style = shape.triangleup, location = location.absolute, color = bullColor, size = size.tiny, offset = -swingLen)
 plotshape(showInternal and not na(iPivotHigh) ? iPivotHigh : na, title = "Internal High", style = shape.triangledown, location = location.absolute, color = intBearColor, size = size.tiny, offset = -intLen)
 plotshape(showInternal and not na(iPivotLow) ? iPivotLow : na, title = "Internal Low", style = shape.triangleup, location = location.absolute, color = intBullColor, size = size.tiny, offset = -intLen)
 
 if barstate.isconfirmed
-    swing := updateSwings(swing, pivotHigh, pivotLow, swingLen)
-    swing := processBreaks(swing, showSwing, bullColor, bearColor, "")
+    swing.updateSwings(pivotHigh, pivotLow, swingLen)
+    swing.processBreaks(showSwing, bullColor, bearColor, "")
     if showStats
-        swing := resolveWeakExtremes(swing)
-    swing := drawRange(swing, bullColor, bearColor, showSwing and showRange, "High", "Low", 2, false, true)
+        swing.resolveWeakExtremes()
+    swing.drawRange(bullColor, bearColor, showSwing and showRange, "High", "Low", 2, false, true)
 
     if showInternal
-        internal := updateSwings(internal, iPivotHigh, iPivotLow, intLen)
-        internal := processBreaks(internal, showInternal, intBullColor, intBearColor, "I-")
-        internal := drawRange(internal, intBullColor, intBearColor, showInternal, "iHigh", "iLow", 1, dashedInternal, false)
+        internal.updateSwings(iPivotHigh, iPivotLow, intLen)
+        internal.processBreaks(showInternal, intBullColor, intBearColor, "I-")
+        internal.drawRange(intBullColor, intBearColor, showInternal, "iHigh", "iLow", 1, dashedInternal, false)
 
 // Premium / discount shade of active swing range
 float eq = not na(swing.rangeHigh) and not na(swing.rangeLow) ? math.avg(swing.rangeHigh, swing.rangeLow) : na
