@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, watch, inject, nextTick } from "vue";
-import { useRoute, useRouter, RouterLink } from "vue-router";
+import { ref, computed, watch, inject, nextTick, onMounted, onBeforeUnmount } from "vue";
+import { useRoute, useRouter, RouterLink, onBeforeRouteLeave } from "vue-router";
 import {
   pickDefaultRoundId,
   mapRoundOptions,
@@ -11,6 +11,10 @@ import {
   loadRoundById,
   rosterSourceLabel,
   setActiveCampaignId,
+  normalizeScoreDraft,
+  isScoreDraftDirty,
+  buildRoundPlayerPayload,
+  upsertRoundPlayerScores,
 } from "@/composables/useRoundScores.js";
 
 const admin = inject("adminCtx");
@@ -24,14 +28,57 @@ const roster = ref([]);
 const rosterSource = ref("");
 const scores = ref([]);
 const loading = ref(false);
+const saving = ref(false);
 const savingId = ref(null);
 const error = ref("");
+const success = ref("");
 const filter = ref("missing");
 const search = ref("");
 
 const drafts = ref({});
+/** Baseline loaded from DB — used for dirty detection / discard. */
+const baselines = ref({});
 /** @type {import('vue').Ref<Record<string, HTMLInputElement | null>>} */
 const pointsRefs = ref({});
+
+function emptyDraft() {
+  return {
+    points: "",
+    snake: false,
+    camel: false,
+    fee: 500,
+    dq: false,
+    rowId: null,
+  };
+}
+
+function draftFromScore(existing) {
+  if (!existing) return emptyDraft();
+  return {
+    points: existing.stableford_points ?? "",
+    snake: Number(existing.snake_count) > 0,
+    camel: Number(existing.camel_count) > 0,
+    fee: existing.entry_fee_pence ?? 500,
+    dq: Boolean(existing.disqualified),
+    rowId: existing.id ?? null,
+  };
+}
+
+function cloneDraft(draft) {
+  const n = normalizeScoreDraft(draft);
+  return {
+    points: n.points ?? "",
+    snake: n.snake,
+    camel: n.camel,
+    fee: n.fee,
+    dq: n.dq,
+    rowId: n.rowId,
+  };
+}
+
+function hasPoints(memberId) {
+  return normalizeScoreDraft(drafts.value[memberId]).points != null;
+}
 
 async function loadRounds() {
   const sb = admin?.client?.value;
@@ -59,13 +106,18 @@ async function loadRounds() {
   roundId.value = pick;
 }
 
-async function loadAll() {
+async function loadAll({ preserveDirty = false } = {}) {
   error.value = "";
+  if (!preserveDirty) success.value = "";
   const sb = admin?.client?.value;
   if (!sb || !roundId.value) {
     scores.value = [];
     roster.value = [];
     roundDetail.value = null;
+    if (!preserveDirty) {
+      drafts.value = {};
+      baselines.value = {};
+    }
     return;
   }
   loading.value = true;
@@ -94,18 +146,22 @@ async function loadAll() {
     }
 
     const nextDrafts = {};
+    const nextBaselines = {};
     for (const m of roster.value) {
       const existing = scores.value.find((s) => s.member_id === m.memberId);
-      nextDrafts[m.memberId] = {
-        points: existing?.stableford_points ?? "",
-        snake: Number(existing?.snake_count) > 0,
-        camel: Number(existing?.camel_count) > 0,
-        fee: existing?.entry_fee_pence ?? 500,
-        dq: Boolean(existing?.disqualified),
-        rowId: existing?.id ?? null,
-      };
+      const loaded = draftFromScore(existing);
+      nextBaselines[m.memberId] = cloneDraft(loaded);
+      if (preserveDirty && drafts.value[m.memberId] && isScoreDraftDirty(drafts.value[m.memberId], nextBaselines[m.memberId])) {
+        nextDrafts[m.memberId] = {
+          ...drafts.value[m.memberId],
+          rowId: loaded.rowId ?? drafts.value[m.memberId].rowId,
+        };
+      } else {
+        nextDrafts[m.memberId] = loaded;
+      }
     }
     drafts.value = nextDrafts;
+    baselines.value = nextBaselines;
   } catch (e) {
     error.value = e?.message || String(e);
     scores.value = [];
@@ -125,20 +181,53 @@ const scoreByMember = computed(() => {
 
 const progress = computed(() => {
   const total = roster.value.length;
-  const scored = roster.value.filter((m) => scoreByMember.value.has(m.memberId)).length;
+  const scored = roster.value.filter((m) => hasPoints(m.memberId)).length;
   return { total, scored, missing: Math.max(0, total - scored) };
 });
+
+const dirtyMemberIds = computed(() =>
+  roster.value
+    .filter((m) => isScoreDraftDirty(drafts.value[m.memberId], baselines.value[m.memberId]))
+    .map((m) => m.memberId),
+);
+
+const dirtyCount = computed(() => dirtyMemberIds.value.length);
+
+const saveableDirtyMembers = computed(() =>
+  roster.value.filter((m) => {
+    if (!dirtyMemberIds.value.includes(m.memberId)) return false;
+    const d = normalizeScoreDraft(drafts.value[m.memberId]);
+    return d.points != null || d.dq;
+  }),
+);
+
+const incompleteDirtyCount = computed(() =>
+  Math.max(0, dirtyCount.value - saveableDirtyMembers.value.length),
+);
 
 const displayList = computed(() => {
   const q = search.value.trim().toLowerCase();
   return roster.value.filter((m) => {
-    const has = scoreByMember.value.has(m.memberId);
-    if (filter.value === "missing" && has) return false;
-    if (filter.value === "scored" && !has) return false;
+    const filled = hasPoints(m.memberId);
+    if (filter.value === "missing" && filled) return false;
+    if (filter.value === "scored" && !filled) return false;
+    if (filter.value === "unsaved" && !dirtyMemberIds.value.includes(m.memberId)) return false;
     if (q && !m.fullName.toLowerCase().includes(q)) return false;
     return true;
   });
 });
+
+const allFilled = computed(
+  () => progress.value.total > 0 && progress.value.missing === 0 && !roundFinalized.value,
+);
+
+function rowStatus(memberId) {
+  const dirty = dirtyMemberIds.value.includes(memberId);
+  const saved = scoreByMember.value.has(memberId);
+  if (dirty) return "edited";
+  if (saved) return "saved";
+  return "";
+}
 
 function setPointsRef(memberId, el) {
   if (el) pointsRefs.value[memberId] = el;
@@ -152,90 +241,109 @@ function focusMemberPoints(memberId) {
   el.select();
 }
 
-/** Next unscored player in roster order (wraps to top). */
-function getNextMissingAfter(memberId) {
-  const list = roster.value;
+/** Next player in current display list (wraps). Falls back to roster. */
+function getNextFocusTarget(memberId) {
+  const list = displayList.value.length ? displayList.value : roster.value;
   if (!list.length) return null;
-  let start = 0;
-  if (memberId) {
-    const i = list.findIndex((m) => m.memberId === memberId);
-    start = i >= 0 ? i + 1 : 0;
-  }
-  for (let i = start; i < list.length; i++) {
-    if (!scoreByMember.value.has(list[i].memberId)) return list[i];
-  }
-  for (let i = 0; i < start; i++) {
-    if (!scoreByMember.value.has(list[i].memberId)) return list[i];
-  }
-  return null;
+  const i = list.findIndex((m) => m.memberId === memberId);
+  if (i < 0) return list[0];
+  return list[(i + 1) % list.length];
 }
 
 async function focusFirstMissing() {
   await nextTick();
-  const first = roster.value.find((m) => !scoreByMember.value.has(m.memberId));
+  const first = roster.value.find((m) => !hasPoints(m.memberId));
   if (first) focusMemberPoints(first.memberId);
 }
 
+/** Enter: move to next row locally — no network save. */
 async function onPointsEnter(member) {
-  if (roundFinalized.value || savingId.value) return;
-  await saveMember(member, { focusNext: true });
+  if (roundFinalized.value || saving.value) return;
+  const next = getNextFocusTarget(member.memberId);
+  if (!next || next.memberId === member.memberId) return;
+  await nextTick();
+  focusMemberPoints(next.memberId);
 }
 
-async function saveMember(member, { focusNext = false } = {}) {
-  if (roundFinalized.value) return;
-  const sb = admin?.client?.value;
-  if (!sb) return;
-  const d = drafts.value[member.memberId];
-  if (!d) return;
+function discardChanges() {
+  if (!dirtyCount.value) return;
+  const ok = window.confirm(`Discard ${dirtyCount.value} unsaved change${dirtyCount.value === 1 ? "" : "s"}?`);
+  if (!ok) return;
+  const next = {};
+  for (const m of roster.value) {
+    next[m.memberId] = {
+      ...baselines.value[m.memberId],
+      points: baselines.value[m.memberId]?.points ?? "",
+    };
+  }
+  drafts.value = next;
+  success.value = "";
+  error.value = "";
+}
 
-  const pts = d.points === "" || d.points == null ? null : parseInt(String(d.points), 10);
-  if (pts == null || Number.isNaN(pts)) {
+async function saveAll() {
+  if (roundFinalized.value || saving.value) return;
+  const sb = admin?.client?.value;
+  if (!sb || !roundId.value) return;
+
+  const members = saveableDirtyMembers.value;
+  if (!members.length) {
+    error.value =
+      incompleteDirtyCount.value > 0
+        ? "Enter points (or mark DQ) on edited rows before saving."
+        : "No unsaved changes.";
+    return;
+  }
+
+  const payloads = [];
+  for (const m of members) {
+    const payload = buildRoundPlayerPayload(roundId.value, m.memberId, drafts.value[m.memberId]);
+    if (payload) payloads.push(payload);
+  }
+
+  saving.value = true;
+  error.value = "";
+  success.value = "";
+  try {
+    await upsertRoundPlayerScores(sb, payloads);
+    await loadAll();
+    success.value = `Saved ${payloads.length} score${payloads.length === 1 ? "" : "s"}.`;
+    if (progress.value.missing === 0 && !roundFinalized.value) {
+      success.value += " All roster players have points — ready to finalize.";
+    }
+  } catch (e) {
+    error.value = isDuplicateKeyError(e)
+      ? friendlyDuplicateScoreMessage()
+      : e?.message || String(e);
+  } finally {
+    saving.value = false;
+  }
+}
+
+/** Optional single-row save for quick one-off corrections. */
+async function saveMember(member) {
+  if (roundFinalized.value || saving.value || savingId.value) return;
+  const sb = admin?.client?.value;
+  if (!sb || !roundId.value) return;
+
+  const payload = buildRoundPlayerPayload(roundId.value, member.memberId, drafts.value[member.memberId]);
+  if (!payload) {
     error.value = `Enter stableford points for ${member.fullName}.`;
     return;
   }
 
   savingId.value = member.memberId;
   error.value = "";
-  const payload = {
-    round_id: roundId.value,
-    member_id: member.memberId,
-    stableford_points: pts,
-    snake_count: d.snake ? 1 : 0,
-    camel_count: d.camel ? 1 : 0,
-    entry_fee_pence: Number(d.fee) || 500,
-    entered: true,
-    disqualified: Boolean(d.dq),
-  };
-
+  success.value = "";
   try {
-    if (d.rowId) {
-      const { error: uErr } = await sb.from("round_players").update(payload).eq("id", d.rowId);
-      if (uErr) throw uErr;
-    } else {
-      const { data, error: iErr } = await sb
-        .from("round_players")
-        .insert(payload)
-        .select("id")
-        .single();
-      if (iErr) throw iErr;
-      drafts.value[member.memberId].rowId = data.id;
-    }
-    await loadAll();
-
-    if (focusNext && !roundFinalized.value) {
-      const next = getNextMissingAfter(member.memberId);
-      if (next) {
-        await nextTick();
-        focusMemberPoints(next.memberId);
-      }
-    }
-
-    if (progress.value.missing === 0 && !roundFinalized.value) {
-      const go = window.confirm(
-        `All ${progress.value.total} roster players have scores. Open Rounds to finalize?`,
-      );
-      if (go) router.push("/manage/6-rounds");
-    }
+    await upsertRoundPlayerScores(sb, [payload]);
+    baselines.value[member.memberId] = cloneDraft(drafts.value[member.memberId]);
+    drafts.value[member.memberId] = {
+      ...drafts.value[member.memberId],
+      rowId: drafts.value[member.memberId].rowId,
+    };
+    await loadAll({ preserveDirty: true });
+    success.value = `Saved ${member.fullName}.`;
   } catch (e) {
     error.value = isDuplicateKeyError(e)
       ? friendlyDuplicateScoreMessage()
@@ -244,6 +352,28 @@ async function saveMember(member, { focusNext = false } = {}) {
     savingId.value = null;
   }
 }
+
+function confirmLeaveIfDirty() {
+  if (!dirtyCount.value || roundFinalized.value) return true;
+  return window.confirm(
+    `You have ${dirtyCount.value} unsaved score change${dirtyCount.value === 1 ? "" : "s"}. Leave without saving?`,
+  );
+}
+
+function onBeforeUnload(e) {
+  if (!dirtyCount.value || roundFinalized.value) return;
+  e.preventDefault();
+  e.returnValue = "";
+}
+
+onBeforeRouteLeave(() => confirmLeaveIfDirty());
+
+onMounted(() => {
+  window.addEventListener("beforeunload", onBeforeUnload);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener("beforeunload", onBeforeUnload);
+});
 
 watch(
   () => admin?.client?.value,
@@ -258,7 +388,18 @@ watch(
   { immediate: true },
 );
 
-watch(roundId, async () => {
+let suppressRoundWatch = false;
+watch(roundId, async (next, prev) => {
+  if (suppressRoundWatch) return;
+  if (prev && next !== prev && dirtyCount.value) {
+    if (!confirmLeaveIfDirty()) {
+      suppressRoundWatch = true;
+      roundId.value = prev;
+      await nextTick();
+      suppressRoundWatch = false;
+      return;
+    }
+  }
   router.replace({ query: { ...route.query, round: roundId.value || undefined } });
   await loadAll();
 });
@@ -283,10 +424,11 @@ watch(filter, (mode) => {
         <p class="eyebrow">Weekly workflow</p>
         <h1>Enter scores</h1>
         <p class="lede">
-          Type points and press <kbd>Enter</kbd> to save and jump to the next missing player.
+          Type through the list — <kbd>Enter</kbd> moves to the next player.
+          Save all changes when ready.
         </p>
       </div>
-      <button type="button" class="secondary-button" :disabled="loading" @click="loadAll">
+      <button type="button" class="secondary-button" :disabled="loading || saving" @click="loadAll()">
         {{ loading ? "Refreshing…" : "Refresh" }}
       </button>
     </header>
@@ -297,7 +439,7 @@ watch(filter, (mode) => {
       <section class="toolbar-card">
         <label class="field-pill">
           <span>Round</span>
-          <select v-model="roundId" :disabled="loading || !roundOptions.length">
+          <select v-model="roundId" :disabled="loading || saving || !roundOptions.length">
             <option v-for="o in roundOptions" :key="o.id" :value="o.id">{{ o.label }}</option>
           </select>
         </label>
@@ -305,6 +447,7 @@ watch(filter, (mode) => {
           <span>Show</span>
           <select v-model="filter">
             <option value="missing">Missing only</option>
+            <option value="unsaved">Unsaved only</option>
             <option value="all">Everyone</option>
             <option value="scored">Scored only</option>
           </select>
@@ -321,8 +464,9 @@ watch(filter, (mode) => {
           <RouterLink to="/manage/6-rounds">Reopen round</RouterLink>
         </template>
         <template v-else>
-          <strong>{{ progress.scored }} / {{ progress.total }}</strong> scored
+          <strong>{{ progress.scored }} / {{ progress.total }}</strong> with points
           <span v-if="progress.missing"> · {{ progress.missing }} missing</span>
+          <span v-if="dirtyCount"> · {{ dirtyCount }} unsaved</span>
           <span v-if="rosterSourceLabel(rosterSource)">
             · {{ rosterSourceLabel(rosterSource) }}
           </span>
@@ -330,6 +474,13 @@ watch(filter, (mode) => {
       </p>
 
       <p v-if="error" class="notice notice--error">{{ error }}</p>
+      <p v-if="success" class="notice notice--success">
+        {{ success }}
+        <template v-if="allFilled && !dirtyCount">
+          ·
+          <RouterLink to="/manage/6-rounds">Open Rounds to finalize</RouterLink>
+        </template>
+      </p>
       <p v-if="loading" class="empty-state">Loading…</p>
 
       <section v-else class="entry-panel">
@@ -345,10 +496,19 @@ watch(filter, (mode) => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="m in displayList" :key="m.memberId">
+              <tr
+                v-for="m in displayList"
+                :key="m.memberId"
+                :class="{ 'row--dirty': rowStatus(m.memberId) === 'edited' }"
+              >
                 <td class="col-player">
                   <span class="player-name">{{ m.fullName }}</span>
-                  <span v-if="scoreByMember.has(m.memberId)" class="saved-tag">Saved</span>
+                  <span
+                    v-if="rowStatus(m.memberId)"
+                    :class="['saved-tag', rowStatus(m.memberId) === 'edited' ? 'saved-tag--edited' : '']"
+                  >
+                    {{ rowStatus(m.memberId) === "edited" ? "Unsaved" : "Saved" }}
+                  </span>
                 </td>
                 <td class="col-pts">
                   <input
@@ -360,7 +520,7 @@ watch(filter, (mode) => {
                     max="60"
                     inputmode="numeric"
                     autocomplete="off"
-                    :disabled="roundFinalized || savingId === m.memberId"
+                    :disabled="roundFinalized || saving || savingId === m.memberId"
                     @keydown.enter.prevent="onPointsEnter(m)"
                   />
                 </td>
@@ -369,7 +529,7 @@ watch(filter, (mode) => {
                     v-model="drafts[m.memberId].snake"
                     type="checkbox"
                     class="tick-input"
-                    :disabled="roundFinalized || savingId === m.memberId"
+                    :disabled="roundFinalized || saving || savingId === m.memberId"
                     :aria-label="`Snake for ${m.fullName}`"
                   />
                 </td>
@@ -378,24 +538,23 @@ watch(filter, (mode) => {
                     v-model="drafts[m.memberId].camel"
                     type="checkbox"
                     class="tick-input"
-                    :disabled="roundFinalized || savingId === m.memberId"
+                    :disabled="roundFinalized || saving || savingId === m.memberId"
                     :aria-label="`Camel for ${m.fullName}`"
                   />
                 </td>
                 <td class="col-action">
                   <button
                     type="button"
-                    class="primary-button primary-button--compact"
-                    :disabled="roundFinalized || savingId === m.memberId"
+                    class="ghost-button"
+                    :disabled="
+                      roundFinalized ||
+                      saving ||
+                      savingId === m.memberId ||
+                      rowStatus(m.memberId) !== 'edited'
+                    "
                     @click="saveMember(m)"
                   >
-                    {{
-                      savingId === m.memberId
-                        ? "…"
-                        : scoreByMember.has(m.memberId)
-                          ? "Update"
-                          : "Save"
-                    }}
+                    {{ savingId === m.memberId ? "…" : "Save" }}
                   </button>
                 </td>
               </tr>
@@ -405,7 +564,41 @@ watch(filter, (mode) => {
         <p v-if="!displayList.length" class="empty-state">No players match this filter.</p>
       </section>
 
+      <footer v-if="!roundFinalized" class="save-bar" :class="{ 'save-bar--active': dirtyCount }">
+        <div class="save-bar__status">
+          <template v-if="dirtyCount">
+            <strong>{{ dirtyCount }}</strong> unsaved
+            <span v-if="incompleteDirtyCount">
+              · {{ incompleteDirtyCount }} need points
+            </span>
+          </template>
+          <template v-else>
+            <span class="muted">No unsaved changes</span>
+          </template>
+        </div>
+        <div class="save-bar__actions">
+          <button
+            type="button"
+            class="secondary-button"
+            :disabled="!dirtyCount || saving"
+            @click="discardChanges"
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            class="primary-button"
+            :disabled="!saveableDirtyMembers.length || saving"
+            @click="saveAll"
+          >
+            {{ saving ? "Saving…" : `Save all${saveableDirtyMembers.length ? ` (${saveableDirtyMembers.length})` : ""}` }}
+          </button>
+        </div>
+      </footer>
+
       <p class="footer-links">
+        <RouterLink to="/manage/score-submissions">Held cards</RouterLink>
+        ·
         <RouterLink to="/manage/7-scores">Advanced scores table</RouterLink>
         ·
         <RouterLink to="/manage/6-rounds">Rounds</RouterLink>
@@ -418,6 +611,7 @@ watch(filter, (mode) => {
 .score-entry {
   display: grid;
   gap: 1.25rem;
+  padding-bottom: 5.5rem;
 }
 
 .admin-page-header {
@@ -462,7 +656,8 @@ h1,
 }
 
 .primary-button,
-.secondary-button {
+.secondary-button,
+.ghost-button {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.65rem 1rem;
@@ -479,13 +674,15 @@ h1,
   color: #fff;
 }
 
-.primary-button--compact {
-  padding: 0.5rem 0.9rem;
-  font-size: 0.8rem;
+.ghost-button {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.78rem;
+  background: transparent;
 }
 
 .secondary-button:disabled,
-.primary-button:disabled {
+.primary-button:disabled,
+.ghost-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -562,6 +759,10 @@ h1,
   color: var(--danger);
 }
 
+.notice--success {
+  color: var(--ok);
+}
+
 .notice--warn {
   color: #fbbf24;
 }
@@ -600,6 +801,10 @@ h1,
 
 .entry-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.row--dirty {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 .col-player {
@@ -648,6 +853,10 @@ h1,
   color: var(--muted);
 }
 
+.saved-tag--edited {
+  color: var(--accent);
+}
+
 .pts-input {
   width: 4.25rem;
   min-height: 2.35rem;
@@ -691,6 +900,42 @@ h1,
   font-size: 0.88rem;
 }
 
+.save-bar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 12%, transparent);
+}
+
+.save-bar--active {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.save-bar__status {
+  font-size: 0.88rem;
+}
+
+.save-bar__status .muted,
+.muted {
+  color: var(--muted);
+}
+
+.save-bar__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .footer-links {
   margin: 0;
   font-size: 0.82rem;
@@ -709,6 +954,19 @@ h1,
   .field-pill,
   .field-pill--grow {
     min-width: 0;
+  }
+
+  .save-bar {
+    bottom: 0.5rem;
+  }
+
+  .save-bar__actions {
+    width: 100%;
+  }
+
+  .save-bar__actions .primary-button,
+  .save-bar__actions .secondary-button {
+    flex: 1;
   }
 }
 </style>

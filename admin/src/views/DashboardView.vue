@@ -124,6 +124,12 @@ watch(
         <span class="card-title">Rounds</span>
         <span class="card-sub">Create rounds first. Finalize later when scores are correct.</span>
       </RouterLink>
+
+      <RouterLink class="card" to="/manage/weekly-finance">
+        <span class="card-step">4</span>
+        <span class="card-title">Weekly finance log</span>
+        <span class="card-sub">Booked payouts, bank movements, rollover, and per-week cash collected.</span>
+      </RouterLink>
     </div>
 
     <h2 class="h2">RS Cup</h2>

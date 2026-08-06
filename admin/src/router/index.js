@@ -15,6 +15,7 @@ import SeasonCloseView from "@/views/SeasonCloseView.vue";
 import SendNotificationView from "@/views/SendNotificationView.vue";
 import ScoreEntryView from "@/views/ScoreEntryView.vue";
 import ScoreSubmissionsView from "@/views/ScoreSubmissionsView.vue";
+import WeeklyFinanceLogView from "@/views/WeeklyFinanceLogView.vue";
 
 const manageRoutes = ENTITY_ADMIN_PAGES.map((p) => ({
   path: p.path.replace(/^\//, ""),
@@ -46,6 +47,12 @@ const layoutChildren = [
     name: "season-close",
     component: SeasonCloseView,
     meta: { title: "Close summer (P/R)" },
+  },
+  {
+    path: "manage/weekly-finance",
+    name: "weekly-finance",
+    component: WeeklyFinanceLogView,
+    meta: { title: "Weekly finance log" },
   },
   ...manageRoutes,
   {
