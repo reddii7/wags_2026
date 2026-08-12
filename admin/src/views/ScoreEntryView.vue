@@ -29,10 +29,10 @@ const rosterSource = ref("");
 const scores = ref([]);
 const loading = ref(false);
 const saving = ref(false);
-const savingId = ref(null);
 const error = ref("");
 const success = ref("");
-const filter = ref("missing");
+/** Default to full sheet so points + snake/camel stay editable until Save all. */
+const filter = ref("all");
 const search = ref("");
 
 const drafts = ref({});
@@ -78,6 +78,10 @@ function cloneDraft(draft) {
 
 function hasPoints(memberId) {
   return normalizeScoreDraft(drafts.value[memberId]).points != null;
+}
+
+function isPersisted(memberId) {
+  return scoreByMember.value.has(memberId);
 }
 
 async function loadRounds() {
@@ -181,8 +185,15 @@ const scoreByMember = computed(() => {
 
 const progress = computed(() => {
   const total = roster.value.length;
-  const scored = roster.value.filter((m) => hasPoints(m.memberId)).length;
-  return { total, scored, missing: Math.max(0, total - scored) };
+  const entered = roster.value.filter((m) => hasPoints(m.memberId)).length;
+  const saved = roster.value.filter((m) => isPersisted(m.memberId)).length;
+  return {
+    total,
+    entered,
+    saved,
+    missingEntered: Math.max(0, total - entered),
+    missingSaved: Math.max(0, total - saved),
+  };
 });
 
 const dirtyMemberIds = computed(() =>
@@ -208,17 +219,23 @@ const incompleteDirtyCount = computed(() =>
 const displayList = computed(() => {
   const q = search.value.trim().toLowerCase();
   return roster.value.filter((m) => {
-    const filled = hasPoints(m.memberId);
-    if (filter.value === "missing" && filled) return false;
-    if (filter.value === "scored" && !filled) return false;
+    // "missing" = not yet in DB — keep typed drafts visible so snakes/camels can still be set
+    if (filter.value === "missing" && isPersisted(m.memberId) && !dirtyMemberIds.value.includes(m.memberId)) {
+      return false;
+    }
+    if (filter.value === "scored" && !isPersisted(m.memberId)) return false;
     if (filter.value === "unsaved" && !dirtyMemberIds.value.includes(m.memberId)) return false;
     if (q && !m.fullName.toLowerCase().includes(q)) return false;
     return true;
   });
 });
 
-const allFilled = computed(
-  () => progress.value.total > 0 && progress.value.missing === 0 && !roundFinalized.value,
+const allEntered = computed(
+  () => progress.value.total > 0 && progress.value.missingEntered === 0 && !roundFinalized.value,
+);
+
+const sheetReadyToSave = computed(
+  () => allEntered.value && dirtyCount.value > 0 && incompleteDirtyCount.value === 0,
 );
 
 function rowStatus(memberId) {
@@ -308,8 +325,8 @@ async function saveAll() {
     await upsertRoundPlayerScores(sb, payloads);
     await loadAll();
     success.value = `Saved ${payloads.length} score${payloads.length === 1 ? "" : "s"}.`;
-    if (progress.value.missing === 0 && !roundFinalized.value) {
-      success.value += " All roster players have points — ready to finalize.";
+    if (progress.value.missingEntered === 0 && !roundFinalized.value) {
+      success.value += " Sheet complete — ready to finalize.";
     }
   } catch (e) {
     error.value = isDuplicateKeyError(e)
@@ -317,39 +334,6 @@ async function saveAll() {
       : e?.message || String(e);
   } finally {
     saving.value = false;
-  }
-}
-
-/** Optional single-row save for quick one-off corrections. */
-async function saveMember(member) {
-  if (roundFinalized.value || saving.value || savingId.value) return;
-  const sb = admin?.client?.value;
-  if (!sb || !roundId.value) return;
-
-  const payload = buildRoundPlayerPayload(roundId.value, member.memberId, drafts.value[member.memberId]);
-  if (!payload) {
-    error.value = `Enter stableford points for ${member.fullName}.`;
-    return;
-  }
-
-  savingId.value = member.memberId;
-  error.value = "";
-  success.value = "";
-  try {
-    await upsertRoundPlayerScores(sb, [payload]);
-    baselines.value[member.memberId] = cloneDraft(drafts.value[member.memberId]);
-    drafts.value[member.memberId] = {
-      ...drafts.value[member.memberId],
-      rowId: drafts.value[member.memberId].rowId,
-    };
-    await loadAll({ preserveDirty: true });
-    success.value = `Saved ${member.fullName}.`;
-  } catch (e) {
-    error.value = isDuplicateKeyError(e)
-      ? friendlyDuplicateScoreMessage()
-      : e?.message || String(e);
-  } finally {
-    savingId.value = null;
   }
 }
 
@@ -405,13 +389,13 @@ watch(roundId, async (next, prev) => {
 });
 
 watch(loading, (isLoading, wasLoading) => {
-  if (wasLoading && !isLoading && filter.value === "missing" && !roundFinalized.value) {
+  if (wasLoading && !isLoading && !roundFinalized.value) {
     void focusFirstMissing();
   }
 });
 
-watch(filter, (mode) => {
-  if (mode === "missing" && !loading.value && !roundFinalized.value) {
+watch(filter, () => {
+  if (!loading.value && !roundFinalized.value) {
     void focusFirstMissing();
   }
 });
@@ -424,8 +408,8 @@ watch(filter, (mode) => {
         <p class="eyebrow">Weekly workflow</p>
         <h1>Enter scores</h1>
         <p class="lede">
-          Type through the list — <kbd>Enter</kbd> moves to the next player.
-          Save all changes when ready.
+          Fill the whole sheet first — points, snakes, and camels stay local.
+          Press <kbd>Enter</kbd> to move down, then <strong>Save all</strong> when the sheet is complete.
         </p>
       </div>
       <button type="button" class="secondary-button" :disabled="loading || saving" @click="loadAll()">
@@ -446,10 +430,10 @@ watch(filter, (mode) => {
         <label class="field-pill">
           <span>Show</span>
           <select v-model="filter">
-            <option value="missing">Missing only</option>
+            <option value="all">Full sheet</option>
             <option value="unsaved">Unsaved only</option>
-            <option value="all">Everyone</option>
-            <option value="scored">Scored only</option>
+            <option value="missing">Not saved to DB</option>
+            <option value="scored">Saved only</option>
           </select>
         </label>
         <label class="field-pill field-pill--grow">
@@ -464,9 +448,10 @@ watch(filter, (mode) => {
           <RouterLink to="/manage/6-rounds">Reopen round</RouterLink>
         </template>
         <template v-else>
-          <strong>{{ progress.scored }} / {{ progress.total }}</strong> with points
-          <span v-if="progress.missing"> · {{ progress.missing }} missing</span>
-          <span v-if="dirtyCount"> · {{ dirtyCount }} unsaved</span>
+          <strong>{{ progress.entered }} / {{ progress.total }}</strong> entered on sheet
+          <span v-if="progress.missingEntered"> · {{ progress.missingEntered }} still blank</span>
+          <span> · {{ progress.saved }} saved to DB</span>
+          <span v-if="dirtyCount"> · {{ dirtyCount }} waiting to save</span>
           <span v-if="rosterSourceLabel(rosterSource)">
             · {{ rosterSourceLabel(rosterSource) }}
           </span>
@@ -476,10 +461,13 @@ watch(filter, (mode) => {
       <p v-if="error" class="notice notice--error">{{ error }}</p>
       <p v-if="success" class="notice notice--success">
         {{ success }}
-        <template v-if="allFilled && !dirtyCount">
+        <template v-if="allEntered && !dirtyCount">
           ·
           <RouterLink to="/manage/6-rounds">Open Rounds to finalize</RouterLink>
         </template>
+      </p>
+      <p v-if="sheetReadyToSave" class="notice notice--ready">
+        Sheet looks complete — use <strong>Save all</strong> to write scores to the database.
       </p>
       <p v-if="loading" class="empty-state">Loading…</p>
 
@@ -492,7 +480,6 @@ watch(filter, (mode) => {
                 <th class="col-pts">Pts</th>
                 <th class="col-tick">Snake</th>
                 <th class="col-tick">Camel</th>
-                <th class="col-action"></th>
               </tr>
             </thead>
             <tbody>
@@ -507,7 +494,7 @@ watch(filter, (mode) => {
                     v-if="rowStatus(m.memberId)"
                     :class="['saved-tag', rowStatus(m.memberId) === 'edited' ? 'saved-tag--edited' : '']"
                   >
-                    {{ rowStatus(m.memberId) === "edited" ? "Unsaved" : "Saved" }}
+                    {{ rowStatus(m.memberId) === "edited" ? "Draft" : "Saved" }}
                   </span>
                 </td>
                 <td class="col-pts">
@@ -520,7 +507,7 @@ watch(filter, (mode) => {
                     max="60"
                     inputmode="numeric"
                     autocomplete="off"
-                    :disabled="roundFinalized || saving || savingId === m.memberId"
+                    :disabled="roundFinalized || saving"
                     @keydown.enter.prevent="onPointsEnter(m)"
                   />
                 </td>
@@ -529,7 +516,7 @@ watch(filter, (mode) => {
                     v-model="drafts[m.memberId].snake"
                     type="checkbox"
                     class="tick-input"
-                    :disabled="roundFinalized || saving || savingId === m.memberId"
+                    :disabled="roundFinalized || saving"
                     :aria-label="`Snake for ${m.fullName}`"
                   />
                 </td>
@@ -538,24 +525,9 @@ watch(filter, (mode) => {
                     v-model="drafts[m.memberId].camel"
                     type="checkbox"
                     class="tick-input"
-                    :disabled="roundFinalized || saving || savingId === m.memberId"
+                    :disabled="roundFinalized || saving"
                     :aria-label="`Camel for ${m.fullName}`"
                   />
-                </td>
-                <td class="col-action">
-                  <button
-                    type="button"
-                    class="ghost-button"
-                    :disabled="
-                      roundFinalized ||
-                      saving ||
-                      savingId === m.memberId ||
-                      rowStatus(m.memberId) !== 'edited'
-                    "
-                    @click="saveMember(m)"
-                  >
-                    {{ savingId === m.memberId ? "…" : "Save" }}
-                  </button>
                 </td>
               </tr>
             </tbody>
@@ -567,13 +539,14 @@ watch(filter, (mode) => {
       <footer v-if="!roundFinalized" class="save-bar" :class="{ 'save-bar--active': dirtyCount }">
         <div class="save-bar__status">
           <template v-if="dirtyCount">
-            <strong>{{ dirtyCount }}</strong> unsaved
+            <strong>{{ dirtyCount }}</strong> draft change{{ dirtyCount === 1 ? "" : "s" }}
             <span v-if="incompleteDirtyCount">
-              · {{ incompleteDirtyCount }} need points
+              · {{ incompleteDirtyCount }} still need points
             </span>
+            <span v-else-if="sheetReadyToSave"> · sheet ready</span>
           </template>
           <template v-else>
-            <span class="muted">No unsaved changes</span>
+            <span class="muted">No unsaved changes — fill the sheet, then Save all</span>
           </template>
         </div>
         <div class="save-bar__actions">
@@ -656,8 +629,7 @@ h1,
 }
 
 .primary-button,
-.secondary-button,
-.ghost-button {
+.secondary-button {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.65rem 1rem;
@@ -674,15 +646,8 @@ h1,
   color: #fff;
 }
 
-.ghost-button {
-  padding: 0.45rem 0.75rem;
-  font-size: 0.78rem;
-  background: transparent;
-}
-
 .secondary-button:disabled,
-.primary-button:disabled,
-.ghost-button:disabled {
+.primary-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -763,6 +728,10 @@ h1,
   color: var(--ok);
 }
 
+.notice--ready {
+  color: var(--accent);
+}
+
 .notice--warn {
   color: #fbbf24;
 }
@@ -823,19 +792,9 @@ h1,
   text-align: center;
 }
 
-.col-action {
-  width: 6.5rem;
-  text-align: right;
-}
-
 .entry-table th.col-pts,
-.entry-table th.col-tick,
-.entry-table th.col-action {
+.entry-table th.col-tick {
   text-align: center;
-}
-
-.entry-table th.col-action {
-  text-align: right;
 }
 
 .player-name {
