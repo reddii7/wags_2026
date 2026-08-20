@@ -1,0 +1,19 @@
+{
+  "name": "WAGS",
+  "short_name": "WAGS",
+  "description": "Sutton WAGS results, leagues, handicaps and RS Cup",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1c1c1e",
+  "theme_color": "#1c1c1e",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon",
+      "purpose": "any"
+    }
+  ]
+}

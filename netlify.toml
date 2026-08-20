@@ -31,6 +31,13 @@
   to = "/index.html"
   status = 200
 
+# Android Chrome home-screen opens "/" — that path must never be weaker than /index.html
+# or devices keep a stale shell even after remove/re-add. iOS Web Clip logic is unchanged.
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
 [[headers]]
   for = "/index.html"
   [headers.values]
@@ -40,6 +47,7 @@
   for = "/manifest.webmanifest"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
+    Content-Type = "application/manifest+json"
 
 [[headers]]
   for = "/apple-touch-icon.png"
@@ -50,3 +58,9 @@
   for = "/favicon.ico"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Hashed Vite bundles — cache forever; HTML above always points at the current hash.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
