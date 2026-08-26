@@ -665,6 +665,7 @@ export const ENTITY_ADMIN_PAGES = [
         { key: "full_name", label: "Member" },
         { key: "tier", label: "Tier" },
         { key: "best_14_total", label: "Best 14 total" },
+        { key: "best_10_total", label: "Best 10 total" },
       ],
       formFields: [],
     },

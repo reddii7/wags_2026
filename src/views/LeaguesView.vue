@@ -403,9 +403,7 @@ const openBest10 = (player) => {
   error.value = "";
   selectedPlayer.value = player;
   detailLoading.value = true;
-  const seasonId = props.season?.id;
-  const playerId = player.user_id || player.player_id || player.id;
-  if (!seasonId || !playerId) {
+  if (!props.season?.id) {
     detailRows.value = [];
   } else {
     detailRows.value = buildLocalTopRounds(player, 10);
