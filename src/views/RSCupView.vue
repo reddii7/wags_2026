@@ -61,7 +61,7 @@ const roundsWithMatches = computed(() => {
     (m) => m.tournament_id === tournament.value.id,
   );
 
-  // Group by stage_code, preserve order by round_number then slot_index
+  // Group by stage_code; list latest knockout stage first.
   const groups = {};
   matches.forEach((m) => {
     const key = m.stage_code || String(m.round_number);
@@ -69,11 +69,58 @@ const roundsWithMatches = computed(() => {
     groups[key].push(m);
   });
 
+  const stageProgression = (code, roundNumber) => {
+    const lower = String(code || "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, " ");
+    const known = {
+      prelim: 0,
+      preliminary: 0,
+      "preliminary round": 0,
+      "prelim round": 0,
+      r1: 1,
+      "round 1": 1,
+      "first round": 1,
+      r2: 2,
+      "round 2": 2,
+      "second round": 2,
+      r3: 3,
+      "round 3": 3,
+      "third round": 3,
+      qf: 4,
+      "quarter final": 4,
+      "quarter finals": 4,
+      sf: 5,
+      "semi final": 5,
+      "semi finals": 5,
+      final: 6,
+      "the final": 6,
+    };
+    if (known[lower] !== undefined) return known[lower];
+    if (/prelim/.test(lower)) return 0;
+    if (/quarter/.test(lower)) return 4;
+    if (/semi/.test(lower)) return 5;
+    if (/\bfinals?\b/.test(lower) && !/quarter|semi|prelim/.test(lower)) return 6;
+    const roundMatch = lower.match(/\b(?:round|r)\s*(\d+)\b/);
+    if (roundMatch) {
+      const n = Number(roundMatch[1]);
+      if (Number.isFinite(n) && n >= 1) return n;
+    }
+    const rn = Number(roundNumber);
+    // Treat legacy "unknown → 99" as bottom when sorting latest-first.
+    if (Number.isFinite(rn) && rn >= 0 && rn < 99) return rn;
+    return -1;
+  };
+
   return Object.keys(groups)
     .sort((a, b) => {
-      const na = groups[a][0]?.round_number ?? 99;
-      const nb = groups[b][0]?.round_number ?? 99;
-      return na - nb;
+      const na = stageProgression(a, groups[a][0]?.round_number);
+      const nb = stageProgression(b, groups[b][0]?.round_number);
+      if (nb !== na) return nb - na;
+      const da = String(groups[a].find((m) => m.play_by_date)?.play_by_date || "");
+      const db = String(groups[b].find((m) => m.play_by_date)?.play_by_date || "");
+      return db.localeCompare(da);
     })
     .map((stageKey) => {
       const stageMatches = groups[stageKey];
@@ -86,7 +133,10 @@ const roundsWithMatches = computed(() => {
       const playBy = formatPlayBy(playByRaw);
 
       return {
-        roundNumber: stageMatches[0]?.round_number ?? 99,
+        roundNumber: stageProgression(
+          stageKey,
+          stageMatches[0]?.round_number,
+        ),
         roundLabel,
         playBy,
         matches: stageMatches

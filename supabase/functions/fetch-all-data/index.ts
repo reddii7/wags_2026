@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20260520-greenfield-v32";
+const BUILD_ID = "20260826-rscup-latest-first-v33";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -995,26 +995,71 @@ async function greenfieldFetchAll(
   }
 
   // ── RS Cup: competitions + cup_matches ────────────────────────────────────
+  // Progression order (low → early, high → latest). Free-text admin labels
+  // like "Preliminary Round" / "Round 2" must map here or they sort wrongly.
   const stageToRoundNumber: Record<string, number> = {
-    prelim: 0, r1: 1, r2: 2, qf: 3, sf: 4, final: 5,
+    prelim: 0,
+    preliminary: 0,
+    "preliminary round": 0,
+    "prelim round": 0,
+    r1: 1,
+    "round 1": 1,
+    "first round": 1,
+    r2: 2,
+    "round 2": 2,
+    "second round": 2,
+    r3: 3,
+    "round 3": 3,
+    "third round": 3,
+    qf: 4,
+    "quarter final": 4,
+    "quarter finals": 4,
+    "quarter-final": 4,
+    "quarter-finals": 4,
+    sf: 5,
+    "semi final": 5,
+    "semi finals": 5,
+    "semi-final": 5,
+    "semi-finals": 5,
+    final: 6,
+    "the final": 6,
   };
   // Well-known labels; anything else is title-cased from the raw stage_code.
   const stageToLabel: Record<string, string> = {
-    prelim:  "Preliminary Round",
-    r1:      "First Round",
-    r2:      "Second Round",
-    qf:      "Quarter Finals",
-    sf:      "Semi Finals",
-    final:   "The Final",
+    prelim: "Preliminary Round",
+    preliminary: "Preliminary Round",
+    "preliminary round": "Preliminary Round",
+    r1: "First Round",
+    "round 1": "Round 1",
+    "first round": "First Round",
+    r2: "Second Round",
+    "round 2": "Round 2",
+    "second round": "Second Round",
+    r3: "Third Round",
+    "round 3": "Round 3",
+    qf: "Quarter Finals",
+    sf: "Semi Finals",
+    final: "The Final",
+    "the final": "The Final",
   };
   const stageCodeToRoundNumber = (code: string): number => {
-    const lower = code.toLowerCase().trim();
+    const lower = code.toLowerCase().trim().replace(/\s+/g, " ");
     if (stageToRoundNumber[lower] !== undefined) return stageToRoundNumber[lower];
-    const n = parseInt(lower.replace(/\D/g, ""), 10);
-    return Number.isFinite(n) ? n : 99;
+    if (/prelim/.test(lower)) return 0;
+    if (/quarter/.test(lower)) return 4;
+    if (/semi/.test(lower)) return 5;
+    if (/\bfinals?\b/.test(lower) && !/quarter|semi|prelim/.test(lower)) return 6;
+    // "Round 2", "R2", etc. — knockout round index (1-based).
+    const roundMatch = lower.match(/\b(?:round|r)\s*(\d+)\b/);
+    if (roundMatch) {
+      const n = parseInt(roundMatch[1], 10);
+      if (Number.isFinite(n) && n >= 1) return n;
+    }
+    // Unknown stages sort below known ones when listing latest-first.
+    return -1;
   };
   const stageCodeToLabel = (code: string): string => {
-    const lower = code.toLowerCase().trim();
+    const lower = code.toLowerCase().trim().replace(/\s+/g, " ");
     if (stageToLabel[lower]) return stageToLabel[lower];
     // Title-case the raw entry (e.g. "Prelim Round" → "Prelim Round")
     return code.replace(/\b\w/g, (c) => c.toUpperCase());
