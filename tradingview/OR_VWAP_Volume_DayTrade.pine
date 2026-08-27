@@ -1,0 +1,343 @@
+//@version=6
+indicator("OR + VWAP + Volume Day Trade", shorttitle="OR VWAP 5m", overlay=true, max_lines_count=50, max_labels_count=50)
+
+// -----------------------------------------------------------------------------
+// 5-minute day-trade playbook:
+//   1H  = bias only (VWAP + 20 EMA + structure)
+//   5m  = entries (opening-range break / VWAP pullback)
+//   Volume must confirm. No 5m signal that fights the 1H.
+//
+// Install:
+//   1. Open a 5-minute chart (US stocks / ES / NQ: regular session).
+//   2. Pine Editor -> paste this file -> Add to chart.
+//   3. Alert: this indicator -> "Any alert() function call" -> Once per bar close.
+// -----------------------------------------------------------------------------
+
+// ===== Inputs ================================================================
+string gSess = "Session"
+string gVol  = "Volume"
+string gBias = "1H bias"
+string gSig  = "Signals"
+string gVis  = "Visuals"
+
+string tzInput = input.string("America/New_York", "Timezone", options=["America/New_York", "America/Chicago", "America/Los_Angeles", "Europe/London", "UTC", "Exchange"], group=gSess, tooltip="US equities and ES/NQ RTH use America/New_York.")
+string tz = tzInput == "Exchange" ? syminfo.timezone : tzInput
+string rthSess = input.session("0930-1600", "Regular session", group=gSess)
+string orSess = input.session("0930-1000", "Opening range", group=gSess, tooltip="First 30 minutes of RTH on a 5m chart (bars that open 09:30–09:55).")
+string primarySess = input.session("1000-1130", "Primary trade window", group=gSess)
+string afternoonSess = input.session("1400-1545", "Afternoon window", group=gSess)
+bool useAfternoon = input.bool(false, "Allow afternoon window", group=gSess)
+bool rthOnly = input.bool(true, "RTH only (hide overnight)", group=gSess)
+
+string biasTf = input.timeframe("60", "Bias timeframe", group=gBias)
+int emaLen = input.int(20, "1H EMA length", minval=1, group=gBias)
+bool requireEmaSide = input.bool(true, "Price must be on EMA side", group=gBias)
+bool requireStructure = input.bool(false, "Require 1H higher-lows / lower-highs", group=gBias)
+bool skipExhaustedBreak = input.bool(true, "Skip OR breakouts after a huge 1H bar", group=gBias)
+float exhaustMult = input.float(1.8, "Huge-bar ATR multiple", minval=0.5, step=0.1, group=gBias)
+
+int volLen = input.int(20, "Volume average bars", minval=2, group=gVol)
+float volMult = input.float(1.5, "Min relative volume", minval=0.1, step=0.1, group=gVol)
+
+bool useOrBreak = input.bool(true, "Setup A: OR breakout", group=gSig)
+bool useVwapPb = input.bool(true, "Setup B: VWAP pullback", group=gSig)
+bool requireRetest = input.bool(false, "OR break must retest", group=gSig)
+bool requireVwapSide = input.bool(true, "Price must hold VWAP side", group=gSig)
+bool requireWideBar = input.bool(true, "Reject doji breakout bars", group=gSig)
+float minBodyRatio = input.float(0.45, "Min breakout body / range", minval=0.1, maxval=1.0, step=0.05, group=gSig)
+bool skipSloppyStops = input.bool(true, "Skip if stop is wider than ATR multiple", group=gSig)
+float sloppyAtrMult = input.float(0.8, "Max stop distance (x 5m ATR)", minval=0.2, step=0.1, group=gSig)
+int maxPerDir = input.int(2, "Max signals per direction / day", minval=1, maxval=10, group=gSig)
+
+bool showVwap = input.bool(true, "VWAP", group=gVis)
+bool showOr = input.bool(true, "Opening range", group=gVis)
+bool showHtfEma = input.bool(true, "1H EMA", group=gVis)
+bool showPdh = input.bool(true, "Prior day high / low", group=gVis)
+bool showLevels = input.bool(true, "Stop / 1R / 2R on last signal", group=gVis)
+bool showTable = input.bool(true, "Dashboard", group=gVis)
+bool showBiasBg = input.bool(true, "Bias background", group=gVis)
+bool showOrBg = input.bool(true, "Shade opening range", group=gVis)
+
+color longCol = input.color(#00E676, "Long", group=gVis, inline="c")
+color shortCol = input.color(#FF5252, "Short", group=gVis, inline="c")
+color vwapColUp = input.color(#26A69A, "VWAP above", group=gVis, inline="v")
+color vwapColDn = input.color(#EF5350, "VWAP below", group=gVis, inline="v")
+color orCol = input.color(#FF9800, "OR", group=gVis)
+color emaCol = input.color(#AB47BC, "1H EMA", group=gVis)
+
+// ===== Helpers (all UDFs live here, before any other logic) ==================
+inSess(string sess) =>
+    not na(time(timeframe.period, sess, tz))
+
+htfData() =>
+    float ema = ta.ema(close, emaLen)
+    float htfAtrVal = ta.atr(14)
+    float emaUp = ema > ema[1] ? 1.0 : 0.0
+    float emaDn = ema < ema[1] ? 1.0 : 0.0
+    float higherLows = (low > low[1] and low[1] > low[2]) ? 1.0 : 0.0
+    float lowerHighs = (high < high[1] and high[1] < high[2]) ? 1.0 : 0.0
+    float htfBarRange = high - low
+    [close, ema, emaUp, emaDn, higherLows, lowerHighs, htfBarRange, htfAtrVal]
+
+sloppy(float entryPx, float stopPx, float atrVal) =>
+    skipSloppyStops and atrVal > 0 and math.abs(entryPx - stopPx) > atrVal * sloppyAtrMult
+
+alertJson(string side, string setup, float px, float stopPx, float t1, float t2, float relVol) =>
+    '{"ticker":"' + syminfo.ticker + '","side":"' + side + '","setup":"' + setup + '","tf":"' + timeframe.period + '","price":' + str.tostring(px, format.mintick) + ',"stop":' + str.tostring(stopPx, format.mintick) + ',"t1":' + str.tostring(t1, format.mintick) + ',"t2":' + str.tostring(t2, format.mintick) + ',"rvol":' + str.tostring(relVol, "#.00") + '}'
+
+// ===== Session / VWAP / OR ===================================================
+bool inRth = inSess(rthSess)
+bool inOrWindow = inSess(orSess)
+bool inPrimary = inSess(primarySess)
+bool inAfternoon = useAfternoon and inSess(afternoonSess)
+bool inTradeWindow = inPrimary or inAfternoon
+bool newDay = timeframe.change("D")
+bool sessionOn = inRth and not inRth[1]
+bool newSession = sessionOn or (inRth and newDay)
+
+float atr5 = ta.atr(14)
+float buf = nz(atr5, close * 0.001) * 0.1
+float sessVwap = ta.vwap(hlc3, newSession or barstate.isfirst)
+bool aboveVwap = not na(sessVwap) and close > sessVwap
+bool belowVwap = not na(sessVwap) and close < sessVwap
+
+var float orHigh = na
+var float orLow = na
+var bool orComplete = false
+var bool brokeUp = false
+var bool brokeDn = false
+var int longsToday = 0
+var int shortsToday = 0
+
+if newSession
+    orHigh := na
+    orLow := na
+    orComplete := false
+    brokeUp := false
+    brokeDn := false
+    longsToday := 0
+    shortsToday := 0
+
+if inOrWindow
+    orHigh := na(orHigh) ? high : math.max(orHigh, high)
+    orLow := na(orLow) ? low : math.min(orLow, low)
+    orComplete := false
+
+if inOrWindow[1] and not inOrWindow and not na(orHigh)
+    orComplete := true
+
+if inRth and not inOrWindow and not na(orHigh)
+    orComplete := true
+
+float orMid = not na(orHigh) and not na(orLow) ? (orHigh + orLow) * 0.5 : na
+bool afterOr = orComplete and not inOrWindow and not na(orHigh) and not na(orLow)
+
+if afterOr and close > orHigh
+    brokeUp := true
+if afterOr and close < orLow
+    brokeDn := true
+
+float volAvg = ta.sma(volume[1], volLen)
+float rvol = volAvg > 0 ? volume / volAvg : 0.0
+bool volOk = rvol >= volMult
+float barRange = high - low
+float body = math.abs(close - open)
+bool wideBar = barRange > 0 and body / barRange >= minBodyRatio
+
+[htfClose, htfEma, htfEmaUpF, htfEmaDnF, htfHlF, htfLhF, htfRange, htfAtr] = request.security(syminfo.tickerid, biasTf, htfData(), lookahead=barmerge.lookahead_off)
+bool htfEmaUp = htfEmaUpF != 0
+bool htfEmaDn = htfEmaDnF != 0
+bool htfHL = htfHlF != 0
+bool htfLH = htfLhF != 0
+bool htfAboveVwap = not na(sessVwap) and not na(htfClose) and htfClose > sessVwap
+bool htfBelowVwap = not na(sessVwap) and not na(htfClose) and htfClose < sessVwap
+bool htfExhausted = skipExhaustedBreak and nz(htfAtr, 0) > 0 and nz(htfRange, 0) > htfAtr * exhaustMult
+
+bool longBias = htfAboveVwap and htfEmaUp
+bool shortBias = htfBelowVwap and htfEmaDn
+if requireEmaSide
+    longBias := longBias and not na(htfEma) and htfClose > htfEma
+    shortBias := shortBias and not na(htfEma) and htfClose < htfEma
+if requireStructure
+    longBias := longBias and htfHL
+    shortBias := shortBias and htfLH
+
+var float pdh = na
+var float pdl = na
+var float dayHigh = na
+var float dayLow = na
+if newSession
+    pdh := dayHigh
+    pdl := dayLow
+    dayHigh := high
+    dayLow := low
+else if inRth
+    dayHigh := math.max(nz(dayHigh, high), high)
+    dayLow := math.min(nz(dayLow, low), low)
+
+bool tfOk = timeframe.isintraday
+bool sessionOk = not rthOnly or inRth
+bool baseOk = tfOk and sessionOk and afterOr and inTradeWindow and not na(sessVwap)
+bool longSideOk = longBias and (not requireVwapSide or aboveVwap)
+bool shortSideOk = shortBias and (not requireVwapSide or belowVwap)
+
+float longOrStop = math.min(nz(orMid, nz(sessVwap, low)), nz(sessVwap, low)) - buf
+float shortOrStop = math.max(nz(orMid, nz(sessVwap, high)), nz(sessVwap, high)) + buf
+float longVwapStop = math.min(low, nz(sessVwap, low)) - buf
+float shortVwapStop = math.max(high, nz(sessVwap, high)) + buf
+
+bool firstCloseUp = afterOr and close > orHigh and close[1] <= orHigh
+bool firstCloseDn = afterOr and close < orLow and close[1] >= orLow
+bool retestHoldUp = brokeUp[1] and low <= orHigh and close > orHigh
+bool retestHoldDn = brokeDn[1] and high >= orLow and close < orLow
+
+bool orLongRaw = useOrBreak and baseOk and longSideOk and volOk and (not requireWideBar or wideBar) and not htfExhausted and (requireRetest ? retestHoldUp : firstCloseUp)
+bool orShortRaw = useOrBreak and baseOk and shortSideOk and volOk and (not requireWideBar or wideBar) and not htfExhausted and (requireRetest ? retestHoldDn : firstCloseDn)
+orLongRaw := orLongRaw and not sloppy(close, longOrStop, nz(atr5, 0))
+orShortRaw := orShortRaw and not sloppy(close, shortOrStop, nz(atr5, 0))
+
+bool firstTagVwapUp = not na(sessVwap) and low <= sessVwap and close > sessVwap and math.min(low[1], close[1]) > sessVwap
+bool firstTagVwapDn = not na(sessVwap) and high >= sessVwap and close < sessVwap and math.max(high[1], close[1]) < sessVwap
+bool bullReject = close >= open or (close - low) >= (high - close)
+bool bearReject = close <= open or (high - close) >= (close - low)
+
+bool vwapLongRaw = useVwapPb and baseOk and longSideOk and brokeUp[1] and volOk and firstTagVwapUp and bullReject
+bool vwapShortRaw = useVwapPb and baseOk and shortSideOk and brokeDn[1] and volOk and firstTagVwapDn and bearReject
+vwapLongRaw := vwapLongRaw and not sloppy(close, longVwapStop, nz(atr5, 0))
+vwapShortRaw := vwapShortRaw and not sloppy(close, shortVwapStop, nz(atr5, 0))
+
+bool orLongCond = orLongRaw and not vwapLongRaw
+bool orShortCond = orShortRaw and not vwapShortRaw
+bool vwapLongCond = vwapLongRaw
+bool vwapShortCond = vwapShortRaw
+bool canLong = longsToday < maxPerDir
+bool canShort = shortsToday < maxPerDir
+
+bool orLongSig = orLongCond and canLong and barstate.isconfirmed
+bool orShortSig = orShortCond and canShort and barstate.isconfirmed
+bool vwapLongSig = vwapLongCond and canLong and barstate.isconfirmed
+bool vwapShortSig = vwapShortCond and canShort and barstate.isconfirmed
+bool longSig = orLongSig or vwapLongSig
+bool shortSig = orShortSig or vwapShortSig
+
+if longSig
+    longsToday += 1
+if shortSig
+    shortsToday += 1
+
+float longStop = vwapLongSig ? longVwapStop : longOrStop
+float shortStop = vwapShortSig ? shortVwapStop : shortOrStop
+float longRisk = math.max(close - longStop, syminfo.mintick)
+float shortRisk = math.max(shortStop - close, syminfo.mintick)
+float longT1 = close + longRisk
+float shortT1 = close - shortRisk
+float longT2 = close + 2.0 * longRisk
+float shortT2 = close - 2.0 * shortRisk
+if not na(pdh) and pdh > close
+    longT2 := math.max(longT2, pdh)
+if not na(pdl) and pdl < close
+    shortT2 := math.min(shortT2, pdl)
+
+string longSetup = vwapLongSig ? "VWAP" : "OR"
+string shortSetup = vwapShortSig ? "VWAP" : "OR"
+
+// ===== Outputs (global plot / barcolor / alertcondition / line.new) ==========
+float vwapPlot = showVwap and (not rthOnly or inRth) ? sessVwap : na
+float emaPlot = showHtfEma ? htfEma : na
+float orHighPlotVal = showOr and not newSession and not na(orHigh) ? orHigh : na
+float orLowPlotVal = showOr and not newSession and not na(orLow) ? orLow : na
+float pdhPlot = showPdh and not na(pdh) ? pdh : na
+float pdlPlot = showPdh and not na(pdl) ? pdl : na
+
+plot(vwapPlot, "VWAP", aboveVwap ? vwapColUp : vwapColDn, 2)
+plot(emaPlot, "1H EMA 20", color.new(emaCol, 20), 1, plot.style_stepline)
+orHighPl = plot(orHighPlotVal, "OR High", orCol, 1, plot.style_linebr)
+orLowPl = plot(orLowPlotVal, "OR Low", orCol, 1, plot.style_linebr)
+fill(orHighPl, orLowPl, color.new(orCol, 88), "OR zone")
+plot(pdhPlot, "Prior Day High", color.new(#787B86, 0), 1, plot.style_linebr)
+plot(pdlPlot, "Prior Day Low", color.new(#787B86, 0), 1, plot.style_linebr)
+plotshape(orLongSig, title="OR Long", style=shape.triangleup, location=location.belowbar, color=longCol, text="OR", textcolor=chart.fg_color, size=size.small)
+plotshape(vwapLongSig, title="VWAP Long", style=shape.triangleup, location=location.belowbar, color=color.new(#00BCD4, 0), text="VWAP", textcolor=chart.fg_color, size=size.small)
+plotshape(orShortSig, title="OR Short", style=shape.triangledown, location=location.abovebar, color=shortCol, text="OR", textcolor=chart.fg_color, size=size.small)
+plotshape(vwapShortSig, title="VWAP Short", style=shape.triangledown, location=location.abovebar, color=color.new(#FF9800, 0), text="VWAP", textcolor=chart.fg_color, size=size.small)
+barcolor(longSig ? longCol : shortSig ? shortCol : na, title="Signal bar")
+bgcolor(showOrBg and inOrWindow ? color.new(orCol, 92) : na, title="OR building")
+bgcolor(showBiasBg and not inOrWindow ? (longBias ? color.new(longCol, 94) : shortBias ? color.new(shortCol, 94) : na) : na, title="1H bias")
+
+alertcondition(orLongSig, "OR break long", "Opening-range breakout long")
+alertcondition(vwapLongSig, "VWAP pullback long", "VWAP pullback long")
+alertcondition(orShortSig, "OR break short", "Opening-range breakout short")
+alertcondition(vwapShortSig, "VWAP pullback short", "VWAP pullback short")
+alertcondition(longSig, "Any long", "Any long setup")
+alertcondition(shortSig, "Any short", "Any short setup")
+
+var line stopLn = line.new(bar_index, close, bar_index + 1, close, xloc=xloc.bar_index, extend=extend.right, color=color.new(#FF5252, 100), style=line.style_dashed, width=1)
+var line t1Ln = line.new(bar_index, close, bar_index + 1, close, xloc=xloc.bar_index, extend=extend.right, color=color.new(#00E676, 100), style=line.style_dotted, width=1)
+var line t2Ln = line.new(bar_index, close, bar_index + 1, close, xloc=xloc.bar_index, extend=extend.right, color=color.new(#2962FF, 100), style=line.style_dotted, width=1)
+var label stopLb = label.new(bar_index, close, "", xloc=xloc.bar_index, style=label.style_label_left, color=color.new(#FF5252, 100), textcolor=chart.fg_color, size=size.small)
+var label t1Lb = label.new(bar_index, close, "", xloc=xloc.bar_index, style=label.style_label_left, color=color.new(#00E676, 100), textcolor=chart.fg_color, size=size.small)
+var label t2Lb = label.new(bar_index, close, "", xloc=xloc.bar_index, style=label.style_label_left, color=color.new(#2962FF, 100), textcolor=chart.fg_color, size=size.small)
+
+float lvlStop = longSig ? longStop : shortStop
+float lvlT1 = longSig ? longT1 : shortT1
+float lvlT2 = longSig ? longT2 : shortT2
+if showLevels and (longSig or shortSig)
+    line.set_xy1(stopLn, bar_index, lvlStop)
+    line.set_xy2(stopLn, bar_index + 1, lvlStop)
+    line.set_xy1(t1Ln, bar_index, lvlT1)
+    line.set_xy2(t1Ln, bar_index + 1, lvlT1)
+    line.set_xy1(t2Ln, bar_index, lvlT2)
+    line.set_xy2(t2Ln, bar_index + 1, lvlT2)
+    line.set_color(stopLn, color.new(#FF5252, 0))
+    line.set_color(t1Ln, color.new(#00E676, 0))
+    line.set_color(t2Ln, color.new(#2962FF, 0))
+    label.set_xy(stopLb, bar_index, lvlStop)
+    label.set_xy(t1Lb, bar_index, lvlT1)
+    label.set_xy(t2Lb, bar_index, lvlT2)
+    label.set_text(stopLb, "Stop " + str.tostring(lvlStop, format.mintick))
+    label.set_text(t1Lb, "1R " + str.tostring(lvlT1, format.mintick))
+    label.set_text(t2Lb, "2R " + str.tostring(lvlT2, format.mintick))
+    label.set_color(stopLb, color.new(#FF5252, 20))
+    label.set_color(t1Lb, color.new(#00E676, 20))
+    label.set_color(t2Lb, color.new(#2962FF, 20))
+
+string biasTxt = longBias ? "LONG" : shortBias ? "SHORT" : "CHOP"
+color biasClr = longBias ? longCol : shortBias ? shortCol : color.gray
+string orTxt = inOrWindow ? "BUILDING" : not afterOr ? "-" : brokeUp and brokeDn ? "BOTH SIDES" : brokeUp ? "BROKE UP" : brokeDn ? "BROKE DN" : "SET"
+string volTxt = str.tostring(rvol, "#.00") + "x" + (volOk ? " OK" : " WEAK")
+string winTxt = inOrWindow ? "WAIT OR" : inTradeWindow ? "TRADE" : sessionOk ? "WAIT" : "OUT"
+string tfTxt = timeframe.period == "5" ? "5m OK" : "USE 5m (" + timeframe.period + ")"
+string formSetup = vwapLongCond and canLong ? "VWAP LONG" : orLongCond and canLong ? "OR LONG" : vwapShortCond and canShort ? "VWAP SHORT" : orShortCond and canShort ? "OR SHORT" : "NONE"
+string liveSetup = longSig ? longSetup + " LONG" : shortSig ? shortSetup + " SHORT" : not barstate.isconfirmed and formSetup != "NONE" ? formSetup + " (forming)" : formSetup
+color setupClr = str.contains(liveSetup, "LONG") ? longCol : str.contains(liveSetup, "SHORT") ? shortCol : color.gray
+
+var table dash = table.new(position.top_right, 2, 8, color.new(#131722, 15), color.new(#434651, 0), 1, color.new(#434651, 0), 1)
+if barstate.islast
+    if showTable
+        table.cell(dash, 0, 0, "OR VWAP", text_color=color.white, text_size=size.small, bgcolor=color.new(#2962FF, 60))
+        table.cell(dash, 1, 0, tfTxt, text_color=timeframe.period == "5" ? color.white : color.orange, text_size=size.small, bgcolor=color.new(#2962FF, 60), text_halign=text.align_right)
+        table.cell(dash, 0, 1, "1H bias", text_color=color.gray, text_size=size.small)
+        table.cell(dash, 1, 1, biasTxt, text_color=biasClr, text_size=size.small, text_halign=text.align_right)
+        table.cell(dash, 0, 2, "VWAP", text_color=color.gray, text_size=size.small)
+        table.cell(dash, 1, 2, aboveVwap ? "ABOVE" : belowVwap ? "BELOW" : "-", text_color=aboveVwap ? vwapColUp : belowVwap ? vwapColDn : color.gray, text_size=size.small, text_halign=text.align_right)
+        table.cell(dash, 0, 3, "OR", text_color=color.gray, text_size=size.small)
+        table.cell(dash, 1, 3, orTxt, text_color=orCol, text_size=size.small, text_halign=text.align_right)
+        table.cell(dash, 0, 4, "Volume", text_color=color.gray, text_size=size.small)
+        table.cell(dash, 1, 4, volTxt, text_color=volOk ? longCol : color.gray, text_size=size.small, text_halign=text.align_right)
+        table.cell(dash, 0, 5, "Window", text_color=color.gray, text_size=size.small)
+        table.cell(dash, 1, 5, winTxt, text_color=inTradeWindow ? longCol : color.gray, text_size=size.small, text_halign=text.align_right)
+        table.cell(dash, 0, 6, "Setup", text_color=color.gray, text_size=size.small)
+        table.cell(dash, 1, 6, liveSetup, text_color=setupClr, text_size=size.small, text_halign=text.align_right)
+        table.cell(dash, 0, 7, "Today", text_color=color.gray, text_size=size.small)
+        table.cell(dash, 1, 7, str.tostring(longsToday) + "L  " + str.tostring(shortsToday) + "S", text_color=color.white, text_size=size.small, text_halign=text.align_right)
+    else
+        table.clear(dash, 0, 0, 1, 7)
+
+if orLongSig
+    alert("OR BREAK LONG " + syminfo.ticker + " @ " + str.tostring(close, format.mintick) + " | stop " + str.tostring(longStop, format.mintick) + " | 1R " + str.tostring(longT1, format.mintick) + "\n" + alertJson("long", "or_break", close, longStop, longT1, longT2, rvol), alert.freq_once_per_bar_close)
+if vwapLongSig
+    alert("VWAP LONG " + syminfo.ticker + " @ " + str.tostring(close, format.mintick) + " | stop " + str.tostring(longStop, format.mintick) + " | 1R " + str.tostring(longT1, format.mintick) + "\n" + alertJson("long", "vwap_pullback", close, longStop, longT1, longT2, rvol), alert.freq_once_per_bar_close)
+if orShortSig
+    alert("OR BREAK SHORT " + syminfo.ticker + " @ " + str.tostring(close, format.mintick) + " | stop " + str.tostring(shortStop, format.mintick) + " | 1R " + str.tostring(shortT1, format.mintick) + "\n" + alertJson("short", "or_break", close, shortStop, shortT1, shortT2, rvol), alert.freq_once_per_bar_close)
+if vwapShortSig
+    alert("VWAP SHORT " + syminfo.ticker + " @ " + str.tostring(close, format.mintick) + " | stop " + str.tostring(shortStop, format.mintick) + " | 1R " + str.tostring(shortT1, format.mintick) + "\n" + alertJson("short", "vwap_pullback", close, shortStop, shortT1, shortT2, rvol), alert.freq_once_per_bar_close)
