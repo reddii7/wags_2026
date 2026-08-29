@@ -40,6 +40,9 @@ describe("parseLetter", () => {
     assert.equal(parsed.bear.below, 7659);
     assert.equal(parsed.bear.trigger, 7648);
     assert.ok(parsed.setups.shorts.length >= 1);
+    const shortPrices = parsed.setups.shorts.flatMap((s) => s.prices);
+    assert.ok(shortPrices.includes(7771));
+    assert.ok(shortPrices.includes(7797));
   });
 
   it("keeps bull and bear case copy", () => {

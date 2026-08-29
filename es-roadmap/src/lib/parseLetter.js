@@ -227,7 +227,7 @@ export function parseLetter(rawText) {
   const resistancesBlob = sliceSection(
     text,
     /resistances?\s+are\s*:/i,
-    [/bull case/i, /bear case/i, /in summary/i, /as readers know I don't short/i],
+    [/bull case/i, /bear case/i, /in summary/i],
   );
   const bidDirect = sliceSection(
     text,
@@ -255,7 +255,9 @@ export function parseLetter(rawText) {
   if (!supports.length) warnings.push("No support list found. Paste the full Trade Plan section.");
   if (!resistances.length) warnings.push("No resistance list found. Paste the full Trade Plan section.");
 
-  const setupSource = [bidDirect, bullCase, bearCase, summary].filter(Boolean).join("\n");
+  const setupSource = [bidDirect, resistancesBlob, bullCase, bearCase, summary]
+    .filter(Boolean)
+    .join("\n");
   const setups = collectSetups(setupSource || text);
   const targets = extractTargetList(`${bullCase}\n${summary}`);
   const bear = extractBearTrigger(bearCase || text);
