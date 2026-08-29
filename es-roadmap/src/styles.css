@@ -285,29 +285,8 @@ tr.major td {
   font-weight: 600;
 }
 
-.preview-wrap {
-  margin: 10px 0 14px;
-}
-
-.preview-cap {
-  margin: 0 0 6px;
-  color: var(--muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.preview {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #0b1220;
-}
-
 .pine pre {
-  height: min(42vh, 480px);
+  height: min(58vh, 640px);
   overflow: auto;
   padding: 12px;
   white-space: pre-wrap;
