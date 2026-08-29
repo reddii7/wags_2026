@@ -17,6 +17,9 @@
     "ten-hole:dev": "npm --prefix ten-hole-entry run dev",
     "ten-hole:build": "npm --prefix ten-hole-entry run build",
     "ten-hole:preview": "npm --prefix ten-hole-entry run preview",
+    "es-roadmap:dev": "npm --prefix es-roadmap run dev",
+    "es-roadmap:build": "npm --prefix es-roadmap run build",
+    "es-roadmap:test": "npm --prefix es-roadmap test",
     "build:all": "npm run build && npm run admin:build"
   },
   "dependencies": {
