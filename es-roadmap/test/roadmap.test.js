@@ -73,22 +73,26 @@ describe("buildRoadmap", () => {
 
 describe("buildPine", () => {
   const parsed = parseLetter(SAMPLE_LETTER);
-  const pine = buildPine(parsed, { last: 7722 });
+  const pine = buildPine(parsed, { last: 7722, high: 7782.5, low: 7711.75 });
 
-  it("is pine v6 and includes key levels", () => {
+  it("emits the DAILY LEVELS overlay with cash offset", () => {
     assert.match(pine, /^\/\/@version=6/m);
-    assert.match(pine, /indicator\("/);
-    assert.match(pine, /drawLevel\(7714, "S", true/);
-    assert.match(pine, /drawLevel\(7797, "R", true/);
-    assert.match(pine, /drawLevel\(7648/);
-    assert.match(pine, /Last 7722/);
+    assert.match(pine, /indicator\("DAILY LEVELS"/);
+    assert.match(pine, /request\.security/);
+    assert.match(pine, /SPTRD/);
+    assert.match(pine, /lock_spread/);
+    assert.match(pine, /active_offset/);
+    assert.match(pine, /drawTrap/);
+    assert.match(pine, /drawSR/);
+    assert.doesNotMatch(pine, /drawLevel\(/);
   });
 
-  it("emits a table and escaped plan copy", () => {
-    assert.match(pine, /table\.cell/);
-    assert.match(pine, /Bull  /);
-    assert.match(pine, /Bear  /);
-    assert.equal((pine.match(/drawLevel\(/g) || []).length >= 20, true);
+  it("fills today's letter into the data inputs", () => {
+    assert.match(pine, /7714 \(major\)/);
+    assert.match(pine, /7797 \(major\)/);
+    assert.match(pine, /7758 Tgt/);
+    assert.match(pine, /7712\/7714|7711\.75\/7714/);
+    assert.match(pine, /7771/);
   });
 
   it("formats prices without trailing noise", () => {

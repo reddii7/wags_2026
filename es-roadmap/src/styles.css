@@ -292,8 +292,11 @@ tr.major td {
   white-space: pre-wrap;
 }
 
-.steps {
-  padding-left: 18px;
+.field-copies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
 }
 
 @media (max-width: 980px) {

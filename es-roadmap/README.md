@@ -19,7 +19,7 @@ Open [http://localhost:5176](http://localhost:5176).
 1. Paste the full letter (the **Trade Plan** block with `Supports are` / `Resistances are` is the important part).
 2. Optionally enter last / high / low so the roadmap can say where price is sitting.
 3. Copy the roadmap markdown, or switch to **Pine v6** → Copy script.
-4. In TradingView: Pine Editor → paste → Save → Add to chart.
+4. In TradingView: Pine Editor → paste → Save → Add to chart. The script is the DAILY LEVELS overlay (ES plus cash/SPTRD offset). If you already have that indicator, copy Supports / Resistances / Targets into its settings instead.
 5. Keep **Show minor levels** off unless you want every letter print.
 
 The script plots majors plus FBD / target / short / invalidation levels. It does not place orders.

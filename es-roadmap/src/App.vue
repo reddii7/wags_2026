@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { parseLetter, formatPrice } from "./lib/parseLetter.js";
 import { buildRoadmap } from "./lib/buildRoadmap.js";
-import { buildPine } from "./lib/buildPine.js";
+import { buildDailyFields, buildPine } from "./lib/buildPine.js";
 import { SAMPLE_LETTER } from "./lib/sampleLetter.js";
 
 const STORAGE_KEY = "es-roadmap:draft";
@@ -33,6 +33,9 @@ const parsed = computed(() => {
 
 const roadmap = computed(() => (parsed.value ? buildRoadmap(parsed.value, session.value) : null));
 const pine = computed(() => (parsed.value ? buildPine(parsed.value, session.value) : ""));
+const pineFields = computed(() =>
+  parsed.value ? buildDailyFields(parsed.value, session.value) : null,
+);
 
 const canGenerate = computed(() => letter.value.trim().length > 40);
 
@@ -88,7 +91,7 @@ function downloadPine() {
   const stamp = (parsed.value?.planDay || "session").toLowerCase();
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `es-roadmap-${stamp}.pine`;
+  a.download = `daily-levels-${stamp}.pine`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -271,10 +274,21 @@ function levelMeta(level) {
               </div>
             </div>
             <ol class="steps">
-              <li>Open the ES (or MES) chart on TradingView.</li>
-              <li>Pine Editor → New → paste this script → Save → Add to chart.</li>
-              <li>Leave “Show minor levels” off unless you want the full letter stack.</li>
+              <li>Pine Editor → paste this script → Save → Add to chart. This is your DAILY LEVELS overlay (short S/R rays, FBD/FBO boxes, bid/offer boxes).</li>
+              <li>Works on ES/MES. On a cash/SPTRD chart it auto-offsets to ES; lock the spread if you want a manual offset.</li>
+              <li>Already have the indicator saved? Copy Supports / Resistances / Targets below into its settings instead of replacing the script.</li>
             </ol>
+            <div v-if="pineFields" class="field-copies">
+              <button type="button" class="ghost" @click="copyText(pineFields.supports, 'sup')">
+                {{ copied === "sup" ? "Copied" : "Copy supports" }}
+              </button>
+              <button type="button" class="ghost" @click="copyText(pineFields.resistances, 'res')">
+                {{ copied === "res" ? "Copied" : "Copy resistances" }}
+              </button>
+              <button type="button" class="ghost" @click="copyText(pineFields.targets, 'tar')">
+                {{ copied === "tar" ? "Copied" : "Copy targets" }}
+              </button>
+            </div>
             <pre>{{ pine }}</pre>
           </div>
         </template>
