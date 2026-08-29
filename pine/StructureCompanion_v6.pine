@@ -1,0 +1,594 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Structure Companion V6 — mechanical Step-1 style range / BOS / MTF bias engine
+// Educational replica of the Norfolk FX “trading range + BOS + internal + MTF bias” workflow.
+// Not affiliated with Norfolk FX Trader. Not financial advice.
+
+//@version=6
+indicator(
+     title        = "Structure Companion V6",
+     shorttitle   = "SC V6",
+     overlay      = true,
+     max_lines_count  = 500,
+     max_labels_count = 500,
+     max_boxes_count  = 500,
+     max_bars_back    = 5000)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INPUTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+string GRP_SWING = "Swing Structure"
+int    swingLen  = input.int(5, "Swing pivot length", minval = 1, maxval = 50, group = GRP_SWING,
+     tooltip = "Left/right bars used to confirm swing highs & lows (external / trading-range structure).")
+bool   showSwing = input.bool(true, "Show swing highs / lows / BOS", group = GRP_SWING)
+bool   showRange = input.bool(true, "Show active trading-range lines", group = GRP_SWING)
+bool   showBosLabels = input.bool(true, "Show BOS / CHoCH labels", group = GRP_SWING)
+bool   extendRange = input.bool(true, "Extend range lines to the right", group = GRP_SWING)
+
+string GRP_INT = "Internal Structure"
+int    intLen  = input.int(2, "Internal pivot length", minval = 1, maxval = 20, group = GRP_INT,
+     tooltip = "Smaller pivots inside the swing range (IBOS / liquidity).")
+bool   showInternal = input.bool(true, "Show internal highs / lows / IBOS", group = GRP_INT)
+bool   dashedInternal = input.bool(true, "Dashed internal level lines", group = GRP_INT)
+
+string GRP_MTF = "Multi-Timeframe Bias"
+bool   useMidTf = input.bool(true, "Enable middle timeframe", group = GRP_MTF)
+string midTf    = input.timeframe("240", "Middle timeframe", group = GRP_MTF)
+bool   useHtf   = input.bool(true, "Enable higher timeframe", group = GRP_MTF)
+string htfTf    = input.timeframe("D", "Higher timeframe", group = GRP_MTF)
+bool   showMtfLevels = input.bool(true, "Overlay HTF / Mid range on chart", group = GRP_MTF)
+bool   showBiasTable = input.bool(true, "Show bias dashboard", group = GRP_MTF)
+
+string GRP_FVG = "Imbalances (FVG)"
+bool   showFvg = input.bool(true, "Show refined imbalances", group = GRP_FVG)
+int    fvgMax  = input.int(8, "Max active imbalances", minval = 1, maxval = 30, group = GRP_FVG)
+bool   hideMitigated = input.bool(true, "Hide fully mitigated imbalances", group = GRP_FVG)
+float  fvgMinAtr = input.float(0.15, "Min FVG size (× ATR)", minval = 0.0, step = 0.05, group = GRP_FVG)
+
+string GRP_PD = "Premium / Discount"
+bool   showMid = input.bool(true, "Show 50% equilibrium", group = GRP_PD)
+bool   shadePd = input.bool(false, "Shade premium / discount", group = GRP_PD)
+
+string GRP_STATS = "Weak High / Low Stats"
+bool   showStats = input.bool(true, "Track weak high / low hit rates", group = GRP_STATS)
+int    statsLookback = input.int(80, "Structure events for stats", minval = 10, maxval = 300, group = GRP_STATS)
+
+string GRP_STYLE = "Style"
+color  bullColor = input.color(#26a69a, "Bullish", group = GRP_STYLE)
+color  bearColor = input.color(#ef5350, "Bearish", group = GRP_STYLE)
+color  intBullColor = input.color(color.new(#26a69a, 35), "Internal bullish", group = GRP_STYLE)
+color  intBearColor = input.color(color.new(#ef5350, 35), "Internal bearish", group = GRP_STYLE)
+color  htfBullColor = input.color(#1b5e20, "HTF bullish", group = GRP_STYLE)
+color  htfBearColor = input.color(#b71c1c, "HTF bearish", group = GRP_STYLE)
+color  midBullColor = input.color(#66bb6a, "Mid bullish", group = GRP_STYLE)
+color  midBearColor = input.color(#e57373, "Mid bearish", group = GRP_STYLE)
+color  fvgBullColor = input.color(color.new(#26a69a, 82), "Bullish FVG", group = GRP_STYLE)
+color  fvgBearColor = input.color(color.new(#ef5350, 82), "Bearish FVG", group = GRP_STYLE)
+color  eqColor = input.color(color.new(#787b86, 0), "Equilibrium", group = GRP_STYLE)
+string labelSize = input.string(size.small, "Label size", options = [size.tiny, size.small, size.normal], group = GRP_STYLE)
+
+string GRP_ALERT = "Alerts"
+bool   alertBos = input.bool(true, "BOS alerts", group = GRP_ALERT)
+bool   alertCho = input.bool(true, "CHoCH alerts", group = GRP_ALERT)
+bool   alertAlign = input.bool(true, "MTF alignment alerts", group = GRP_ALERT)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
+type StructEvent
+    int   dir          // 1 bull, -1 bear
+    bool  isChoCh
+    float level
+    int   bar
+    float oppExtreme   // opposite range extreme at event time (weak high/low candidate)
+    bool  oppHit
+    bool  resolved
+
+type StructureEngine
+    int   bias             // 1 / -1 / 0
+    float rangeHigh
+    float rangeLow
+    int   rangeHighBar
+    int   rangeLowBar
+    float lastSwingHigh
+    float lastSwingLow
+    int   lastSwingHighBar
+    int   lastSwingLowBar
+    float lastBosLevel
+    int   lastBosBar
+    int   lastBosDir
+    bool  lastWasChoCh
+    line  hiLine
+    line  loLine
+    line  eqLine
+    label hiLbl
+    label loLbl
+    array<StructEvent> events
+    array<label> bosLabels
+    int   weakHighHits
+    int   weakHighTotal
+    int   weakLowHits
+    int   weakLowTotal
+
+type FvgZone
+    float top
+    float bottom
+    int   startBar
+    int   dir        // 1 bull gap, -1 bear gap
+    bool  mitigated
+    box   bx
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+biasText(int b) =>
+    b == 1 ? "BULLISH" : b == -1 ? "BEARISH" : "—"
+
+biasColor(int b, color upCol, color dnCol) =>
+    b == 1 ? upCol : b == -1 ? dnCol : color.gray
+
+newEngine() =>
+    StructureEngine.new(
+         bias = 0,
+         rangeHigh = na,
+         rangeLow = na,
+         rangeHighBar = na,
+         rangeLowBar = na,
+         lastSwingHigh = na,
+         lastSwingLow = na,
+         lastSwingHighBar = na,
+         lastSwingLowBar = na,
+         lastBosLevel = na,
+         lastBosBar = na,
+         lastBosDir = 0,
+         lastWasChoCh = false,
+         events = array.new<StructEvent>(),
+         bosLabels = array.new<label>(),
+         weakHighHits = 0,
+         weakHighTotal = 0,
+         weakLowHits = 0,
+         weakLowTotal = 0)
+
+deleteLine(line ln) =>
+    if not na(ln)
+        line.delete(ln)
+
+deleteLabel(label lb) =>
+    if not na(lb)
+        label.delete(lb)
+
+deleteBox(box bx) =>
+    if not na(bx)
+        box.delete(bx)
+
+// Confirm swing pivots once (history-safe: ta.* always evaluated)
+float pivotHigh = ta.pivothigh(high, swingLen, swingLen)
+float pivotLow  = ta.pivotlow(low, swingLen, swingLen)
+float iPivotHigh = ta.pivothigh(high, intLen, intLen)
+float iPivotLow  = ta.pivotlow(low, intLen, intLen)
+float atr = ta.atr(14)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STRUCTURE UPDATE — methods mutate `this` (params themselves are never reassigned)
+// ═══════════════════════════════════════════════════════════════════════════
+
+method pushBosLabel(StructureEngine this, label lb) =>
+    array.push(this.bosLabels, lb)
+    while array.size(this.bosLabels) > 80
+        label old = array.shift(this.bosLabels)
+        deleteLabel(old)
+    this
+
+method registerEvent(StructureEngine this, int dir, bool isCho, float lvl, float opp) =>
+    StructEvent ev = StructEvent.new(dir, isCho, lvl, bar_index, opp, false, false)
+    array.push(this.events, ev)
+    this
+
+method updateSwings(StructureEngine this, float ph, float pl, int confirmDelay) =>
+    if not na(ph)
+        this.lastSwingHigh := ph
+        this.lastSwingHighBar := bar_index - confirmDelay
+        if this.bias != -1 or na(this.rangeHigh)
+            this.rangeHigh := ph
+            this.rangeHighBar := bar_index - confirmDelay
+    if not na(pl)
+        this.lastSwingLow := pl
+        this.lastSwingLowBar := bar_index - confirmDelay
+        if this.bias != 1 or na(this.rangeLow)
+            this.rangeLow := pl
+            this.rangeLowBar := bar_index - confirmDelay
+    this
+
+method resolveWeakExtremes(StructureEngine this) =>
+    if array.size(this.events) > 0
+        for i = 0 to array.size(this.events) - 1
+            StructEvent ev = array.get(this.events, i)
+            if not ev.resolved and not na(ev.oppExtreme)
+                bool hit = ev.dir == 1 ? high >= ev.oppExtreme : low <= ev.oppExtreme
+                bool aged = bar_index - ev.bar > statsLookback
+                if hit or aged
+                    ev.oppHit := hit
+                    ev.resolved := true
+                    if ev.dir == 1
+                        this.weakHighTotal := this.weakHighTotal + 1
+                        if hit
+                            this.weakHighHits := this.weakHighHits + 1
+                    else
+                        this.weakLowTotal := this.weakLowTotal + 1
+                        if hit
+                            this.weakLowHits := this.weakLowHits + 1
+                    array.set(this.events, i, ev)
+    while array.size(this.events) > statsLookback
+        array.shift(this.events)
+    this
+
+method applyBullBreak(StructureEngine this, float breakLevel, bool showLabels, color col, string prefix) =>
+    bool isCho = this.bias == -1
+    bool isBos = this.bias == 1
+    float opp = this.rangeHigh
+    if not na(this.lastSwingLow)
+        this.rangeLow := this.lastSwingLow
+        this.rangeLowBar := this.lastSwingLowBar
+    this.rangeHigh := na
+    this.rangeHighBar := na
+    this.bias := 1
+    this.lastBosLevel := breakLevel
+    this.lastBosBar := bar_index
+    this.lastBosDir := 1
+    this.lastWasChoCh := isCho
+    this.registerEvent(1, isCho, breakLevel, opp)
+    if showLabels and showBosLabels
+        string txt = prefix + (isCho ? "CHoCH" : isBos ? "BOS" : "CHoCH")
+        label lb = label.new(
+             bar_index, low, txt,
+             style = label.style_label_up,
+             color = color.new(col, 15),
+             textcolor = color.white,
+             size = labelSize)
+        this.pushBosLabel(lb)
+    this
+
+method applyBearBreak(StructureEngine this, float breakLevel, bool showLabels, color col, string prefix) =>
+    bool isCho = this.bias == 1
+    bool isBos = this.bias == -1
+    float opp = this.rangeLow
+    if not na(this.lastSwingHigh)
+        this.rangeHigh := this.lastSwingHigh
+        this.rangeHighBar := this.lastSwingHighBar
+    this.rangeLow := na
+    this.rangeLowBar := na
+    this.bias := -1
+    this.lastBosLevel := breakLevel
+    this.lastBosBar := bar_index
+    this.lastBosDir := -1
+    this.lastWasChoCh := isCho
+    this.registerEvent(-1, isCho, breakLevel, opp)
+    if showLabels and showBosLabels
+        string txt = prefix + (isCho ? "CHoCH" : isBos ? "BOS" : "CHoCH")
+        label lb = label.new(
+             bar_index, high, txt,
+             style = label.style_label_down,
+             color = color.new(col, 15),
+             textcolor = color.white,
+             size = labelSize)
+        this.pushBosLabel(lb)
+    this
+
+method processBreaks(StructureEngine this, bool showLabels, color upCol, color dnCol, string prefix) =>
+    bool bullBreak = not na(this.lastSwingHigh) and close > this.lastSwingHigh
+    bool bearBreak = not na(this.lastSwingLow) and close < this.lastSwingLow
+
+    if bullBreak and bearBreak
+        if (close - this.lastSwingHigh) >= (this.lastSwingLow - close)
+            bearBreak := false
+        else
+            bullBreak := false
+
+    if bullBreak
+        bool fresh = na(this.lastBosBar) or this.lastSwingHighBar >= this.lastBosBar or this.bias != 1 or this.lastSwingHigh != this.lastBosLevel
+        if fresh
+            float lvl = this.lastSwingHigh
+            this.applyBullBreak(lvl, showLabels, upCol, prefix)
+            this.lastSwingHigh := na
+    else if bearBreak
+        bool fresh = na(this.lastBosBar) or this.lastSwingLowBar >= this.lastBosBar or this.bias != -1 or this.lastSwingLow != this.lastBosLevel
+        if fresh
+            float lvl = this.lastSwingLow
+            this.applyBearBreak(lvl, showLabels, dnCol, prefix)
+            this.lastSwingLow := na
+    this
+
+method drawRange(StructureEngine this, color upCol, color dnCol, bool visible, string hiTag, string loTag, int width, bool dashed, bool drawEq) =>
+    deleteLine(this.hiLine)
+    deleteLine(this.loLine)
+    deleteLine(this.eqLine)
+    deleteLabel(this.hiLbl)
+    deleteLabel(this.loLbl)
+    this.hiLine := na
+    this.loLine := na
+    this.eqLine := na
+    this.hiLbl := na
+    this.loLbl := na
+
+    if visible
+        color c = biasColor(this.bias, upCol, dnCol)
+        int x2 = extendRange ? bar_index + 20 : bar_index
+        string stile = dashed ? line.style_dashed : line.style_solid
+        if not na(this.rangeHigh) and not na(this.rangeHighBar)
+            this.hiLine := line.new(this.rangeHighBar, this.rangeHigh, x2, this.rangeHigh, color = c, width = width, style = stile)
+            this.hiLbl := label.new(x2, this.rangeHigh, hiTag, style = label.style_label_left, color = color.new(c, 70), textcolor = c, size = labelSize)
+        if not na(this.rangeLow) and not na(this.rangeLowBar)
+            this.loLine := line.new(this.rangeLowBar, this.rangeLow, x2, this.rangeLow, color = c, width = width, style = stile)
+            this.loLbl := label.new(x2, this.rangeLow, loTag, style = label.style_label_left, color = color.new(c, 70), textcolor = c, size = labelSize)
+        if drawEq and showMid and not na(this.rangeHigh) and not na(this.rangeLow)
+            float midPx = math.avg(this.rangeHigh, this.rangeLow)
+            int x1 = math.min(nz(this.rangeHighBar, bar_index), nz(this.rangeLowBar, bar_index))
+            this.eqLine := line.new(x1, midPx, x2, midPx, color = eqColor, width = 1, style = line.style_dotted)
+    this
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHART (SWING) ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+
+var StructureEngine swing = newEngine()
+var StructureEngine internal = newEngine()
+
+plotshape(showSwing and not na(pivotHigh) ? pivotHigh : na, title = "Swing High", style = shape.triangledown, location = location.absolute, color = bearColor, size = size.tiny, offset = -swingLen)
+plotshape(showSwing and not na(pivotLow) ? pivotLow : na, title = "Swing Low", style = shape.triangleup, location = location.absolute, color = bullColor, size = size.tiny, offset = -swingLen)
+plotshape(showInternal and not na(iPivotHigh) ? iPivotHigh : na, title = "Internal High", style = shape.triangledown, location = location.absolute, color = intBearColor, size = size.tiny, offset = -intLen)
+plotshape(showInternal and not na(iPivotLow) ? iPivotLow : na, title = "Internal Low", style = shape.triangleup, location = location.absolute, color = intBullColor, size = size.tiny, offset = -intLen)
+
+if barstate.isconfirmed
+    swing.updateSwings(pivotHigh, pivotLow, swingLen)
+    swing.processBreaks(showSwing, bullColor, bearColor, "")
+    if showStats
+        swing.resolveWeakExtremes()
+    swing.drawRange(bullColor, bearColor, showSwing and showRange, "High", "Low", 2, false, true)
+
+    if showInternal
+        internal.updateSwings(iPivotHigh, iPivotLow, intLen)
+        internal.processBreaks(showInternal, intBullColor, intBearColor, "I-")
+        internal.drawRange(intBullColor, intBearColor, showInternal, "iHigh", "iLow", 1, dashedInternal, false)
+
+// Premium / discount shade of active swing range
+float eq = not na(swing.rangeHigh) and not na(swing.rangeLow) ? math.avg(swing.rangeHigh, swing.rangeLow) : na
+bgcolor(shadePd and not na(eq) ? (close > eq ? color.new(bearColor, 94) : color.new(bullColor, 94)) : na, title = "Premium / Discount")
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IMBALANCES (3-candle FVG, refined)
+// ═══════════════════════════════════════════════════════════════════════════
+
+var array<FvgZone> fvgs = array.new<FvgZone>()
+
+detectAndManageFvgs() =>
+    array<FvgZone> zones = fvgs
+    if showFvg and barstate.isconfirmed and bar_index > 2
+        float minSize = fvgMinAtr * atr
+        // Bullish FVG: gap between candle[2] high and candle[0] low
+        if low > high[2] and (low - high[2]) >= minSize
+            FvgZone z = FvgZone.new(low, high[2], bar_index - 2, 1, false, na)
+            z.bx := box.new(bar_index - 2, z.top, bar_index, z.bottom, border_color = color.new(bullColor, 60), bgcolor = fvgBullColor, border_width = 1)
+            array.push(zones, z)
+        // Bearish FVG
+        if high < low[2] and (low[2] - high) >= minSize
+            FvgZone z = FvgZone.new(low[2], high, bar_index - 2, -1, false, na)
+            z.bx := box.new(bar_index - 2, z.top, bar_index, z.bottom, border_color = color.new(bearColor, 60), bgcolor = fvgBearColor, border_width = 1)
+            array.push(zones, z)
+
+    // Mitigate / extend / prune
+    if array.size(zones) > 0
+        for i = array.size(zones) - 1 to 0
+            FvgZone z = array.get(zones, i)
+            if not z.mitigated
+                if z.dir == 1 and low <= z.bottom
+                    z.mitigated := true
+                else if z.dir == -1 and high >= z.top
+                    z.mitigated := true
+                else
+                    // Extend right edge
+                    if not na(z.bx)
+                        box.set_right(z.bx, bar_index)
+                if z.mitigated and hideMitigated and not na(z.bx)
+                    box.delete(z.bx)
+                    z.bx := na
+                array.set(zones, i, z)
+            // Drop old mitigated
+            if z.mitigated and hideMitigated
+                array.remove(zones, i)
+
+    while array.size(zones) > fvgMax
+        FvgZone old = array.shift(zones)
+        deleteBox(old.bx)
+
+    zones
+
+fvgs := detectAndManageFvgs()
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-TIMEFRAME — same engine logic on Mid / HTF via request.security
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Pack TF structure snapshot: [bias, rangeHigh, rangeLow, lastBos]
+tfSnapshot(int len) =>
+    float ph = ta.pivothigh(high, len, len)
+    float pl = ta.pivotlow(low, len, len)
+    var int bias = 0
+    var float sh = na
+    var float sl = na
+    var float rh = na
+    var float rl = na
+    var float lastBos = na
+    var int lastDir = 0
+    var int shBar = na
+    var int slBar = na
+
+    if not na(ph)
+        sh := ph
+        shBar := bar_index - len
+        if bias != -1 or na(rh)
+            rh := ph
+    if not na(pl)
+        sl := pl
+        slBar := bar_index - len
+        if bias != 1 or na(rl)
+            rl := pl
+
+    bool bullBr = not na(sh) and close > sh
+    bool bearBr = not na(sl) and close < sl
+    if barstate.isconfirmed
+        if bullBr and (bias != 1 or na(lastBos) or sh != lastBos)
+            if not na(sl)
+                rl := sl
+            rh := na
+            bias := 1
+            lastBos := sh
+            lastDir := 1
+            sh := na
+        if bearBr and (bias != -1 or na(lastBos) or sl != lastBos)
+            if not na(sh)
+                rh := sh
+            rl := na
+            bias := -1
+            lastBos := sl
+            lastDir := -1
+            sl := na
+
+    [bias, rh, rl, lastBos, lastDir]
+
+int midLen = math.max(2, math.round(swingLen * 0.8))
+int htfLen = swingLen
+
+[midBias, midHigh, midLow, midBos, midDir] = request.security(syminfo.tickerid, midTf, tfSnapshot(midLen), barmerge.gaps_off, barmerge.lookahead_off)
+[htfBias, htfHigh, htfLow, htfBos, htfDir] = request.security(syminfo.tickerid, htfTf, tfSnapshot(htfLen), barmerge.gaps_off, barmerge.lookahead_off)
+
+// Only keep values when TF enabled
+int midBiasUse = useMidTf ? midBias : 0
+int htfBiasUse = useHtf ? htfBias : 0
+
+var line midHiLn = na
+var line midLoLn = na
+var line htfHiLn = na
+var line htfLoLn = na
+
+if barstate.islast
+    deleteLine(midHiLn)
+    deleteLine(midLoLn)
+    deleteLine(htfHiLn)
+    deleteLine(htfLoLn)
+    midHiLn := na
+    midLoLn := na
+    htfHiLn := na
+    htfLoLn := na
+    if showMtfLevels
+        if useMidTf
+            color mc = biasColor(midBiasUse, midBullColor, midBearColor)
+            if not na(midHigh)
+                midHiLn := line.new(bar_index - 40, midHigh, bar_index + 12, midHigh, color = mc, width = 2, style = line.style_dotted)
+            if not na(midLow)
+                midLoLn := line.new(bar_index - 40, midLow, bar_index + 12, midLow, color = mc, width = 2, style = line.style_dotted)
+        if useHtf
+            color hc = biasColor(htfBiasUse, htfBullColor, htfBearColor)
+            if not na(htfHigh)
+                htfHiLn := line.new(bar_index - 60, htfHigh, bar_index + 16, htfHigh, color = hc, width = 3, style = line.style_dotted)
+            if not na(htfLow)
+                htfLoLn := line.new(bar_index - 60, htfLow, bar_index + 16, htfLow, color = hc, width = 3, style = line.style_dotted)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DASHBOARD — bias + weak high/low probabilities
+// ═══════════════════════════════════════════════════════════════════════════
+
+weakHighPct() =>
+    swing.weakHighTotal > 0 ? 100.0 * swing.weakHighHits / swing.weakHighTotal : na
+
+weakLowPct() =>
+    swing.weakLowTotal > 0 ? 100.0 * swing.weakLowHits / swing.weakLowTotal : na
+
+var table dash = table.new(position.top_right, 3, 8, bgcolor = color.new(#131722, 15), border_color = color.new(#434651, 0), border_width = 1, frame_color = color.new(#434651, 0), frame_width = 1)
+var bool dashMerged = false
+
+if showBiasTable and barstate.islast
+    if not dashMerged
+        table.merge_cells(dash, 1, 5, 2, 5)
+        dashMerged := true
+
+    table.cell(dash, 0, 0, "SC V6", text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 0, "Bias", text_color = color.gray, text_size = size.small)
+    table.cell(dash, 2, 0, "Range", text_color = color.gray, text_size = size.small)
+
+    table.cell(dash, 0, 1, "Chart", text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 1, biasText(swing.bias), text_color = biasColor(swing.bias, bullColor, bearColor), text_size = size.small)
+    string chartRange = (not na(swing.rangeLow) ? str.tostring(swing.rangeLow, format.mintick) : "—") + " → " + (not na(swing.rangeHigh) ? str.tostring(swing.rangeHigh, format.mintick) : "—")
+    table.cell(dash, 2, 1, chartRange, text_color = color.gray, text_size = size.tiny)
+
+    table.cell(dash, 0, 2, "Internal", text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 2, showInternal ? biasText(internal.bias) : "off", text_color = showInternal ? biasColor(internal.bias, intBullColor, intBearColor) : color.gray, text_size = size.small)
+    table.cell(dash, 2, 2, "", text_color = color.gray, text_size = size.tiny)
+
+    table.cell(dash, 0, 3, "Mid " + midTf, text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 3, useMidTf ? biasText(midBiasUse) : "off", text_color = useMidTf ? biasColor(midBiasUse, midBullColor, midBearColor) : color.gray, text_size = size.small)
+    string midRange = useMidTf ? ((not na(midLow) ? str.tostring(midLow, format.mintick) : "—") + " → " + (not na(midHigh) ? str.tostring(midHigh, format.mintick) : "—")) : ""
+    table.cell(dash, 2, 3, midRange, text_color = color.gray, text_size = size.tiny)
+
+    table.cell(dash, 0, 4, "HTF " + htfTf, text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 4, useHtf ? biasText(htfBiasUse) : "off", text_color = useHtf ? biasColor(htfBiasUse, htfBullColor, htfBearColor) : color.gray, text_size = size.small)
+    string htfRange = useHtf ? ((not na(htfLow) ? str.tostring(htfLow, format.mintick) : "—") + " → " + (not na(htfHigh) ? str.tostring(htfHigh, format.mintick) : "—")) : ""
+    table.cell(dash, 2, 4, htfRange, text_color = color.gray, text_size = size.tiny)
+
+    // Alignment row
+    bool alignedBull = swing.bias == 1 and (not useMidTf or midBiasUse == 1) and (not useHtf or htfBiasUse == 1)
+    bool alignedBear = swing.bias == -1 and (not useMidTf or midBiasUse == -1) and (not useHtf or htfBiasUse == -1)
+    string alignTxt = alignedBull ? "ALIGNED ▲" : alignedBear ? "ALIGNED ▼" : "MIXED"
+    color alignCol = alignedBull ? bullColor : alignedBear ? bearColor : color.orange
+    table.cell(dash, 0, 5, "Align", text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 5, alignTxt, text_color = alignCol, text_size = size.small)
+
+    if showStats
+        float wh = weakHighPct()
+        float wl = weakLowPct()
+        table.cell(dash, 0, 6, "Weak High", text_color = color.white, text_size = size.small)
+        table.cell(dash, 1, 6, na(wh) ? "—" : str.tostring(wh, "#.0") + "%", text_color = bearColor, text_size = size.small)
+        table.cell(dash, 2, 6, str.tostring(swing.weakHighHits) + "/" + str.tostring(swing.weakHighTotal), text_color = color.gray, text_size = size.tiny)
+
+        table.cell(dash, 0, 7, "Weak Low", text_color = color.white, text_size = size.small)
+        table.cell(dash, 1, 7, na(wl) ? "—" : str.tostring(wl, "#.0") + "%", text_color = bullColor, text_size = size.small)
+        table.cell(dash, 2, 7, str.tostring(swing.weakLowHits) + "/" + str.tostring(swing.weakLowTotal), text_color = color.gray, text_size = size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+bool swingBullCho = barstate.isconfirmed and swing.bias == 1 and swing.lastWasChoCh and swing.lastBosBar == bar_index
+bool swingBearCho = barstate.isconfirmed and swing.bias == -1 and swing.lastWasChoCh and swing.lastBosBar == bar_index
+bool swingBullBos = barstate.isconfirmed and swing.bias == 1 and not swing.lastWasChoCh and swing.lastBosBar == bar_index
+bool swingBearBos = barstate.isconfirmed and swing.bias == -1 and not swing.lastWasChoCh and swing.lastBosBar == bar_index
+
+bool nowAlignedBull = swing.bias == 1 and (not useMidTf or midBiasUse == 1) and (not useHtf or htfBiasUse == 1)
+bool nowAlignedBear = swing.bias == -1 and (not useMidTf or midBiasUse == -1) and (not useHtf or htfBiasUse == -1)
+var bool wasAlignedBull = false
+var bool wasAlignedBear = false
+bool alignBullAlert = nowAlignedBull and not wasAlignedBull
+bool alignBearAlert = nowAlignedBear and not wasAlignedBear
+wasAlignedBull := nowAlignedBull
+wasAlignedBear := nowAlignedBear
+
+if alertBos and swingBullBos
+    alert("SC V6 Bullish BOS @ " + str.tostring(close), alert.freq_once_per_bar_close)
+if alertBos and swingBearBos
+    alert("SC V6 Bearish BOS @ " + str.tostring(close), alert.freq_once_per_bar_close)
+if alertCho and swingBullCho
+    alert("SC V6 Bullish CHoCH @ " + str.tostring(close), alert.freq_once_per_bar_close)
+if alertCho and swingBearCho
+    alert("SC V6 Bearish CHoCH @ " + str.tostring(close), alert.freq_once_per_bar_close)
+if alertAlign and alignBullAlert
+    alert("SC V6 MTF ALIGNED BULLISH", alert.freq_once_per_bar_close)
+if alertAlign and alignBearAlert
+    alert("SC V6 MTF ALIGNED BEARISH", alert.freq_once_per_bar_close)
+
+alertcondition(swingBullBos, "Bullish BOS", "Bullish Break of Structure")
+alertcondition(swingBearBos, "Bearish BOS", "Bearish Break of Structure")
+alertcondition(swingBullCho, "Bullish CHoCH", "Bullish Change of Character")
+alertcondition(swingBearCho, "Bearish CHoCH", "Bearish Change of Character")
+alertcondition(alignBullAlert, "MTF Aligned Bullish", "Chart + Mid + HTF aligned bullish")
+alertcondition(alignBearAlert, "MTF Aligned Bearish", "Chart + Mid + HTF aligned bearish")
