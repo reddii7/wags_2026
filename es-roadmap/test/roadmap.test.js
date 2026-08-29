@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { parseLetter, formatPrice } from "../src/lib/parseLetter.js";
 import { buildRoadmap } from "../src/lib/buildRoadmap.js";
 import { buildPine } from "../src/lib/buildPine.js";
+import { collectLevels, placeLabels } from "../src/lib/chartLayout.js";
 import { SAMPLE_LETTER } from "../src/lib/sampleLetter.js";
 
 describe("parseLetter", () => {
@@ -78,17 +79,35 @@ describe("buildPine", () => {
   it("is pine v6 and includes key levels", () => {
     assert.match(pine, /^\/\/@version=6/m);
     assert.match(pine, /indicator\("/);
-    assert.match(pine, /drawLevel\(7714, "S", true/);
-    assert.match(pine, /drawLevel\(7797, "R", true/);
-    assert.match(pine, /drawLevel\(7648/);
+    assert.match(pine, /addLine\(7714, "S", true/);
+    assert.match(pine, /addLine\(7797, "R", true/);
+    assert.match(pine, /addLine\(7648/);
     assert.match(pine, /Last 7722/);
+    assert.match(pine, /extend = extend.left/);
+    assert.doesNotMatch(pine, /extend = extend.right/);
+    assert.match(pine, /minLabelGap/);
   });
 
   it("emits a table and escaped plan copy", () => {
     assert.match(pine, /table\.cell/);
     assert.match(pine, /Bull  /);
     assert.match(pine, /Bear  /);
-    assert.equal((pine.match(/drawLevel\(/g) || []).length >= 20, true);
+    assert.equal((pine.match(/addLine\(/g) || []).length >= 20, true);
+    assert.match(pine, /addLabel\(/);
+  });
+
+  it("does not stack labels inside the minimum gap", () => {
+    const labels = placeLabels(collectLevels(parsed), 16);
+    for (let i = 0; i < labels.length; i += 1) {
+      for (let j = i + 1; j < labels.length; j += 1) {
+        assert.ok(Math.abs(labels[i].price - labels[j].price) >= 16);
+      }
+    }
+    assert.ok(labels.some((level) => level.price === 7714));
+    assert.ok(labels.some((level) => level.price === 7771));
+    const near = placeLabels(collectLevels(parsed), 16, { anchor: 7722, range: 80 });
+    assert.ok(near.every((level) => Math.abs(level.price - 7722) <= 80));
+    assert.ok(near.length < labels.length);
   });
 
   it("formats prices without trailing noise", () => {

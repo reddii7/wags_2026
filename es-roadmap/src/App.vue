@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { parseLetter, formatPrice } from "./lib/parseLetter.js";
 import { buildRoadmap } from "./lib/buildRoadmap.js";
 import { buildPine } from "./lib/buildPine.js";
+import { collectLevels, isAlwaysOn, lineColor, placeLabels } from "./lib/chartLayout.js";
 import { SAMPLE_LETTER } from "./lib/sampleLetter.js";
 
 const STORAGE_KEY = "es-roadmap:draft";
@@ -34,7 +35,40 @@ const parsed = computed(() => {
 const roadmap = computed(() => (parsed.value ? buildRoadmap(parsed.value, session.value) : null));
 const pine = computed(() => (parsed.value ? buildPine(parsed.value, session.value) : ""));
 
+const previewLines = computed(() => {
+  if (!parsed.value) return [];
+  const all = collectLevels(parsed.value).filter((level) => level.major || isAlwaysOn(level));
+  const lastN = Number.parseFloat(last.value);
+  if (!Number.isFinite(lastN)) return all;
+  return all.filter((level) => Math.abs(level.price - lastN) <= 120);
+});
+
+const previewLabels = computed(() =>
+  parsed.value
+    ? placeLabels(collectLevels(parsed.value), 16, {
+        anchor: last.value,
+        range: 80,
+      })
+    : [],
+);
+
+const previewBox = computed(() => {
+  const prices = previewLines.value.map((level) => level.price);
+  const lastN = Number.parseFloat(last.value);
+  if (Number.isFinite(lastN)) prices.push(lastN);
+  if (!prices.length) return { min: 0, max: 1 };
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const pad = Math.max(12, (max - min) * 0.05);
+  return { min: min - pad, max: max + pad };
+});
+
 const canGenerate = computed(() => letter.value.trim().length > 40);
+
+function previewY(price) {
+  const { min, max } = previewBox.value;
+  return 12 + ((max - price) / (max - min || 1)) * 336;
+}
 
 watch(
   [letter, last, high, low],
@@ -272,9 +306,57 @@ function levelMeta(level) {
             </div>
             <ol class="steps">
               <li>Open the ES (or MES) chart on TradingView.</li>
-              <li>Pine Editor → New → paste this script → Save → Add to chart.</li>
-              <li>Leave “Show minor levels” off unless you want the full letter stack.</li>
+              <li>Pine Editor → paste this script → Save → Add to chart.</li>
+              <li>Lines stop at the last bar. Labels sit to the right, one per cluster, in three columns. Raise “Min label gap” on the chart if anything still stacks.</li>
             </ol>
+            <div class="preview-wrap">
+              <p class="preview-cap">Spacing preview (majors + setups only)</p>
+              <svg class="preview" viewBox="0 0 640 360" role="img" aria-label="Level spacing preview">
+                <rect x="0" y="0" width="640" height="360" fill="#0b1220" />
+                <line
+                  v-if="Number.isFinite(Number.parseFloat(last))"
+                  x1="16"
+                  x2="400"
+                  :y1="previewY(Number.parseFloat(last))"
+                  :y2="previewY(Number.parseFloat(last))"
+                  stroke="#8b9bb4"
+                  stroke-dasharray="4 4"
+                  stroke-width="1"
+                />
+                <g v-for="level in previewLines" :key="'ln' + level.role + level.price">
+                  <line
+                    x1="16"
+                    x2="400"
+                    :y1="previewY(level.price)"
+                    :y2="previewY(level.price)"
+                    :stroke="lineColor(level)"
+                    :stroke-width="level.major || isAlwaysOn(level) ? 2 : 1"
+                    stroke-linecap="round"
+                  />
+                </g>
+                <g v-for="level in previewLabels" :key="'lb' + level.role + level.price">
+                  <rect
+                    :x="412 + level.col * 72"
+                    :y="previewY(level.price) - 8"
+                    width="68"
+                    height="16"
+                    rx="3"
+                    fill="#0b1220"
+                    :stroke="lineColor(level)"
+                    stroke-width="0.75"
+                  />
+                  <text
+                    :x="416 + level.col * 72"
+                    :y="previewY(level.price) + 4"
+                    :fill="lineColor(level)"
+                    font-size="10"
+                    font-family="IBM Plex Mono, ui-monospace, monospace"
+                  >
+                    {{ level.label }}
+                  </text>
+                </g>
+              </svg>
+            </div>
             <pre>{{ pine }}</pre>
           </div>
         </template>
