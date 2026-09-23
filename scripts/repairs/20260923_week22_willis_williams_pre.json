@@ -1,0 +1,570 @@
+{
+  "snaps": [
+    {
+      "pts": 11,
+      "after": 4.6,
+      "before": 4.5,
+      "full_name": "Andrew Mosson",
+      "play_order": 22
+    },
+    {
+      "pts": 16,
+      "after": 3,
+      "before": 2.9,
+      "full_name": "Andy Ray",
+      "play_order": 22
+    },
+    {
+      "pts": 18,
+      "after": 4.1,
+      "before": 4.1,
+      "full_name": "Carl Rowe",
+      "play_order": 22
+    },
+    {
+      "pts": 15,
+      "after": 3.8,
+      "before": 3.7,
+      "full_name": "Dave Harrison",
+      "play_order": 22
+    },
+    {
+      "pts": 17,
+      "after": 10.5,
+      "before": 10.5,
+      "full_name": "Gary Adcock",
+      "play_order": 22
+    },
+    {
+      "pts": 16,
+      "after": 3.9,
+      "before": 3.8,
+      "full_name": "Ian Ind",
+      "play_order": 22
+    },
+    {
+      "pts": 17,
+      "after": 7.3,
+      "before": 7.3,
+      "full_name": "James Harrison",
+      "play_order": 22
+    },
+    {
+      "pts": 24,
+      "after": 2.4,
+      "before": 2.8,
+      "full_name": "James Tough",
+      "play_order": 22
+    },
+    {
+      "pts": 23,
+      "after": 6.3,
+      "before": 6.9,
+      "full_name": "James Willis",
+      "play_order": 22
+    },
+    {
+      "pts": 18,
+      "after": 2.1,
+      "before": 2,
+      "full_name": "John Goodman",
+      "play_order": 22
+    },
+    {
+      "pts": 16,
+      "after": 4,
+      "before": 3.9,
+      "full_name": "Jon Boden",
+      "play_order": 22
+    },
+    {
+      "pts": 14,
+      "after": 3.9,
+      "before": 3.8,
+      "full_name": "Mark Jackson",
+      "play_order": 22
+    },
+    {
+      "pts": 19,
+      "after": 8.7,
+      "before": 8.7,
+      "full_name": "Mark Ready",
+      "play_order": 22
+    },
+    {
+      "pts": 11,
+      "after": 4.9,
+      "before": 4.8,
+      "full_name": "Martin Stevenson",
+      "play_order": 22
+    },
+    {
+      "pts": 17,
+      "after": 3.6,
+      "before": 3.5,
+      "full_name": "Nick Stableford",
+      "play_order": 22
+    },
+    {
+      "pts": 14,
+      "after": 3.3,
+      "before": 3.2,
+      "full_name": "Paul Blades",
+      "play_order": 22
+    },
+    {
+      "pts": 13,
+      "after": 8.1,
+      "before": 8,
+      "full_name": "Peter Jeffries",
+      "play_order": 22
+    },
+    {
+      "pts": 11,
+      "after": 4,
+      "before": 3.9,
+      "full_name": "Richard Bird",
+      "play_order": 22
+    },
+    {
+      "pts": 17,
+      "after": -0.9,
+      "before": -1,
+      "full_name": "Simon Carter",
+      "play_order": 22
+    },
+    {
+      "pts": 12,
+      "after": 8.4,
+      "before": 8.3,
+      "full_name": "Steve Robinson",
+      "play_order": 22
+    },
+    {
+      "pts": 15,
+      "after": 4.1,
+      "before": 4,
+      "full_name": "Steve Such",
+      "play_order": 22
+    },
+    {
+      "pts": 20,
+      "after": 6.2,
+      "before": 6.2,
+      "full_name": "Stuart Murdock",
+      "play_order": 22
+    },
+    {
+      "pts": 18,
+      "after": 4.1,
+      "before": 4.1,
+      "full_name": "Stuart Pickersgill",
+      "play_order": 22
+    },
+    {
+      "pts": 19,
+      "after": 3.1,
+      "before": 3.1,
+      "full_name": "Tim Allsopp",
+      "play_order": 22
+    },
+    {
+      "pts": 20,
+      "after": 7.2,
+      "before": 7.2,
+      "full_name": "Tim Lewis",
+      "play_order": 22
+    },
+    {
+      "pts": 17,
+      "after": 5.7,
+      "before": 5.6,
+      "full_name": "Ade Cooper",
+      "play_order": 23
+    },
+    {
+      "pts": 16,
+      "after": 4.7,
+      "before": 4.6,
+      "full_name": "Andrew Mosson",
+      "play_order": 23
+    },
+    {
+      "pts": 18,
+      "after": 3.1,
+      "before": 3,
+      "full_name": "Andy Ray",
+      "play_order": 23
+    },
+    {
+      "pts": 20,
+      "after": 4.1,
+      "before": 4.1,
+      "full_name": "Carl Rowe",
+      "play_order": 23
+    },
+    {
+      "pts": 18,
+      "after": 5.9,
+      "before": 5.9,
+      "full_name": "Chris Boards",
+      "play_order": 23
+    },
+    {
+      "pts": 18,
+      "after": 3.8,
+      "before": 3.8,
+      "full_name": "Dave Harrison",
+      "play_order": 23
+    },
+    {
+      "pts": 15,
+      "after": 10.6,
+      "before": 10.5,
+      "full_name": "Gary Adcock",
+      "play_order": 23
+    },
+    {
+      "pts": 16,
+      "after": 4,
+      "before": 3.9,
+      "full_name": "Ian Ind",
+      "play_order": 23
+    },
+    {
+      "pts": 23,
+      "after": 6.4,
+      "before": 7.3,
+      "full_name": "James Harrison",
+      "play_order": 23
+    },
+    {
+      "pts": 13,
+      "after": 5.7,
+      "before": 5.6,
+      "full_name": "James Simmons",
+      "play_order": 23
+    },
+    {
+      "pts": 17,
+      "after": 2.5,
+      "before": 2.4,
+      "full_name": "James Tough",
+      "play_order": 23
+    },
+    {
+      "pts": 15,
+      "after": 2.2,
+      "before": 2.1,
+      "full_name": "John Goodman",
+      "play_order": 23
+    },
+    {
+      "pts": 20,
+      "after": 8.2,
+      "before": 8.2,
+      "full_name": "Kevin Horton",
+      "play_order": 23
+    },
+    {
+      "pts": 7,
+      "after": 2.9,
+      "before": 2.8,
+      "full_name": "Mark Howell",
+      "play_order": 23
+    },
+    {
+      "pts": 14,
+      "after": 8.8,
+      "before": 8.7,
+      "full_name": "Mark Ready",
+      "play_order": 23
+    },
+    {
+      "pts": 15,
+      "after": 5,
+      "before": 4.9,
+      "full_name": "Martin Stevenson",
+      "play_order": 23
+    },
+    {
+      "pts": 13,
+      "after": 3.7,
+      "before": 3.6,
+      "full_name": "Nick Stableford",
+      "play_order": 23
+    },
+    {
+      "pts": 17,
+      "after": 8.1,
+      "before": 8.1,
+      "full_name": "Peter Jeffries",
+      "play_order": 23
+    },
+    {
+      "pts": 21,
+      "after": 2.4,
+      "before": 2.5,
+      "full_name": "Richard Shaw",
+      "play_order": 23
+    },
+    {
+      "pts": 17,
+      "after": 6.3,
+      "before": 6.2,
+      "full_name": "Stuart Murdock",
+      "play_order": 23
+    },
+    {
+      "pts": 14,
+      "after": 4.2,
+      "before": 4.1,
+      "full_name": "Stuart Pickersgill",
+      "play_order": 23
+    },
+    {
+      "pts": 21,
+      "after": 2.9,
+      "before": 3.1,
+      "full_name": "Tim Allsopp",
+      "play_order": 23
+    },
+    {
+      "pts": 17,
+      "after": 7.2,
+      "before": 7.2,
+      "full_name": "Tim Lewis",
+      "play_order": 23
+    },
+    {
+      "pts": 11,
+      "after": 7.7,
+      "before": 7.6,
+      "full_name": "Tom Green",
+      "play_order": 23
+    },
+    {
+      "pts": 18,
+      "after": 5.3,
+      "before": 5.3,
+      "full_name": "Tony Mynard",
+      "play_order": 23
+    },
+    {
+      "pts": 19,
+      "after": 2.9,
+      "before": 2.9,
+      "full_name": "Adam Simcox",
+      "play_order": 24
+    },
+    {
+      "pts": 19,
+      "after": 5.9,
+      "before": 5.9,
+      "full_name": "Chris Boards",
+      "play_order": 24
+    },
+    {
+      "pts": 16,
+      "after": 6.2,
+      "before": 6.1,
+      "full_name": "Dan Conway",
+      "play_order": 24
+    },
+    {
+      "pts": 19,
+      "after": 3.8,
+      "before": 3.8,
+      "full_name": "Dave Harrison",
+      "play_order": 24
+    },
+    {
+      "pts": 19,
+      "after": 10.6,
+      "before": 10.6,
+      "full_name": "Gary Adcock",
+      "play_order": 24
+    },
+    {
+      "pts": 17,
+      "after": 4.1,
+      "before": 4,
+      "full_name": "Ian Ind",
+      "play_order": 24
+    },
+    {
+      "pts": 17,
+      "after": 6.5,
+      "before": 6.4,
+      "full_name": "James Harrison",
+      "play_order": 24
+    },
+    {
+      "pts": 20,
+      "after": 2.6,
+      "before": 2.6,
+      "full_name": "Jez Williams",
+      "play_order": 24
+    },
+    {
+      "pts": 16,
+      "after": 2.3,
+      "before": 2.2,
+      "full_name": "John Goodman",
+      "play_order": 24
+    },
+    {
+      "pts": 20,
+      "after": 8.2,
+      "before": 8.2,
+      "full_name": "Kevin Horton",
+      "play_order": 24
+    },
+    {
+      "pts": 17,
+      "after": 7.1,
+      "before": 7,
+      "full_name": "Marc Allsopp",
+      "play_order": 24
+    },
+    {
+      "pts": 20,
+      "after": 2.2,
+      "before": 2.2,
+      "full_name": "Mick Sandoz",
+      "play_order": 24
+    },
+    {
+      "pts": 18,
+      "after": 3.7,
+      "before": 3.7,
+      "full_name": "Nick Stableford",
+      "play_order": 24
+    },
+    {
+      "pts": 20,
+      "after": 7.1,
+      "before": 7.1,
+      "full_name": "Paul Smith",
+      "play_order": 24
+    },
+    {
+      "pts": 17,
+      "after": 4.1,
+      "before": 4,
+      "full_name": "Richard Bird",
+      "play_order": 24
+    },
+    {
+      "pts": 18,
+      "after": 2.5,
+      "before": 2.4,
+      "full_name": "Richard Shaw",
+      "play_order": 24
+    },
+    {
+      "pts": 15,
+      "after": 3.5,
+      "before": 3.4,
+      "full_name": "Ross Kelly",
+      "play_order": 24
+    },
+    {
+      "pts": 21,
+      "after": 3.9,
+      "before": 4.1,
+      "full_name": "Steve Such",
+      "play_order": 24
+    },
+    {
+      "pts": 18,
+      "after": 6.3,
+      "before": 6.3,
+      "full_name": "Stuart Murdock",
+      "play_order": 24
+    },
+    {
+      "pts": 16,
+      "after": 3,
+      "before": 2.9,
+      "full_name": "Tim Allsopp",
+      "play_order": 24
+    },
+    {
+      "pts": 16,
+      "after": 7.3,
+      "before": 7.2,
+      "full_name": "Tim Lewis",
+      "play_order": 24
+    },
+    {
+      "pts": 7,
+      "after": 7.8,
+      "before": 7.7,
+      "full_name": "Tom Green",
+      "play_order": 24
+    },
+    {
+      "pts": 18,
+      "after": 5.3,
+      "before": 5.3,
+      "full_name": "Tony Mynard",
+      "play_order": 24
+    }
+  ],
+  "jez_hc": 2.6,
+  "prizes": [
+    {
+      "id": "a398c03f-26ba-4a59-bcd6-fe447a7f4bf3",
+      "round_id": "03d4a3a1-def2-410b-b99f-3565afc7235d",
+      "bank_wallet": "club",
+      "superseded_at": null,
+      "to_bank_pence": 10050,
+      "paid_out_pence": 3750,
+      "manual_override": false,
+      "no_winner_reason": null,
+      "winner_member_id": "286d730f-aea2-4c3d-a8b2-0ee139513fba",
+      "rollover_carried_in": 0,
+      "rollover_carried_out": 0
+    },
+    {
+      "id": "67fe2688-70b5-47d0-9c74-a5c21ca77837",
+      "round_id": "06d52a01-c5dd-4aff-9f6a-4a1d5a0d9663",
+      "bank_wallet": "club",
+      "superseded_at": null,
+      "to_bank_pence": 9950,
+      "paid_out_pence": 3750,
+      "manual_override": false,
+      "no_winner_reason": null,
+      "winner_member_id": "ade4cce2-bdf5-410e-8389-531a339e8dd8",
+      "rollover_carried_in": 0,
+      "rollover_carried_out": 0
+    },
+    {
+      "id": "83207250-6b8a-42de-8348-bbeeab013e18",
+      "round_id": "e3c5ecbd-fa82-41a6-85b7-d27f4589c4e2",
+      "bank_wallet": "club",
+      "superseded_at": null,
+      "to_bank_pence": 9250,
+      "paid_out_pence": 3450,
+      "manual_override": false,
+      "no_winner_reason": null,
+      "winner_member_id": "02b71a64-1824-44de-8dc2-318c1175b097",
+      "rollover_carried_in": 0,
+      "rollover_carried_out": 0
+    }
+  ],
+  "willis_hc": 6.3,
+  "week22_row": {
+    "id": "036ad1eb-de89-4744-9fb1-a94006307d85",
+    "entered": true,
+    "round_id": "03d4a3a1-def2-410b-b99f-3565afc7235d",
+    "member_id": "c861a32e-eb32-42b1-8de8-27b946458baa",
+    "camel_count": 0,
+    "snake_count": 0,
+    "disqualified": false,
+    "entry_fee_pence": 500,
+    "stableford_points": 23
+  },
+  "captured_at": "2026-09-23T17:09:57.728216+00:00"
+}

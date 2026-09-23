@@ -1,0 +1,34 @@
+{
+  "jez_hc": 2.3,
+  "prizes": [
+    {
+      "winner": "James Tough",
+      "to_bank": 10050,
+      "paid_out": 3750,
+      "play_order": 22
+    },
+    {
+      "winner": "James Harrison",
+      "to_bank": 9950,
+      "paid_out": 3750,
+      "play_order": 23
+    },
+    {
+      "winner": "Steve Such",
+      "to_bank": 9250,
+      "paid_out": 3450,
+      "play_order": 24
+    }
+  ],
+  "willis_hc": 6.9,
+  "captured_at": "2026-09-23T17:11:28.336316+00:00",
+  "week22_23pt": {
+    "pts": 23,
+    "full_name": "Jez Williams"
+  },
+  "jez_wk22_snap": {
+    "after": 2.3,
+    "before": 2.6
+  },
+  "willis_wk22_snap_count": 0
+}
