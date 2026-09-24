@@ -291,14 +291,14 @@ const buildBest14AndLeaguesFromSummerStandings = (
     const leagueName = leagueNameForTier(tier);
     const inLeague = [...bucket].sort(
       (a, b) =>
-        Number(b?.best_14_total ?? 0) - Number(a?.best_14_total ?? 0),
+        Number(b?.best_10_total ?? 0) - Number(a?.best_10_total ?? 0),
     );
     inLeague.forEach((row, i) => {
       leagues.push({
         league_name: leagueName,
         full_name: String(row.full_name || ""),
         rank_no: i + 1,
-        total_score: Number(row.best_14_total) || 0,
+        total_score: Number(row.best_10_total) || 0,
         user_id: row.member_id,
       });
     });
@@ -319,7 +319,7 @@ const loadSummerBest14AndLeagues = async (
   }
   const { data, error } = await supabase
     .from("v_summer_standings")
-    .select("member_id, full_name, tier, best_14_total")
+    .select("member_id, full_name, tier, best_14_total, best_10_total")
     .eq("campaign_id", campaignId)
     .order("best_14_total", { ascending: false });
   if (!error && Array.isArray(data)) {

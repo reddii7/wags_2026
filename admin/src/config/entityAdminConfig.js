@@ -370,7 +370,7 @@ export const ENTITY_ADMIN_PAGES = [
           label: "Finalize ▶",
           condition: (row) => !row.finalized,
           confirm:
-            "Finalize this round?\n\nThis will:\n• Compute prize money and write weekly_prize_state\n• Compute new handicaps and write handicap_snapshots\n• Update each member's current handicap_index\n• Mark the round as finalized",
+            "Finalize this round?\n\nThis will:\n• Compute prize money and write weekly_prize_state\n• Summer weekly: sole top scorer needs 3 prior completed summer rounds or the pot rolls (not 2nd place)\n• Compute new handicaps and write handicap_snapshots\n• Update each member's current handicap_index\n• Mark the round as finalized",
           rpc: { name: "finalize_round", paramKey: "p_round_id", pkField: "id" },
         },
         {
@@ -526,6 +526,7 @@ export const ENTITY_ADMIN_PAGES = [
       listColumns: [
         { key: "round_id", label: "Round" },
         { key: "winner_member_id", label: "Winner" },
+        { key: "no_winner_reason", label: "No-winner reason" },
         { key: "paid_out_pence", label: "Paid out (p)" },
         { key: "rollover_carried_in", label: "Rollover in (p)" },
         { key: "rollover_carried_out", label: "Rollover out (p)" },
@@ -543,10 +544,16 @@ export const ENTITY_ADMIN_PAGES = [
         },
         {
           key: "winner_member_id",
-          label: "Winner (leave blank on tie)",
+          label: "Winner (leave blank on tie / ineligible)",
           type: "fk",
           required: false,
           fk: { table: "members", valueKey: "id", labelKey: "full_name" },
+        },
+        {
+          key: "no_winner_reason",
+          label: "No-winner reason (tie | min_prior_rounds)",
+          type: "text",
+          required: false,
         },
         { key: "paid_out_pence", label: "Paid out (p)", type: "number", default: 0 },
         { key: "to_bank_pence", label: "To bank (p)", type: "number", default: 0 },

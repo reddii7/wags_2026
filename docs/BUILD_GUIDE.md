@@ -73,7 +73,7 @@ This section ties **§0–§10** into one story: **who does what**, **when state
 1. **Admin** creates a **`round`** under **`summer_series`** for that campaign (played date, `par_holes` / `course_par`, notes).
 2. **Facts captured** in **`round_players`** per member: `entered`, optional `gross_score`, **`stableford_points`** (**net** stableford — the figure used for leaderboards, money ties, and summer handicap **§3.3**), `snake_count`, `camel_count`, `entry_fee_pence` (typically **500** if £5), `disqualified` as needed. These are **never silently rewritten** once treated as submitted; corrections go through admin/reopen paths.
 3. **Admin finalizes** the round (single commit boundary):
-   - **Money (§6):** For each entrant, **£3.50×N** to bank from the base £5; **£1.50×N** into the **winner pool** for that week. **Snake/camel:** **£1** per count **each** to bank **on top of** the £5 split. **Winner pool resolution (§6.1):** if **exactly one** player has the highest **net** stableford score → assign **`winner_member_id`**, pay **`paid_out_pence`** = that week’s **£1.50×N** slice **plus any rollover carried in**. If **two or more** share the top score → **no** payout, **no split**; add this week’s **£1.50×N** to **rollover** for the **next** summer weekly round. Repeat tied weeks **stack** rollover until a later week has a **sole** winner, who takes the **entire accumulated** winner pool.
+   - **Money (§6):** For each entrant, **£3.50×N** to bank from the base £5; **£1.50×N** into the **winner pool** for that week. **Snake/camel:** **£1** per count **each** to bank **on top of** the £5 split. **Winner pool resolution (§6.1 / §6.1a):** if **exactly one prize-eligible** player has the highest **net** stableford score → assign **`winner_member_id`**, pay **`paid_out_pence`** = that week’s **£1.50×N** slice **plus any rollover carried in**. **Eligibility:** sole top scorer needs **≥3 prior finalized `summer_weekly` completions** (any campaign/year; current week excluded). Ineligible sole top → **rollover** (same money as a tie; **not** 2nd place; **no** Champions place). If **two or more** share the top score → **no** payout, **no split**; rollover stacks until a later **sole eligible** winner. (**Winter:** no min-prior gate.)
    - **Handicap (§3.0–§3.3):** only when finalizing a **`summer_series`** round — apply bands and **`handicap_snapshots`** once per `(member_id, round_id)`. **Skip** for cup, finals, away, winter.
    - **Derived leaderboards:** refresh **Best 14** (whole club, summer series) and **four division tables** (Best **10** within each division) from all **finalized** eligible `round_players` to date (**§5**).
 4. **Members** see updated tables, results, handicaps, and money outcomes via the app’s **read contract** (single snapshot or equivalent).
@@ -132,7 +132,7 @@ If only the **latest** finalized week needs a tweak, **reopen → edit facts →
 
 ### I. **Champions / Chumps** (last day — **§8**)
 
-1. **Champions** = any member who was the **sole outright winner** of **at least one** main **`summer_series`** weekly round that summer (**§6** / **`winner_member_id`** for that week — **tie weeks do not qualify anyone**). **Confirmed — no joint Champs from ties.**
+1. **Champions** = any member who was the **sole outright winner** of **at least one** main **`summer_series`** weekly round that summer (**§6** / **`winner_member_id`** for that week — **tie weeks** and **§6.1a min-prior ineligible tops** do not qualify anyone). **Confirmed — no joint Champs from ties.**
 2. **Chumps** = **everyone else** in the club who plays finals day (all members who are **not** in the Champions set for that summer).
 3. **Money (finals day):** **£5** per entrant **Champions and Chumps**; **100%** of the **combined** pot to the **sole Chumps winner**; **Champions** — trophy only (**§8.2**).
 4. Held on the **last day** of **Main summer** before or as part of **close campaign** (**§1A.E**).
@@ -393,11 +393,19 @@ Per **competition round** (weekly event), from each playing member’s **£5.00*
 
 - **Rule:** **Any** tie for the top **net** stableford score (two-way **or** multi-way) means **no** £1.50-per-player winner payout that week: **nothing** from the winner line is split between joint leaders (e.g. **not** 75p/75p for a two-way tie).
 - **Rollover:** the whole **£1.50 × entrants** slice for that week that would have gone to a single winner **rolls forward** and **adds to** the accumulated winner pool for the **next** summer weekly round.
-- **Stacking:** if several consecutive weeks tie, the **rollover balance keeps growing** each tied week until a week produces **one** outright winner — that winner receives **the full accumulated pool** (that week’s £1.50×entrants share **plus** all rolled-in amounts), subject to your ledger recording (single `paid_out_pence` line or audit trail).
-- **Detection:** count of players at the winning score ≠ 1 → tie week → `winner_member_id` **null**, rollover out = previous rollover + this week’s winner-line contribution.
-- **Application:** persist in **`weekly_prize_state`**: `rollover_carried_in`, `rollover_carried_out`, `winner_member_id`, `paid_out_pence` so treasurer and app stay aligned.
+- **Stacking:** if several consecutive weeks tie **or** hit **§6.1a** ineligibility, the **rollover balance keeps growing** until a week produces **one** outright **eligible** winner — that winner receives **the full accumulated pool** (that week’s £1.50×entrants share **plus** all rolled-in amounts), subject to your ledger recording (single `paid_out_pence` line or audit trail).
+- **Detection:** count of players at the winning score ≠ 1 → tie week → `winner_member_id` **null**, `no_winner_reason = 'tie'`, rollover out = previous rollover + this week’s winner-line contribution.
+- **Application:** persist in **`weekly_prize_state`**: `rollover_carried_in`, `rollover_carried_out`, `winner_member_id`, `paid_out_pence`, `no_winner_reason` so treasurer and app stay aligned.
 
-**Implementation:** one **pure function** (inputs: entry count, winning score + count of players at that score, snake/camel totals, previous rollover) + **golden tests** (e.g. 3 tied weeks then a sole winner).
+### 6.1a Min prior rounds (summer weekly prize + Champions only)
+
+- **Gate:** sole top scorer must have **≥ 3 prior** finalized **`summer_weekly`** completions across **any campaign/year** before they can take the winner pool or Champions qualification. The **current** week does **not** count toward the 3.
+- **Ineligible sole top:** `winner_member_id` **null**, `no_winner_reason = 'min_prior_rounds'`, pot **rolls** (same money as a tie). **Do not** award 2nd place.
+- **Champions:** still only players with ≥1 summer week where they are sole **`winner_member_id`** — ineligible tops never qualify.
+- **Does not apply** to winter day winners, RS Cup, away, or finals money rules.
+- Score tables (Results list, Best 14 / leagues) still show the player’s score; only prize / Champions gate is blocked.
+
+**Implementation:** one **pure function** (inputs: entry count, winning score + count of players at that score, snake/camel totals, previous rollover, top player prior-completion count) + **golden tests** (e.g. 3 tied weeks then a sole eligible winner; sole top with `<3` prior → rollover).
 
 ### 6.2 `weekly_prize_state` (per summer weekly round)
 
@@ -406,7 +414,8 @@ Suggested fields (pence) — align names to §6.1 behaviour:
 - `round_id`
 - `pot_from_entries_pence` (e.g. `500 × players`)
 - `rollover_carried_in` / `rollover_carried_out`
-- `winner_member_id` (nullable on tie / rollover week)
+- `winner_member_id` (nullable on tie / min-prior / rollover week)
+- `no_winner_reason` (`null` | `tie` | `min_prior_rounds`)
 - `paid_out_pence` (winner share actually paid)
 - `to_bank_pence` (includes **£3.50×players** base bank slice + **£1×(snakes+camels)** for that round)
 - Optional: `superseded_at` / `version` for **§1A.D.1** repair chains (**§11.2**).
