@@ -59,6 +59,21 @@
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
 
+[[headers]]
+  for = "/favicon.svg"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/icon-192.png"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/icon-512.png"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
 # Hashed Vite bundles — cache forever; HTML above always points at the current hash.
 [[headers]]
   for = "/assets/*"
