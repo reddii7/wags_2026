@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#000"/>
+  <!-- Bold geometric W — matches apple-touch monogram -->
+  <path fill="#fff" d="
+    M160 230
+    h168
+    l120 378
+    64-200
+    h160
+    l64 200
+    120-378
+    h168
+    L694 794
+    H534
+    l-54-170
+    -54 170
+    H266
+    Z"/>
+</svg>

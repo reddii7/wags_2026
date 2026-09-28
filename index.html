@@ -10,12 +10,15 @@
   <!-- iOS Home Screen: launch without Safari chrome (minimal meta set per spec) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="WAGS">
 
   <!-- Android Chrome install identity (does not change iOS Web Clip behaviour) -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#1c1c1e">
   <link rel="manifest" href="/manifest.webmanifest">
 
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=__WAGS_SHELL_BUILD__" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=__WAGS_SHELL_BUILD__" />
   <link rel="icon" href="/favicon.ico?v=__WAGS_SHELL_BUILD__" sizes="any" />
 
   <!-- Bust stale Web Clip cached documents when ?v= is missing (hash-safe vs string concat). -->
