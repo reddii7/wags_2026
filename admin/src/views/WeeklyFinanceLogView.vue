@@ -116,7 +116,7 @@ async function loadFinanceLog() {
         sb
           .from("weekly_prize_state")
           .select(
-            "round_id, winner_member_id, paid_out_pence, rollover_carried_in, rollover_carried_out, to_bank_pence, bank_wallet, members(full_name)",
+            "round_id, winner_member_id, paid_out_pence, rollover_carried_in, rollover_carried_out, to_bank_pence, bank_wallet, no_winner_reason, members(full_name)",
           )
           .in("round_id", roundIds),
         sb
@@ -167,6 +167,7 @@ async function loadFinanceLog() {
 
       let winnerLabel = "—";
       if (prize?.winner_member_id) winnerLabel = prize.members?.full_name ?? "Winner recorded";
+      else if (prize?.no_winner_reason === "season_end_split") winnerLabel = "Season-end split";
       else if (prize && rolloverOut > 0) winnerLabel = "Tie / rollover";
 
       return {

@@ -370,7 +370,7 @@ export const ENTITY_ADMIN_PAGES = [
           label: "Finalize ▶",
           condition: (row) => !row.finalized,
           confirm:
-            "Finalize this round?\n\nThis will:\n• Compute prize money and write weekly_prize_state\n• Summer weekly: sole top scorer needs 3 prior completed summer rounds or the pot rolls (not 2nd place)\n• Compute new handicaps and write handicap_snapshots\n• Update each member's current handicap_index\n• Mark the round as finalized",
+            "Finalize this round?\n\nThis will:\n• Compute prize money and write weekly_prize_state\n• Summer weekly: sole top scorer needs 3 prior completed summer rounds or the pot rolls (not 2nd place)\n• Last summer weekly of the season: pot + rollover split evenly among highest scorers — no Champions place\n• Compute new handicaps and write handicap_snapshots\n• Update each member's current handicap_index\n• Mark the round as finalized",
           rpc: { name: "finalize_round", paramKey: "p_round_id", pkField: "id" },
         },
         {
@@ -551,7 +551,7 @@ export const ENTITY_ADMIN_PAGES = [
         },
         {
           key: "no_winner_reason",
-          label: "No-winner reason (tie | min_prior_rounds)",
+          label: "No-winner reason (tie | min_prior_rounds | season_end_split)",
           type: "text",
           required: false,
         },

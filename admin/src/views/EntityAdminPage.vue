@@ -890,7 +890,15 @@ const formFieldsVisible = computed(() => {
         Round reopened ✓ — {{ rpcResult.data.handicaps_restored }} handicap(s) restored.
       </span>
       <span v-else-if="rpcResult.ok">
-        {{ rpcResult.data?.tie ? "Tie — pot rolls over. " : "" }}
+        {{
+          rpcResult.data?.season_end_split
+            ? "Final week — pot + rollover split among top scorers (no Champions place). "
+            : rpcResult.data?.no_winner_reason === "min_prior_rounds"
+              ? "Top scorer ineligible (<3 prior rounds) — pot rolls. "
+              : rpcResult.data?.no_winner_reason === "tie" || rpcResult.data?.tie
+                ? "Tie — pot rolls over. "
+                : ""
+        }}
         {{ rpcResult.data?.entrants }} entrants ·
         pot {{ rpcResult.data?.pot_pence }}p ·
         fines {{ rpcResult.data?.fines_pence ?? 0 }}p ·
