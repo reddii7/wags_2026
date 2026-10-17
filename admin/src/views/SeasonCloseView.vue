@@ -96,7 +96,9 @@ async function runApply() {
     previewRows.value = [];
     err.value = "";
     window.alert(
-      `Done. League rows upserted: ${data?.league_assignments_upserted ?? "?"}. ${data?.handicap_note ?? ""}`,
+      `Done. League rows: ${data?.league_assignments_upserted ?? "?"}. ` +
+        `Handicap state rows: ${data?.member_handicap_state_upserted ?? "?"}. ` +
+        `${data?.handicap_note ?? ""}`,
     );
   } catch (e) {
     err.value = e?.message || String(e);
@@ -118,8 +120,15 @@ watch(
     <p class="lede">
       §4.2: top 3 in divisions 2–4 promoted; bottom 3 in divisions 1–3 relegated (promotion wins on overlap).
       Standings use each member’s best 10 net stableford scores in <strong>finalized</strong>
-      <code>summer_weekly</code> rounds for the <strong>old</strong> campaign. Handicaps are unchanged.
+      <code>summer_weekly</code> rounds for the <strong>old</strong> campaign.
+      Handicap indexes are <strong>not</strong> reset — they keep rolling from the last weekly finalize,
+      and are copied into the next campaign’s handicap state so 2027 opens with the closing numbers.
     </p>
+    <ol class="checklist">
+      <li>Enter &amp; <strong>finalize</strong> the last summer weekly round (and Champ/Chumps if you run them).</li>
+      <li>Create <strong>Main Summer 2027</strong> as a <code>draft</code> campaign (Setup → Campaigns) if it does not exist yet.</li>
+      <li>Preview P/R below, then Close old + apply to next.</li>
+    </ol>
     <p v-if="!admin?.client?.value" class="warn">Connect in the header first.</p>
     <template v-else>
       <p v-if="err" class="err">{{ err }}</p>
@@ -202,6 +211,19 @@ watch(
   margin: 0 0 1rem;
 }
 .lede code {
+  font-size: 0.85em;
+}
+.checklist {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0 0 1rem 1.1rem;
+  padding: 0;
+}
+.checklist li {
+  margin-bottom: 0.25rem;
+}
+.checklist code {
   font-size: 0.85em;
 }
 .warn {
