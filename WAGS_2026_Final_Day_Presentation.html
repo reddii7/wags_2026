@@ -2,66 +2,110 @@
 <html lang="en"><head><meta charset="utf-8"/>
 <title>WAGS Main Summer 2026 — Final Day</title>
 <style>
-  :root { --ink:#14261c; --muted:#5a6b60; --line:#d5ddd7; --band:#eef3ef; --accent:#1a5c38; }
+  :root {
+    --ink:#13241c; --muted:#5c6b62; --line:#d7ddd8; --band:#eef3ef;
+    --accent:#1b5c37; --paper:#fbfcfb;
+  }
   * { box-sizing:border-box; }
-  body { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-    color:var(--ink); max-width:920px; margin:0 auto; padding:28px 22px 48px; line-height:1.35;
-    background:linear-gradient(180deg,#f7faf7 0%,#fff 180px); }
-  h1 { font-size:1.85rem; margin:0 0 6px; letter-spacing:-0.02em; }
-  .sub { color:var(--muted); margin:0 0 18px; }
-  .note { background:var(--band); border-left:4px solid var(--accent); padding:10px 14px; margin:0 0 22px; }
-  .hero { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-bottom:28px; }
-  .hero .card { background:#fff; border:1px solid var(--line); padding:14px 16px; }
-  .hero .label { font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin:0 0 4px; }
-  .hero .value { font-size:1.35rem; font-weight:700; margin:0; color:var(--accent); }
-  .hero .detail { margin:4px 0 0; color:var(--muted); font-size:0.92rem; }
-  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:0 0 28px; }
-  .stat { background:var(--band); padding:12px 10px; text-align:center; }
-  .stat .v { font-size:1.35rem; font-weight:700; }
-  .stat .l { font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); }
-  h2 { font-size:1.2rem; margin:28px 0 10px; border-bottom:2px solid var(--ink); padding-bottom:4px; }
-  h3 { font-size:1rem; margin:18px 0 8px; color:var(--accent); }
-  table { width:100%; border-collapse:collapse; font-size:0.92rem; margin:0 0 8px; }
-  th,td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; }
-  th { background:var(--ink); color:#fff; font-weight:600; font-size:0.78rem; }
-  tr:nth-child(even) td { background:#fafcfb; }
-  .footnote { color:var(--muted); font-size:0.85rem; margin:4px 0 16px; }
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
-  .check { background:#fff8e8; border:1px solid #e6d7a8; padding:10px 14px; margin:0 0 22px; font-size:0.92rem; }
+  body {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    color:var(--ink); max-width:900px; margin:0 auto; padding:36px 28px 56px;
+    line-height:1.4; background:var(--paper);
+  }
+  header { margin-bottom:28px; border-bottom:2px solid var(--ink); padding-bottom:16px; }
+  h1 { font-size:2rem; margin:0 0 6px; letter-spacing:-0.02em; font-weight:700; }
+  .sub { color:var(--muted); margin:0; font-size:1.05rem; }
+  .hero {
+    display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px;
+    margin:0 0 26px;
+  }
+  .hero .card {
+    padding:18px 18px 16px; border-top:3px solid var(--accent);
+    background:#fff; border-right:1px solid var(--line);
+    border-bottom:1px solid var(--line); border-left:1px solid var(--line);
+  }
+  .hero .label {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size:0.68rem; text-transform:uppercase; letter-spacing:0.08em;
+    color:var(--muted); margin:0 0 8px; font-weight:600;
+  }
+  .hero .value { font-size:1.55rem; font-weight:700; margin:0; color:var(--ink); line-height:1.15; }
+  .hero .detail { margin:8px 0 0; color:var(--muted); font-size:0.95rem; }
+  .stats {
+    display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px;
+    background:var(--line); border:1px solid var(--line); margin:0 0 34px;
+  }
+  .stat { background:#fff; padding:14px 10px; text-align:center; }
+  .stat .v { font-size:1.4rem; font-weight:700; }
+  .stat .l {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size:0.65rem; text-transform:uppercase; letter-spacing:0.07em;
+    color:var(--muted); margin-top:4px; font-weight:600;
+  }
+  h2 {
+    font-size:1.25rem; margin:34px 0 12px; font-weight:700;
+    letter-spacing:-0.01em;
+  }
+  h3 {
+    font-size:1.02rem; margin:22px 0 8px; color:var(--accent); font-weight:700;
+  }
+  table { width:100%; border-collapse:collapse; font-size:0.94rem; margin:0 0 4px; }
+  th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; }
+  th {
+    font-family: system-ui, -apple-system, sans-serif;
+    background:var(--ink); color:#fff; font-weight:600; font-size:0.72rem;
+    text-transform:uppercase; letter-spacing:0.04em;
+  }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tr:nth-child(even) td { background:#f6f8f6; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  .closing {
+    margin-top:36px; padding-top:16px; border-top:2px solid var(--ink);
+    color:var(--muted); font-size:0.95rem;
+  }
+  @media (max-width:700px) {
+    .hero, .stats, .grid2 { grid-template-columns:1fr 1fr; }
+    body { padding:22px 16px 40px; }
+  }
   @media print {
     body { padding:10mm; background:#fff; }
-    h2 { break-after:avoid; }
+    .hero .card, h2, h3 { break-after:avoid; }
     tr { page-break-inside:avoid; }
   }
   @page { size:A4; margin:12mm; }
 </style></head><body>
-<h1>WAGS Main Summer 2026 — Final Day</h1>
-<p class="sub">After Week 28 · Champ/Chumps still to play</p>
-<div class="note">Champ/Chumps still to play. P/R below is a preview for season close.
-RS Cup champion: <b>Mark Ready</b> beat Simon Carter.</div>
-
-<div class="check"><b>Score check — Mark Ready:</b> 25 rounds played ·
-Best 14 = <b>273</b>
-(sum of 24, 21, 20, 20, 20, 20, 19, 19, 19, 19, 19, 19, 17, 17) ·
-Best 10 = <b>201</b>
-(sum of 24, 21, 20, 20, 20, 20, 19, 19, 19, 19).
-These are different because he has more than 10 counting rounds.</div>
+<header>
+  <h1>WAGS Main Summer 2026</h1>
+  <p class="sub">Final Day · After Week 28</p>
+</header>
 
 <div class="hero">
-  <div class="card"><p class="label">Best 14 champion</p><p class="value">Steve Such</p>
-    <p class="detail">Best 14: 295 · Best 10: 217 · 24 rounds</p></div>
-  <div class="card"><p class="label">RS Cup champion</p><p class="value">Mark Ready</p>
-    <p class="detail">Final: Simon Carter vs Mark Ready</p></div>
-  <div class="card"><p class="label">Weekly money leader</p><p class="value">Carl Rowe</p>
-    <p class="detail">£150.00 · 1 outright win</p></div>
-  <div class="card"><p class="label">Most snakes / camels</p><p class="value">Paul Chapman / Tim Lewis</p>
-    <p class="detail">11 snakes · 13 camels</p></div>
+  <div class="card">
+    <p class="label">Best 14 champion</p>
+    <p class="value">Steve Such</p>
+    <p class="detail">295 points</p>
+  </div>
+  <div class="card">
+    <p class="label">RS Cup champion</p>
+    <p class="value">Mark Ready</p>
+    <p class="detail">Beat Simon Carter in the final</p>
+  </div>
+  <div class="card">
+    <p class="label">Weekly money leader</p>
+    <p class="value">Carl Rowe</p>
+    <p class="detail">£150.00 from 1 outright win</p>
+  </div>
+  <div class="card">
+    <p class="label">Snakes &amp; camels</p>
+    <p class="value">Paul Chapman · Tim Lewis</p>
+    <p class="detail">11 snakes · 13 camels</p>
+  </div>
 </div>
 
 <div class="stats">
   <div class="stat"><div class="v">28</div><div class="l">Weeks</div></div>
   <div class="stat"><div class="v">66</div><div class="l">Players</div></div>
-  <div class="stat"><div class="v">28.0</div><div class="l">Avg field</div></div>
+  <div class="stat"><div class="v">28</div><div class="l">Avg field</div></div>
   <div class="stat"><div class="v">13</div><div class="l">Champions</div></div>
   <div class="stat"><div class="v">£1176.00</div><div class="l">Paid out</div></div>
   <div class="stat"><div class="v">£3148.00</div><div class="l">To bank</div></div>
@@ -70,27 +114,24 @@ These are different because he has more than 10 counting rounds.</div>
 </div>
 
 <h2>Division winners</h2>
-<table><thead><tr><th>Division</th><th>Winner</th><th>Best 10 pts</th><th>Best 14 pts</th><th>Rounds</th></tr></thead><tbody><tr><td>Premiership</td><td>Steve Such</td><td>217</td><td>295</td><td>24</td></tr><tr><td>Championship</td><td>Jez Williams</td><td>213</td><td>287</td><td>20</td></tr><tr><td>League One</td><td>Mark Jackson</td><td>204</td><td>279</td><td>22</td></tr><tr><td>League Two</td><td>Carl Rowe</td><td>201</td><td>255</td><td>14</td></tr></tbody></table>
-<p class="footnote">Leagues rank on <b>Best 10 pts</b> (best 10 weekly scores). <b>Best 14 pts</b> is the club series total. <b>Rounds</b> = counting weekly rounds played.</p>
+<table><thead><tr><th>Division</th><th>Winner</th><th>Best 10</th><th>Best 14</th><th>Rounds</th></tr></thead><tbody><tr><td>Premiership</td><td>Steve Such</td><td>217</td><td>295</td><td>24</td></tr><tr><td>Championship</td><td>Jez Williams</td><td>213</td><td>287</td><td>20</td></tr><tr><td>League One</td><td>Mark Jackson</td><td>204</td><td>279</td><td>22</td></tr><tr><td>League Two</td><td>Carl Rowe</td><td>201</td><td>255</td><td>14</td></tr></tbody></table>
 
-<h2>Best 14 — top 15</h2>
-<table><thead><tr><th>#</th><th>Player</th><th>Best 14 pts</th><th>Best 10 pts</th><th>Rounds</th><th>Division</th></tr></thead><tbody><tr><td>1</td><td>Steve Such</td><td>295</td><td>217</td><td>24</td><td>Premiership</td></tr><tr><td>2</td><td>Jez Williams</td><td>287</td><td>213</td><td>20</td><td>Championship</td></tr><tr><td>3</td><td>Mark Jackson</td><td>279</td><td>204</td><td>22</td><td>League One</td></tr><tr><td>4</td><td>Tim Allsopp</td><td>278</td><td>203</td><td>26</td><td>Premiership</td></tr><tr><td>5</td><td>James Tough</td><td>277</td><td>207</td><td>20</td><td>Premiership</td></tr><tr><td>6</td><td>Simon Carter</td><td>275</td><td>203</td><td>21</td><td>Premiership</td></tr><tr><td>7</td><td>John Goodman</td><td>273</td><td>207</td><td>19</td><td>Premiership</td></tr><tr><td>8</td><td>Mark Ready</td><td>273</td><td>201</td><td>25</td><td>Championship</td></tr><tr><td>9</td><td>Chris Boards</td><td>272</td><td>200</td><td>24</td><td>Championship</td></tr><tr><td>10</td><td>Richard Shaw</td><td>271</td><td>202</td><td>19</td><td>Championship</td></tr><tr><td>11</td><td>Nick Stableford</td><td>270</td><td>199</td><td>22</td><td>Premiership</td></tr><tr><td>12</td><td>Adam Simcox</td><td>263</td><td>198</td><td>18</td><td>League One</td></tr><tr><td>13</td><td>Andrew Mosson</td><td>263</td><td>199</td><td>22</td><td>League Two</td></tr><tr><td>14</td><td>Ian Ind</td><td>262</td><td>193</td><td>25</td><td>Premiership</td></tr><tr><td>15</td><td>James Harrison</td><td>261</td><td>195</td><td>21</td><td>League One</td></tr></tbody></table>
-<p class="footnote">Best 14 pts and Best 10 pts are only equal when a player has 10 or fewer rounds (both are then the sum of all scores). Everyone in this top 15 has 14+ rounds, so the two totals differ — e.g. Mark Ready 273 vs 201 from 25 rounds.</p>
+<h2>Best 14</h2>
+<table><thead><tr><th>#</th><th>Player</th><th>Best 14</th><th>Best 10</th><th>Rounds</th><th>Division</th></tr></thead><tbody><tr><td>1</td><td>Steve Such</td><td>295</td><td>217</td><td>24</td><td>Premiership</td></tr><tr><td>2</td><td>Jez Williams</td><td>287</td><td>213</td><td>20</td><td>Championship</td></tr><tr><td>3</td><td>Mark Jackson</td><td>279</td><td>204</td><td>22</td><td>League One</td></tr><tr><td>4</td><td>Tim Allsopp</td><td>278</td><td>203</td><td>26</td><td>Premiership</td></tr><tr><td>5</td><td>James Tough</td><td>277</td><td>207</td><td>20</td><td>Premiership</td></tr><tr><td>6</td><td>Simon Carter</td><td>275</td><td>203</td><td>21</td><td>Premiership</td></tr><tr><td>7</td><td>John Goodman</td><td>273</td><td>207</td><td>19</td><td>Premiership</td></tr><tr><td>8</td><td>Mark Ready</td><td>273</td><td>201</td><td>25</td><td>Championship</td></tr><tr><td>9</td><td>Chris Boards</td><td>272</td><td>200</td><td>24</td><td>Championship</td></tr><tr><td>10</td><td>Richard Shaw</td><td>271</td><td>202</td><td>19</td><td>Championship</td></tr><tr><td>11</td><td>Nick Stableford</td><td>270</td><td>199</td><td>22</td><td>Premiership</td></tr><tr><td>12</td><td>Adam Simcox</td><td>263</td><td>198</td><td>18</td><td>League One</td></tr><tr><td>13</td><td>Andrew Mosson</td><td>263</td><td>199</td><td>22</td><td>League Two</td></tr><tr><td>14</td><td>Ian Ind</td><td>262</td><td>193</td><td>25</td><td>Premiership</td></tr><tr><td>15</td><td>James Harrison</td><td>261</td><td>195</td><td>21</td><td>League One</td></tr></tbody></table>
 
-<h2>League tables (ranked by Best 10 pts)</h2>
-<h3>Premiership</h3><table><thead><tr><th>#</th><th>Player</th><th>Best 10 pts</th><th>Best 14 pts</th><th>Rounds</th></tr></thead><tbody><tr><td>1</td><td>Steve Such</td><td>217</td><td>295</td><td>24</td></tr><tr><td>2</td><td>James Tough</td><td>207</td><td>277</td><td>20</td></tr><tr><td>3</td><td>John Goodman</td><td>207</td><td>273</td><td>19</td></tr><tr><td>4</td><td>Simon Carter</td><td>203</td><td>275</td><td>21</td></tr><tr><td>5</td><td>Tim Allsopp</td><td>203</td><td>278</td><td>26</td></tr><tr><td>6</td><td>Nick Stableford</td><td>199</td><td>270</td><td>22</td></tr><tr><td>7</td><td>Tony Mynard</td><td>196</td><td>261</td><td>23</td></tr><tr><td>8</td><td>Ian Ind</td><td>193</td><td>262</td><td>25</td></tr><tr><td>9</td><td>Dave Harrison</td><td>191</td><td>260</td><td>17</td></tr><tr><td>10</td><td>Tim Lewis</td><td>185</td><td>251</td><td>24</td></tr><tr><td>11</td><td>Richard Bird</td><td>184</td><td>235</td><td>15</td></tr><tr><td>12</td><td>Jon Boden</td><td>180</td><td>209</td><td>13</td></tr><tr><td>13</td><td>Andy Ray</td><td>176</td><td>199</td><td>12</td></tr><tr><td>14</td><td>Mark Howell</td><td>176</td><td>218</td><td>14</td></tr><tr><td>15</td><td>Tom Green</td><td>151</td><td>173</td><td>13</td></tr></tbody></table><h3>Championship</h3><table><thead><tr><th>#</th><th>Player</th><th>Best 10 pts</th><th>Best 14 pts</th><th>Rounds</th></tr></thead><tbody><tr><td>1</td><td>Jez Williams</td><td>213</td><td>287</td><td>20</td></tr><tr><td>2</td><td>Richard Shaw</td><td>202</td><td>271</td><td>19</td></tr><tr><td>3</td><td>Mark Ready</td><td>201</td><td>273</td><td>25</td></tr><tr><td>4</td><td>Chris Boards</td><td>200</td><td>272</td><td>24</td></tr><tr><td>5</td><td>Martin Stevenson</td><td>194</td><td>260</td><td>22</td></tr><tr><td>6</td><td>Kevin Horton</td><td>191</td><td>257</td><td>16</td></tr><tr><td>7</td><td>Mick Sandoz</td><td>191</td><td>249</td><td>15</td></tr><tr><td>8</td><td>Steve Robinson</td><td>188</td><td>250</td><td>15</td></tr><tr><td>9</td><td>Adam Teale</td><td>187</td><td>220</td><td>13</td></tr><tr><td>10</td><td>Gary Adcock</td><td>187</td><td>252</td><td>25</td></tr><tr><td>11</td><td>Paul Smith</td><td>173</td><td>197</td><td>12</td></tr><tr><td>12</td><td>Jon Murchington</td><td>152</td><td>152</td><td>10</td></tr><tr><td>13</td><td>Paul Blades</td><td>133</td><td>133</td><td>8</td></tr><tr><td>14</td><td>Marc Allsopp</td><td>104</td><td>104</td><td>7</td></tr><tr><td>15</td><td>Lee Eastoe</td><td>0</td><td>0</td><td>0</td></tr></tbody></table><h3>League One</h3><table><thead><tr><th>#</th><th>Player</th><th>Best 10 pts</th><th>Best 14 pts</th><th>Rounds</th></tr></thead><tbody><tr><td>1</td><td>Mark Jackson</td><td>204</td><td>279</td><td>22</td></tr><tr><td>2</td><td>Adam Simcox</td><td>198</td><td>263</td><td>18</td></tr><tr><td>3</td><td>James Harrison</td><td>195</td><td>261</td><td>21</td></tr><tr><td>4</td><td>Peter Jeffries</td><td>194</td><td>261</td><td>23</td></tr><tr><td>5</td><td>Ade Cooper</td><td>187</td><td>245</td><td>17</td></tr><tr><td>6</td><td>Stuart Murdock</td><td>185</td><td>238</td><td>15</td></tr><tr><td>7</td><td>Paul Chapman</td><td>167</td><td>217</td><td>15</td></tr><tr><td>8</td><td>Les Lawrence</td><td>162</td><td>188</td><td>13</td></tr><tr><td>9</td><td>Stuart Pickersgill</td><td>158</td><td>158</td><td>10</td></tr><tr><td>10</td><td>Steve Rochester</td><td>124</td><td>124</td><td>8</td></tr><tr><td>11</td><td>Richard Craven Jones</td><td>37</td><td>37</td><td>3</td></tr><tr><td>12</td><td>Mark Jeffries</td><td>15</td><td>15</td><td>1</td></tr><tr><td>13</td><td>Ross Jeffries</td><td>0</td><td>0</td><td>0</td></tr><tr><td>14</td><td>Stephen Wallace</td><td>0</td><td>0</td><td>0</td></tr><tr><td>15</td><td>Stu Clark</td><td>0</td><td>0</td><td>0</td></tr></tbody></table><h3>League Two</h3><table><thead><tr><th>#</th><th>Player</th><th>Best 10 pts</th><th>Best 14 pts</th><th>Rounds</th></tr></thead><tbody><tr><td>1</td><td>Carl Rowe</td><td>201</td><td>255</td><td>14</td></tr><tr><td>2</td><td>Andrew Mosson</td><td>199</td><td>263</td><td>22</td></tr><tr><td>3</td><td>Ross Kelly</td><td>194</td><td>238</td><td>13</td></tr><tr><td>4</td><td>Dan Conway</td><td>181</td><td>227</td><td>13</td></tr><tr><td>5</td><td>James Simmons</td><td>170</td><td>194</td><td>12</td></tr><tr><td>6</td><td>Mark Mosley</td><td>166</td><td>166</td><td>10</td></tr><tr><td>7</td><td>Ashley Wells</td><td>146</td><td>146</td><td>8</td></tr><tr><td>8</td><td>Andy Spencer</td><td>57</td><td>57</td><td>3</td></tr><tr><td>9</td><td>Richard Cook</td><td>46</td><td>46</td><td>2</td></tr><tr><td>10</td><td>Brian Elliot</td><td>17</td><td>17</td><td>1</td></tr><tr><td>11</td><td>Mick Hennessy</td><td>13</td><td>13</td><td>1</td></tr><tr><td>12</td><td>Craig Jones</td><td>0</td><td>0</td><td>0</td></tr><tr><td>13</td><td>Craig Milligan</td><td>0</td><td>0</td><td>0</td></tr><tr><td>14</td><td>James Willis</td><td>0</td><td>0</td><td>0</td></tr><tr><td>15</td><td>Jon Price</td><td>0</td><td>0</td><td>0</td></tr><tr><td>16</td><td>Matt Spencer</td><td>0</td><td>0</td><td>0</td></tr><tr><td>17</td><td>Neale Aston</td><td>0</td><td>0</td><td>0</td></tr><tr><td>18</td><td>Paul Garratt</td><td>0</td><td>0</td><td>0</td></tr><tr><td>19</td><td>Scott Worrall</td><td>0</td><td>0</td><td>0</td></tr><tr><td>20</td><td>Steve Tarmey</td><td>0</td><td>0</td><td>0</td></tr><tr><td>21</td><td>Warren Crook</td><td>0</td><td>0</td><td>0</td></tr></tbody></table>
-<h2>2027 promotion &amp; relegation (preview)</h2>
+<h2>League tables</h2>
+<h3>Premiership</h3><table><thead><tr><th>#</th><th>Player</th><th>Best 10</th><th>Best 14</th><th>Rounds</th></tr></thead><tbody><tr><td>1</td><td>Steve Such</td><td>217</td><td>295</td><td>24</td></tr><tr><td>2</td><td>James Tough</td><td>207</td><td>277</td><td>20</td></tr><tr><td>3</td><td>John Goodman</td><td>207</td><td>273</td><td>19</td></tr><tr><td>4</td><td>Simon Carter</td><td>203</td><td>275</td><td>21</td></tr><tr><td>5</td><td>Tim Allsopp</td><td>203</td><td>278</td><td>26</td></tr><tr><td>6</td><td>Nick Stableford</td><td>199</td><td>270</td><td>22</td></tr><tr><td>7</td><td>Tony Mynard</td><td>196</td><td>261</td><td>23</td></tr><tr><td>8</td><td>Ian Ind</td><td>193</td><td>262</td><td>25</td></tr><tr><td>9</td><td>Dave Harrison</td><td>191</td><td>260</td><td>17</td></tr><tr><td>10</td><td>Tim Lewis</td><td>185</td><td>251</td><td>24</td></tr><tr><td>11</td><td>Richard Bird</td><td>184</td><td>235</td><td>15</td></tr><tr><td>12</td><td>Jon Boden</td><td>180</td><td>209</td><td>13</td></tr><tr><td>13</td><td>Andy Ray</td><td>176</td><td>199</td><td>12</td></tr><tr><td>14</td><td>Mark Howell</td><td>176</td><td>218</td><td>14</td></tr><tr><td>15</td><td>Tom Green</td><td>151</td><td>173</td><td>13</td></tr></tbody></table><h3>Championship</h3><table><thead><tr><th>#</th><th>Player</th><th>Best 10</th><th>Best 14</th><th>Rounds</th></tr></thead><tbody><tr><td>1</td><td>Jez Williams</td><td>213</td><td>287</td><td>20</td></tr><tr><td>2</td><td>Richard Shaw</td><td>202</td><td>271</td><td>19</td></tr><tr><td>3</td><td>Mark Ready</td><td>201</td><td>273</td><td>25</td></tr><tr><td>4</td><td>Chris Boards</td><td>200</td><td>272</td><td>24</td></tr><tr><td>5</td><td>Martin Stevenson</td><td>194</td><td>260</td><td>22</td></tr><tr><td>6</td><td>Kevin Horton</td><td>191</td><td>257</td><td>16</td></tr><tr><td>7</td><td>Mick Sandoz</td><td>191</td><td>249</td><td>15</td></tr><tr><td>8</td><td>Steve Robinson</td><td>188</td><td>250</td><td>15</td></tr><tr><td>9</td><td>Adam Teale</td><td>187</td><td>220</td><td>13</td></tr><tr><td>10</td><td>Gary Adcock</td><td>187</td><td>252</td><td>25</td></tr><tr><td>11</td><td>Paul Smith</td><td>173</td><td>197</td><td>12</td></tr><tr><td>12</td><td>Jon Murchington</td><td>152</td><td>152</td><td>10</td></tr><tr><td>13</td><td>Paul Blades</td><td>133</td><td>133</td><td>8</td></tr><tr><td>14</td><td>Marc Allsopp</td><td>104</td><td>104</td><td>7</td></tr><tr><td>15</td><td>Lee Eastoe</td><td>0</td><td>0</td><td>0</td></tr></tbody></table><h3>League One</h3><table><thead><tr><th>#</th><th>Player</th><th>Best 10</th><th>Best 14</th><th>Rounds</th></tr></thead><tbody><tr><td>1</td><td>Mark Jackson</td><td>204</td><td>279</td><td>22</td></tr><tr><td>2</td><td>Adam Simcox</td><td>198</td><td>263</td><td>18</td></tr><tr><td>3</td><td>James Harrison</td><td>195</td><td>261</td><td>21</td></tr><tr><td>4</td><td>Peter Jeffries</td><td>194</td><td>261</td><td>23</td></tr><tr><td>5</td><td>Ade Cooper</td><td>187</td><td>245</td><td>17</td></tr><tr><td>6</td><td>Stuart Murdock</td><td>185</td><td>238</td><td>15</td></tr><tr><td>7</td><td>Paul Chapman</td><td>167</td><td>217</td><td>15</td></tr><tr><td>8</td><td>Les Lawrence</td><td>162</td><td>188</td><td>13</td></tr><tr><td>9</td><td>Stuart Pickersgill</td><td>158</td><td>158</td><td>10</td></tr><tr><td>10</td><td>Steve Rochester</td><td>124</td><td>124</td><td>8</td></tr><tr><td>11</td><td>Richard Craven Jones</td><td>37</td><td>37</td><td>3</td></tr><tr><td>12</td><td>Mark Jeffries</td><td>15</td><td>15</td><td>1</td></tr><tr><td>13</td><td>Ross Jeffries</td><td>0</td><td>0</td><td>0</td></tr><tr><td>14</td><td>Stephen Wallace</td><td>0</td><td>0</td><td>0</td></tr><tr><td>15</td><td>Stu Clark</td><td>0</td><td>0</td><td>0</td></tr></tbody></table><h3>League Two</h3><table><thead><tr><th>#</th><th>Player</th><th>Best 10</th><th>Best 14</th><th>Rounds</th></tr></thead><tbody><tr><td>1</td><td>Carl Rowe</td><td>201</td><td>255</td><td>14</td></tr><tr><td>2</td><td>Andrew Mosson</td><td>199</td><td>263</td><td>22</td></tr><tr><td>3</td><td>Ross Kelly</td><td>194</td><td>238</td><td>13</td></tr><tr><td>4</td><td>Dan Conway</td><td>181</td><td>227</td><td>13</td></tr><tr><td>5</td><td>James Simmons</td><td>170</td><td>194</td><td>12</td></tr><tr><td>6</td><td>Mark Mosley</td><td>166</td><td>166</td><td>10</td></tr><tr><td>7</td><td>Ashley Wells</td><td>146</td><td>146</td><td>8</td></tr><tr><td>8</td><td>Andy Spencer</td><td>57</td><td>57</td><td>3</td></tr><tr><td>9</td><td>Richard Cook</td><td>46</td><td>46</td><td>2</td></tr><tr><td>10</td><td>Brian Elliot</td><td>17</td><td>17</td><td>1</td></tr><tr><td>11</td><td>Mick Hennessy</td><td>13</td><td>13</td><td>1</td></tr><tr><td>12</td><td>Craig Jones</td><td>0</td><td>0</td><td>0</td></tr><tr><td>13</td><td>Craig Milligan</td><td>0</td><td>0</td><td>0</td></tr><tr><td>14</td><td>James Willis</td><td>0</td><td>0</td><td>0</td></tr><tr><td>15</td><td>Jon Price</td><td>0</td><td>0</td><td>0</td></tr><tr><td>16</td><td>Matt Spencer</td><td>0</td><td>0</td><td>0</td></tr><tr><td>17</td><td>Neale Aston</td><td>0</td><td>0</td><td>0</td></tr><tr><td>18</td><td>Paul Garratt</td><td>0</td><td>0</td><td>0</td></tr><tr><td>19</td><td>Scott Worrall</td><td>0</td><td>0</td><td>0</td></tr><tr><td>20</td><td>Steve Tarmey</td><td>0</td><td>0</td><td>0</td></tr><tr><td>21</td><td>Warren Crook</td><td>0</td><td>0</td><td>0</td></tr></tbody></table>
+<h2>Promotion &amp; relegation — 2027</h2>
 <div class="grid2">
   <div>
     <h3>Promoted</h3>
-    <table><thead><tr><th>Player</th><th>From</th><th>To</th><th>Best 10 pts</th></tr></thead><tbody><tr><td>Jez Williams</td><td>Championship</td><td>Premiership</td><td>213</td></tr><tr><td>Richard Shaw</td><td>Championship</td><td>Premiership</td><td>202</td></tr><tr><td>Mark Ready</td><td>Championship</td><td>Premiership</td><td>201</td></tr><tr><td>Mark Jackson</td><td>League One</td><td>Championship</td><td>204</td></tr><tr><td>Adam Simcox</td><td>League One</td><td>Championship</td><td>198</td></tr><tr><td>James Harrison</td><td>League One</td><td>Championship</td><td>195</td></tr><tr><td>Carl Rowe</td><td>League Two</td><td>League One</td><td>201</td></tr><tr><td>Andrew Mosson</td><td>League Two</td><td>League One</td><td>199</td></tr><tr><td>Ross Kelly</td><td>League Two</td><td>League One</td><td>194</td></tr></tbody></table>
+    <table><thead><tr><th>Player</th><th>From</th><th>To</th><th>Best 10</th></tr></thead><tbody><tr><td>Jez Williams</td><td>Championship</td><td>Premiership</td><td>213</td></tr><tr><td>Richard Shaw</td><td>Championship</td><td>Premiership</td><td>202</td></tr><tr><td>Mark Ready</td><td>Championship</td><td>Premiership</td><td>201</td></tr><tr><td>Mark Jackson</td><td>League One</td><td>Championship</td><td>204</td></tr><tr><td>Adam Simcox</td><td>League One</td><td>Championship</td><td>198</td></tr><tr><td>James Harrison</td><td>League One</td><td>Championship</td><td>195</td></tr><tr><td>Carl Rowe</td><td>League Two</td><td>League One</td><td>201</td></tr><tr><td>Andrew Mosson</td><td>League Two</td><td>League One</td><td>199</td></tr><tr><td>Ross Kelly</td><td>League Two</td><td>League One</td><td>194</td></tr></tbody></table>
   </div>
   <div>
     <h3>Relegated</h3>
-    <table><thead><tr><th>Player</th><th>From</th><th>To</th><th>Best 10 pts</th></tr></thead><tbody><tr><td>Andy Ray</td><td>Premiership</td><td>Championship</td><td>176</td></tr><tr><td>Mark Howell</td><td>Premiership</td><td>Championship</td><td>176</td></tr><tr><td>Tom Green</td><td>Premiership</td><td>Championship</td><td>151</td></tr><tr><td>Paul Blades</td><td>Championship</td><td>League One</td><td>133</td></tr><tr><td>Marc Allsopp</td><td>Championship</td><td>League One</td><td>104</td></tr><tr><td>Lee Eastoe</td><td>Championship</td><td>League One</td><td>0</td></tr><tr><td>Ross Jeffries</td><td>League One</td><td>League Two</td><td>0</td></tr><tr><td>Stephen Wallace</td><td>League One</td><td>League Two</td><td>0</td></tr><tr><td>Stu Clark</td><td>League One</td><td>League Two</td><td>0</td></tr></tbody></table>
+    <table><thead><tr><th>Player</th><th>From</th><th>To</th><th>Best 10</th></tr></thead><tbody><tr><td>Andy Ray</td><td>Premiership</td><td>Championship</td><td>176</td></tr><tr><td>Mark Howell</td><td>Premiership</td><td>Championship</td><td>176</td></tr><tr><td>Tom Green</td><td>Premiership</td><td>Championship</td><td>151</td></tr><tr><td>Paul Blades</td><td>Championship</td><td>League One</td><td>133</td></tr><tr><td>Marc Allsopp</td><td>Championship</td><td>League One</td><td>104</td></tr><tr><td>Lee Eastoe</td><td>Championship</td><td>League One</td><td>0</td></tr><tr><td>Ross Jeffries</td><td>League One</td><td>League Two</td><td>0</td></tr><tr><td>Stephen Wallace</td><td>League One</td><td>League Two</td><td>0</td></tr><tr><td>Stu Clark</td><td>League One</td><td>League Two</td><td>0</td></tr></tbody></table>
   </div>
 </div>
-<p class="footnote">Top 3 promote / bottom 3 relegate by Best 10 pts; promotion wins on overlap. Applied at season close after Champ/Chumps.</p>
 
 <div class="grid2">
   <div>
@@ -104,12 +145,12 @@ These are different because he has more than 10 counting rounds.</div>
   </div>
 </div>
 
-<h2>Champions field (next week)</h2>
+<h2>Champions League field</h2>
 <table><thead><tr><th>Player</th></tr></thead><tbody><tr><td>Adam Simcox</td></tr><tr><td>Adam Teale</td></tr><tr><td>Carl Rowe</td></tr><tr><td>Chris Boards</td></tr><tr><td>James Harrison</td></tr><tr><td>James Tough</td></tr><tr><td>John Goodman</td></tr><tr><td>Mark Howell</td></tr><tr><td>Mark Ready</td></tr><tr><td>Nick Stableford</td></tr><tr><td>Peter Jeffries</td></tr><tr><td>Steve Such</td></tr><tr><td>Tim Allsopp</td></tr></tbody></table>
-<p class="footnote">13 sole outright weekly winners. Everyone else plays Chumps.</p>
 
-<h2>RS Cup Final</h2>
-<p><b>Mark Ready</b> beat Simon Carter — champion</p>
+<h2>RS Cup</h2>
+<p style="margin:0 0 10px;font-size:1.1rem;"><b>Mark Ready</b> beat Simon Carter</p>
 <table><thead><tr><th>Semi-final</th><th>Winner</th></tr></thead><tbody><tr><td>Mark Ready vs Steve Such</td><td>Mark Ready</td></tr><tr><td>Simon Carter vs Ade Cooper</td><td>Simon Carter</td></tr></tbody></table>
 
+<p class="closing">Champions and Chumps still to play. League places for 2027 confirmed at season close.</p>
 </body></html>
