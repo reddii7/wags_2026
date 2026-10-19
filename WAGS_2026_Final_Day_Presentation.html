@@ -3,7 +3,7 @@
 <title>WAGS Main Summer 2026 — Final Day</title>
 <style>
   :root {
-    --ink:#13241c; --muted:#5c6b62; --line:#d7ddd8; --band:#eef3ef;
+    --ink:#13241c; --muted:#5c6b62; --line:#d7ddd8;
     --accent:#1b5c37; --paper:#fbfcfb;
   }
   * { box-sizing:border-box; }
@@ -21,8 +21,7 @@
   }
   .hero .card {
     padding:18px 18px 16px; border-top:3px solid var(--accent);
-    background:#fff; border-right:1px solid var(--line);
-    border-bottom:1px solid var(--line); border-left:1px solid var(--line);
+    background:#fff; border:1px solid var(--line); border-top:3px solid var(--accent);
   }
   .hero .label {
     font-family: system-ui, -apple-system, sans-serif;
@@ -42,13 +41,8 @@
     font-size:0.65rem; text-transform:uppercase; letter-spacing:0.07em;
     color:var(--muted); margin-top:4px; font-weight:600;
   }
-  h2 {
-    font-size:1.25rem; margin:34px 0 12px; font-weight:700;
-    letter-spacing:-0.01em;
-  }
-  h3 {
-    font-size:1.02rem; margin:22px 0 8px; color:var(--accent); font-weight:700;
-  }
+  h2 { font-size:1.25rem; margin:34px 0 12px; font-weight:700; letter-spacing:-0.01em; }
+  h3 { font-size:1.02rem; margin:22px 0 8px; color:var(--accent); font-weight:700; }
   table { width:100%; border-collapse:collapse; font-size:0.94rem; margin:0 0 4px; }
   th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; }
   th {
@@ -57,6 +51,7 @@
     text-transform:uppercase; letter-spacing:0.04em;
   }
   tr:nth-child(even) td { background:#f6f8f6; }
+  tr.total td { font-weight:700; background:#eef3ef !important; border-top:2px solid var(--ink); }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
   .lede { color:var(--muted); margin:0 0 12px; }
   .closing {
@@ -96,9 +91,9 @@
     <p class="detail">£150.00 from 1 outright win</p>
   </div>
   <div class="card">
-    <p class="label">Away day credits</p>
-    <p class="value">£1176.00</p>
-    <p class="detail">£1.50 per game · 784 games</p>
+    <p class="label">Paid to members</p>
+    <p class="value">£2352.00</p>
+    <p class="detail">Winners £1176.00 · Away credits £1176.00</p>
   </div>
 </div>
 
@@ -107,11 +102,23 @@
   <div class="stat"><div class="v">66</div><div class="l">Players</div></div>
   <div class="stat"><div class="v">28</div><div class="l">Avg field</div></div>
   <div class="stat"><div class="v">13</div><div class="l">Champions</div></div>
-  <div class="stat"><div class="v">£1176.00</div><div class="l">Paid out</div></div>
+  <div class="stat"><div class="v">£1176.00</div><div class="l">Weekly winners</div></div>
+  <div class="stat"><div class="v">£1176.00</div><div class="l">Away credits</div></div>
   <div class="stat"><div class="v">£3148.00</div><div class="l">To bank</div></div>
-  <div class="stat"><div class="v">200</div><div class="l">Snakes</div></div>
-  <div class="stat"><div class="v">204</div><div class="l">Camels</div></div>
+  <div class="stat"><div class="v">£5500.00</div><div class="l">Season total</div></div>
 </div>
+
+<h2>Money summary</h2>
+<table>
+  <thead><tr><th>Item</th><th>Detail</th><th>Amount</th></tr></thead>
+  <tbody>
+    <tr><td>Weekly winner payouts</td><td>Paid to outright weekly winners</td><td>£1176.00</td></tr>
+    <tr><td>Away day credits</td><td>£1.50 × 784 games played</td><td>£1176.00</td></tr>
+    <tr class="total"><td>Total to members</td><td>Winners + away day credits</td><td>£2352.00</td></tr>
+    <tr><td>Club bank</td><td>£3.50 per game (£2744.00) + snakes/camels £1 (£404.00)</td><td>£3148.00</td></tr>
+    <tr class="total"><td>Season total</td><td>Members + club bank</td><td>£5500.00</td></tr>
+  </tbody>
+</table>
 
 <h2>Division winners</h2>
 <table><thead><tr><th>Division</th><th>Winner</th><th>Best 10</th><th>Best 14</th><th>Rounds</th></tr></thead><tbody><tr><td>Premiership</td><td>Steve Such</td><td>217</td><td>295</td><td>24</td></tr><tr><td>Championship</td><td>Jez Williams</td><td>213</td><td>287</td><td>20</td></tr><tr><td>League One</td><td>Mark Jackson</td><td>204</td><td>279</td><td>22</td></tr><tr><td>League Two</td><td>Carl Rowe</td><td>201</td><td>255</td><td>14</td></tr></tbody></table>
@@ -135,7 +142,7 @@
 
 <div class="grid2">
   <div>
-    <h2>Money leaders</h2>
+    <h2>Weekly money leaders</h2>
     <table><thead><tr><th>#</th><th>Player</th><th>Wins</th><th>Paid</th></tr></thead><tbody><tr><td>1</td><td>Carl Rowe</td><td>1</td><td>£150.00</td></tr><tr><td>2</td><td>Steve Such</td><td>4</td><td>£147.00</td></tr><tr><td>3</td><td>James Harrison</td><td>3</td><td>£136.50</td></tr><tr><td>4</td><td>Adam Simcox</td><td>1</td><td>£133.50</td></tr><tr><td>5</td><td>Nick Stableford</td><td>1</td><td>£88.50</td></tr><tr><td>6</td><td>Peter Jeffries</td><td>1</td><td>£84.00</td></tr><tr><td>7</td><td>Mark Ready</td><td>1</td><td>£63.00</td></tr><tr><td>8</td><td>Chris Boards</td><td>1</td><td>£57.00</td></tr><tr><td>9</td><td>Adam Teale</td><td>1</td><td>£51.00</td></tr><tr><td>10</td><td>Mark Howell</td><td>1</td><td>£51.00</td></tr></tbody></table>
   </div>
   <div>
@@ -146,7 +153,7 @@
 </div>
 
 <h2>Away day credits</h2>
-<p class="lede">£1.50 for each weekly game played · 52 players · 784 games · <b>£1176.00</b> total</p>
+<p class="lede">£1.50 for each weekly game played · 52 players · 784 games · <b>£1176.00</b></p>
 <table><thead><tr><th>#</th><th>Player</th><th>Games</th><th>Credit</th></tr></thead><tbody><tr><td>1</td><td>Tim Allsopp</td><td>26</td><td>£39.00</td></tr><tr><td>2</td><td>Gary Adcock</td><td>25</td><td>£37.50</td></tr><tr><td>3</td><td>Ian Ind</td><td>25</td><td>£37.50</td></tr><tr><td>4</td><td>Mark Ready</td><td>25</td><td>£37.50</td></tr><tr><td>5</td><td>Chris Boards</td><td>24</td><td>£36.00</td></tr><tr><td>6</td><td>Steve Such</td><td>24</td><td>£36.00</td></tr><tr><td>7</td><td>Tim Lewis</td><td>24</td><td>£36.00</td></tr><tr><td>8</td><td>Peter Jeffries</td><td>23</td><td>£34.50</td></tr><tr><td>9</td><td>Tony Mynard</td><td>23</td><td>£34.50</td></tr><tr><td>10</td><td>Andrew Mosson</td><td>22</td><td>£33.00</td></tr><tr><td>11</td><td>Mark Jackson</td><td>22</td><td>£33.00</td></tr><tr><td>12</td><td>Martin Stevenson</td><td>22</td><td>£33.00</td></tr><tr><td>13</td><td>Nick Stableford</td><td>22</td><td>£33.00</td></tr><tr><td>14</td><td>James Harrison</td><td>21</td><td>£31.50</td></tr><tr><td>15</td><td>Simon Carter</td><td>21</td><td>£31.50</td></tr><tr><td>16</td><td>James Tough</td><td>20</td><td>£30.00</td></tr><tr><td>17</td><td>Jez Williams</td><td>20</td><td>£30.00</td></tr><tr><td>18</td><td>John Goodman</td><td>19</td><td>£28.50</td></tr><tr><td>19</td><td>Richard Shaw</td><td>19</td><td>£28.50</td></tr><tr><td>20</td><td>Adam Simcox</td><td>18</td><td>£27.00</td></tr><tr><td>21</td><td>Ade Cooper</td><td>17</td><td>£25.50</td></tr><tr><td>22</td><td>Dave Harrison</td><td>17</td><td>£25.50</td></tr><tr><td>23</td><td>Kevin Horton</td><td>16</td><td>£24.00</td></tr><tr><td>24</td><td>Mick Sandoz</td><td>15</td><td>£22.50</td></tr><tr><td>25</td><td>Paul Chapman</td><td>15</td><td>£22.50</td></tr><tr><td>26</td><td>Richard Bird</td><td>15</td><td>£22.50</td></tr><tr><td>27</td><td>Steve Robinson</td><td>15</td><td>£22.50</td></tr><tr><td>28</td><td>Stuart Murdock</td><td>15</td><td>£22.50</td></tr><tr><td>29</td><td>Carl Rowe</td><td>14</td><td>£21.00</td></tr><tr><td>30</td><td>Mark Howell</td><td>14</td><td>£21.00</td></tr><tr><td>31</td><td>Adam Teale</td><td>13</td><td>£19.50</td></tr><tr><td>32</td><td>Dan Conway</td><td>13</td><td>£19.50</td></tr><tr><td>33</td><td>Jon Boden</td><td>13</td><td>£19.50</td></tr><tr><td>34</td><td>Les Lawrence</td><td>13</td><td>£19.50</td></tr><tr><td>35</td><td>Ross Kelly</td><td>13</td><td>£19.50</td></tr><tr><td>36</td><td>Tom Green</td><td>13</td><td>£19.50</td></tr><tr><td>37</td><td>Andy Ray</td><td>12</td><td>£18.00</td></tr><tr><td>38</td><td>James Simmons</td><td>12</td><td>£18.00</td></tr><tr><td>39</td><td>Paul Smith</td><td>12</td><td>£18.00</td></tr><tr><td>40</td><td>Jon Murchington</td><td>10</td><td>£15.00</td></tr><tr><td>41</td><td>Mark Mosley</td><td>10</td><td>£15.00</td></tr><tr><td>42</td><td>Stuart Pickersgill</td><td>10</td><td>£15.00</td></tr><tr><td>43</td><td>Ashley Wells</td><td>8</td><td>£12.00</td></tr><tr><td>44</td><td>Paul Blades</td><td>8</td><td>£12.00</td></tr><tr><td>45</td><td>Steve Rochester</td><td>8</td><td>£12.00</td></tr><tr><td>46</td><td>Marc Allsopp</td><td>7</td><td>£10.50</td></tr><tr><td>47</td><td>Andy Spencer</td><td>3</td><td>£4.50</td></tr><tr><td>48</td><td>Richard Craven Jones</td><td>3</td><td>£4.50</td></tr><tr><td>49</td><td>Richard Cook</td><td>2</td><td>£3.00</td></tr><tr><td>50</td><td>Brian Elliot</td><td>1</td><td>£1.50</td></tr><tr><td>51</td><td>Mark Jeffries</td><td>1</td><td>£1.50</td></tr><tr><td>52</td><td>Mick Hennessy</td><td>1</td><td>£1.50</td></tr></tbody></table>
 
 <h2>Champions League field</h2>
