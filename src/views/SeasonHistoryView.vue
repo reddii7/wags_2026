@@ -1,5 +1,16 @@
 <script setup>
-import { computed, watch } from "vue";
+import { computed } from "vue";
+
+const AWARD_ORDER = [
+  { type: "championship", label: "Championship" },
+  { type: "chumps", label: "Chumps" },
+  { type: "best14", label: "Best 14" },
+  { type: "league_1", label: "Premiership" },
+  { type: "league_2", label: "Championship league" },
+  { type: "league_3", label: "League One" },
+  { type: "league_4", label: "League Two" },
+  { type: "rs_cup", label: "RS Cup" },
+];
 
 const props = defineProps({
   season: { type: Object, required: true },
@@ -15,13 +26,21 @@ const seasonAwards = computed(() => {
   return list;
 });
 
-const championship = computed(() =>
-  seasonAwards.value.find((a) => a.award_type === "championship") || null,
-);
-
-const chumps = computed(() =>
-  seasonAwards.value.find((a) => a.award_type === "chumps") || null,
-);
+const honourRows = computed(() => {
+  const byType = new Map(
+    seasonAwards.value.map((a) => [String(a.award_type || ""), a]),
+  );
+  return AWARD_ORDER.map((meta) => {
+    const row = byType.get(meta.type);
+    if (!row) return null;
+    return {
+      type: meta.type,
+      label: meta.label,
+      player: row.player,
+      notes: row.notes,
+    };
+  }).filter(Boolean);
+});
 
 const seasonLabel = computed(() => {
   return (
@@ -31,39 +50,33 @@ const seasonLabel = computed(() => {
   );
 });
 
-const hasAny = computed(() => Boolean(championship.value || chumps.value));
-
-watch(
-  () => [props.season?.id, props.metadata?.awards],
-  () => {},
-);
+const hasAny = computed(() => honourRows.value.length > 0);
 </script>
 
 <template>
   <section class="page-stack history-page">
     <h2 class="section-title">Season history</h2>
-    <p class="lede">{{ seasonLabel }} finals honour roll.</p>
+    <p class="lede">{{ seasonLabel }} honour roll.</p>
 
     <p v-if="!hasAny" class="empty-state">
-      No Championship or Chumps winners recorded for this season yet.
+      No season winners recorded for this campaign yet.
     </p>
 
     <div v-else class="honour-grid">
-      <article v-if="championship" class="honour-card honour-card--championship">
-        <p class="honour-eyebrow">Championship</p>
-        <h3 class="honour-name">{{ championship.player }}</h3>
-        <p v-if="championship.notes" class="honour-notes">{{ championship.notes }}</p>
-      </article>
-
-      <article v-if="chumps" class="honour-card honour-card--chumps">
-        <p class="honour-eyebrow">Chumps</p>
-        <h3 class="honour-name">{{ chumps.player }}</h3>
-        <p v-if="chumps.notes" class="honour-notes">{{ chumps.notes }}</p>
+      <article
+        v-for="row in honourRows"
+        :key="row.type"
+        class="honour-card"
+        :class="`honour-card--${row.type}`"
+      >
+        <p class="honour-eyebrow">{{ row.label }}</p>
+        <h3 class="honour-name">{{ row.player }}</h3>
+        <p v-if="row.notes" class="honour-notes">{{ row.notes }}</p>
       </article>
     </div>
 
     <p class="footnote">
-      Weekly prize money leaders remain on the CHAMPS tab. This page is for finals day winners.
+      Weekly prize-money leaders remain on the CHAMPS tab. This page is the permanent season record.
     </p>
   </section>
 </template>
@@ -107,6 +120,18 @@ watch(
 
 .honour-card--chumps {
   border-color: color-mix(in srgb, #8ecae6 40%, var(--line, #3a3a3c));
+}
+
+.honour-card--best14,
+.honour-card--rs_cup {
+  border-color: color-mix(in srgb, #90be6d 40%, var(--line, #3a3a3c));
+}
+
+.honour-card--league_1,
+.honour-card--league_2,
+.honour-card--league_3,
+.honour-card--league_4 {
+  border-color: color-mix(in srgb, #adb5bd 35%, var(--line, #3a3a3c));
 }
 
 .honour-eyebrow {

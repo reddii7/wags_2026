@@ -2,8 +2,14 @@
 import { computed, inject, ref, watch } from "vue";
 
 const AWARD_TYPES = [
-  { value: "championship", label: "Championship winner" },
-  { value: "chumps", label: "Chumps winner" },
+  { value: "championship", label: "Championship (finals day)" },
+  { value: "chumps", label: "Chumps (finals day)" },
+  { value: "best14", label: "Best 14 champion" },
+  { value: "league_1", label: "Premiership (tier 1) winner" },
+  { value: "league_2", label: "Championship league (tier 2) winner" },
+  { value: "league_3", label: "League One (tier 3) winner" },
+  { value: "league_4", label: "League Two (tier 4) winner" },
+  { value: "rs_cup", label: "RS Cup champion" },
 ];
 
 const admin = inject("adminCtx");
@@ -17,12 +23,8 @@ const saving = ref(false);
 const error = ref("");
 const success = ref("");
 
-const draft = ref({
-  championship: "",
-  chumps: "",
-  championshipNotes: "",
-  chumpsNotes: "",
-});
+/** @type {import('vue').Ref<Record<string, { memberId: string, notes: string }>>} */
+const draft = ref({});
 
 const summerCampaigns = computed(() =>
   (campaigns.value ?? []).filter((c) => c.kind === "summer_main"),
@@ -32,19 +34,28 @@ const selectedCampaign = computed(
   () => summerCampaigns.value.find((c) => c.id === campaignId.value) || null,
 );
 
+function emptyDraft() {
+  const next = {};
+  for (const type of AWARD_TYPES) {
+    next[type.value] = { memberId: "", notes: "" };
+  }
+  return next;
+}
+
 function awardFor(type) {
   return awards.value.find((a) => a.award_type === type) || null;
 }
 
 function syncDraftFromAwards() {
-  const champs = awardFor("championship");
-  const chumps = awardFor("chumps");
-  draft.value = {
-    championship: champs?.member_id || "",
-    chumps: chumps?.member_id || "",
-    championshipNotes: champs?.notes || "",
-    chumpsNotes: chumps?.notes || "",
-  };
+  const next = emptyDraft();
+  for (const type of AWARD_TYPES) {
+    const row = awardFor(type.value);
+    next[type.value] = {
+      memberId: row?.member_id || "",
+      notes: row?.notes || "",
+    };
+  }
+  draft.value = next;
 }
 
 async function loadCampaigns() {
@@ -124,22 +135,19 @@ async function saveAwards() {
   try {
     const rows = [];
     for (const type of AWARD_TYPES) {
-      const memberId = draft.value[type.value];
-      if (!memberId) continue;
+      const entry = draft.value[type.value] || {};
+      if (!entry.memberId) continue;
       rows.push({
         campaign_id: campaignId.value,
         award_type: type.value,
-        member_id: memberId,
-        notes:
-          type.value === "championship"
-            ? draft.value.championshipNotes || null
-            : draft.value.chumpsNotes || null,
+        member_id: entry.memberId,
+        notes: entry.notes || null,
       });
     }
 
     for (const type of AWARD_TYPES) {
-      const memberId = draft.value[type.value];
-      if (memberId) continue;
+      const entry = draft.value[type.value] || {};
+      if (entry.memberId) continue;
       const existing = awardFor(type.value);
       if (!existing?.id) continue;
       const { error: delErr } = await sb
@@ -157,7 +165,8 @@ async function saveAwards() {
     }
 
     await loadAwards();
-    success.value = "Season awards saved. Member History tab will show them after the next data refresh.";
+    success.value =
+      "Season awards saved. Member History tab will show them after the next data refresh.";
   } catch (e) {
     error.value = e?.message || String(e);
   } finally {
@@ -193,8 +202,8 @@ watch(campaignId, async (next, prev) => {
         <p class="eyebrow">Season close</p>
         <h1>Season awards</h1>
         <p class="lede">
-          Record Championship and Chumps winners without entering full finals scorecards.
-          These appear on the member app History tab.
+          Permanent honour roll for the season: finals day, Best 14, four league winners, and RS Cup.
+          Shown on the member app History tab.
         </p>
       </div>
       <button type="button" class="secondary-button" :disabled="loading || saving" @click="loadAll">
@@ -225,29 +234,26 @@ watch(campaignId, async (next, prev) => {
           <span v-if="selectedCampaign.status === 'closed'"> · closed</span>
         </p>
 
-        <label class="field">
-          <span>Championship winner</span>
-          <select v-model="draft.championship" :disabled="saving">
-            <option value="">— not set —</option>
-            <option v-for="m in members" :key="m.id" :value="m.id">{{ m.full_name }}</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Championship notes (optional)</span>
-          <input v-model="draft.championshipNotes" type="text" :disabled="saving" placeholder="e.g. Summer 2026 Championship winner" />
-        </label>
-
-        <label class="field">
-          <span>Chumps winner</span>
-          <select v-model="draft.chumps" :disabled="saving">
-            <option value="">— not set —</option>
-            <option v-for="m in members" :key="`c-${m.id}`" :value="m.id">{{ m.full_name }}</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Chumps notes (optional)</span>
-          <input v-model="draft.chumpsNotes" type="text" :disabled="saving" placeholder="e.g. Summer 2026 Chumps winner" />
-        </label>
+        <div v-for="type in AWARD_TYPES" :key="type.value" class="award-block">
+          <label class="field">
+            <span>{{ type.label }}</span>
+            <select v-model="draft[type.value].memberId" :disabled="saving">
+              <option value="">— not set —</option>
+              <option v-for="m in members" :key="`${type.value}-${m.id}`" :value="m.id">
+                {{ m.full_name }}
+              </option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Notes (optional)</span>
+            <input
+              v-model="draft[type.value].notes"
+              type="text"
+              :disabled="saving"
+              :placeholder="`${type.label} notes`"
+            />
+          </label>
+        </div>
 
         <div class="actions">
           <button type="button" class="primary-button" :disabled="saving || !campaignId" @click="saveAwards">
@@ -351,6 +357,18 @@ button:disabled {
   background: var(--surface);
 }
 
+.award-block {
+  display: grid;
+  gap: 0.65rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.award-block:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
 .field-pill,
 .field {
   display: grid;
@@ -387,5 +405,6 @@ button:disabled {
 .actions {
   display: flex;
   justify-content: flex-end;
+  padding-top: 0.5rem;
 }
 </style>
