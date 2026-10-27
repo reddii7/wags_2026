@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20261027-season-splash-v37";
+const BUILD_ID = "20260923-leagues-best10-v34";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -582,8 +582,7 @@ async function greenfieldFetchAll(
 
   const seasons = camps.map((c: any) => {
     const id = String(c.id);
-    const status = String(c.status || "").toLowerCase();
-    const isOpen = status === "open";
+    const isOpen = String(c.status || "").toLowerCase() === "open";
     return {
       id,
       start_year:
@@ -591,8 +590,6 @@ async function greenfieldFetchAll(
         new Date(String(c.start_date || "2000-01-01")).getFullYear(),
       name: String(c.label || ""),
       label: String(c.label || ""),
-      kind: String(c.kind || ""),
-      status,
       is_active: isOpen,
       is_current: Boolean(homeCampaignId && id === homeCampaignId),
     };
@@ -997,49 +994,6 @@ async function greenfieldFetchAll(
     }
   }
 
-  /** Finals honour roll: Championship / Chumps without requiring scorecards. */
-  const awards: Record<string, any[]> = {};
-  if (!shellOnly) {
-    const campIds = camps.map((c: any) => String(c.id)).filter(Boolean);
-    if (campIds.length) {
-      const awardsRes = await supabase
-        .from("campaign_awards")
-        .select("campaign_id, award_type, member_id, notes, members(full_name)")
-        .in("campaign_id", campIds);
-      if (!awardsRes.error) {
-        const byCampaign = new Map<string, any[]>();
-        for (const row of awardsRes.data ?? []) {
-          const cid = String((row as any).campaign_id || "");
-          if (!cid) continue;
-          const list = byCampaign.get(cid) ?? [];
-          list.push({
-            award_type: String((row as any).award_type || ""),
-            member_id: (row as any).member_id
-              ? String((row as any).member_id)
-              : null,
-            player:
-              String((row as any).members?.full_name || "").trim() ||
-              profileNameById.get(String((row as any).member_id || "")) ||
-              "Unknown",
-            notes: (row as any).notes ?? null,
-          });
-          byCampaign.set(cid, list);
-        }
-        for (const c of camps) {
-          const cid = String(c.id);
-          const yrRaw = c.year;
-          const yr =
-            yrRaw != null && String(yrRaw).trim() !== "" ? String(yrRaw) : "";
-          const list = byCampaign.get(cid) ?? [];
-          awards[cid] = list;
-          if (yr && (campaignsPerYear.get(yr) || 0) === 1) {
-            awards[yr] = list;
-          }
-        }
-      }
-    }
-  }
-
   // ── RS Cup: competitions + cup_matches ────────────────────────────────────
   // Progression order (low → early, high → latest). Free-text admin labels
   // like "Preliminary Round" / "Round 2" must map here or they sort wrongly.
@@ -1171,7 +1125,6 @@ async function greenfieldFetchAll(
     leagues: shellOnly ? {} : leagues,
     dashboard: shellOnly ? {} : dashboard,
     winners: shellOnly ? {} : winners,
-    awards: shellOnly ? {} : awards,
     matchplay_tournaments: matchplay_tournaments,
     matchplay_matches: matchplay_matches,
   };

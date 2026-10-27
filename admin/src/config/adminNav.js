@@ -9,7 +9,6 @@ export const ADMIN_NAV_GROUPS = [
       { to: "/manage/score-entry", label: "Live score entry" },
       { to: "/manage/6-rounds", label: "Rounds" },
       { to: "/manage/weekly-finance", label: "Weekly finance log" },
-      { to: "/manage/season-awards", label: "Season awards" },
       { to: "/manage/season-close", label: "Close summer (P/R)" },
     ],
   },
