@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
+// Keep in sync with production client (suttonwags). Next/preview soft-applies mismatches;
+// bumping this while only wagsnext is redeployed forces production into hardRefresh loops.
 const BUILD_ID = "20261027-season-splash-v37";
 
 const parseAllowedOrigins = () => {
@@ -533,7 +535,41 @@ async function greenfieldFetchAll(
       .order("created_at", { ascending: false })
       .limit(8000),
   ]);
-  const mhsRows = mhsRes.data ?? [];
+  let mhsRows = mhsRes.data ?? [];
+  // Winter (or other) campaigns can be "current" with no MHS rows yet — fall back
+  // to the latest summer_main that still has stored handicaps so Handicaps isn't blank.
+  if (!mhsRows.length) {
+    const summerFallbackIds = camps
+      .filter(
+        (c: any) =>
+          String(c.kind || "") === "summer_main" &&
+          String(c.status || "").toLowerCase() !== "draft",
+      )
+      .sort(
+        (a: any, b: any) =>
+          Number(b.year || 0) - Number(a.year || 0) ||
+          toTime(b.start_date) - toTime(a.start_date),
+      )
+      .map((c: any) => String(c.id));
+    for (const cid of summerFallbackIds) {
+      if (mhsCampaignId && cid === String(mhsCampaignId)) continue;
+      const retry = await supabase
+        .from("member_handicap_state")
+        .select("member_id, handicap")
+        .eq("campaign_id", cid);
+      if (retry.error) {
+        console.warn(
+          `[fetch-all-data] member_handicap_state fallback ${cid}:`,
+          retry.error.message ?? JSON.stringify(retry.error),
+        );
+        continue;
+      }
+      if ((retry.data ?? []).length) {
+        mhsRows = retry.data ?? [];
+        break;
+      }
+    }
+  }
   const hciMap = new Map(
     mhsRows.map((h: any) => [String(h.member_id), h.handicap]),
   );

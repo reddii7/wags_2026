@@ -17,6 +17,7 @@ const props = defineProps({
     required: true,
   },
 });
+const emit = defineEmits(["navigate"]);
 
 const players = ref([]);
 const selectedPlayerId = ref(null);
@@ -83,6 +84,20 @@ const loadPlayers = async () => {
     const profiles = props.metadata?.profiles || props.metadata?.players || [];
     const history = props.metadata?.handicap_history || [];
 
+    // Latest handicap per member from history (fallback when profile.current_handicap is null).
+    const latestHcByUser = new Map();
+    const sortedAll = [...history].sort(
+      (a, b) =>
+        new Date(b.created_at || 0).getTime() -
+        new Date(a.created_at || 0).getTime(),
+    );
+    for (const h of sortedAll) {
+      const nk = normId(h.user_id);
+      if (!nk || latestHcByUser.has(nk)) continue;
+      const newN = h.new_handicap == null ? null : Number(h.new_handicap);
+      if (newN != null && Number.isFinite(newN)) latestHcByUser.set(nk, newN);
+    }
+
     // Find the round_id whose rows have the latest created_at, restricted to
     // UUID-length competition_ids (real round rows, not manual adjustments) that
     // have at least one real handicap delta. This means RS Cup / cup rounds with
@@ -134,14 +149,24 @@ const loadPlayers = async () => {
       .map((player) => {
         const nk = normId(player.id ?? "");
         const pill = changeByUser.get(nk);
+        const fromProfile =
+          player.current_handicap != null &&
+          Number.isFinite(Number(player.current_handicap))
+            ? Number(player.current_handicap)
+            : null;
+        const current =
+          fromProfile != null ? fromProfile : (latestHcByUser.get(nk) ?? null);
         return {
           ...player,
+          current_handicap: current,
           change: pill ? pill.text : "-",
           improved: pill ? pill.improved : false,
           hasDelta: Boolean(pill),
         };
       })
-      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+      .sort((a, b) =>
+        String(a.full_name || "").localeCompare(String(b.full_name || "")),
+      );
   } catch (err) {
     error.value = err.message || "Failed to load players.";
   } finally {
@@ -152,10 +177,8 @@ const loadPlayers = async () => {
 const openHistory = async (playerId) => {
   if (!playerId) return;
   triggerHapticFeedback();
-  error.value = "";
-  selectedPlayerId.value = playerId;
-  isHistoryOpen.value = true;
-  await loadHistory();
+  // F1-style driver page: open full player profile.
+  emit("navigate", { section: "player", playerId });
 };
 
 const closeHistory = () => {
@@ -239,9 +262,9 @@ const loadHistory = async () => {
 };
 
 watch(
-  () => props.metadata,
-  (meta) => {
-    if (meta && !meta.loading) {
+  () => [props.metadata?.loading, props.metadata?.profiles, props.metadata?.handicap_history],
+  () => {
+    if (props.metadata && !props.metadata.loading) {
       loadPlayers();
     }
   },
@@ -304,6 +327,14 @@ watch(selectedPlayerId, async (playerId, previous) => {
             {{ row.change }}
           </span>
           <span v-else class="hc-last-chg-none">-</span>
+        </template>
+        <template #current_handicap="{ row }">
+          {{
+            row.current_handicap == null ||
+            !Number.isFinite(Number(row.current_handicap))
+              ? "—"
+              : Number(row.current_handicap).toFixed(1)
+          }}
         </template>
       </QuietList>
     </section>

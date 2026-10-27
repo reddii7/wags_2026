@@ -62,7 +62,17 @@ watch([() => props.season?.id, () => props.season?.start_year], loadWinners);
 
 <template>
   <section class="page-stack">
-    <h2 class="section-title">Champs league and prize money.</h2>
+    <section class="hero-block home-hero">
+      <div class="home-hero__intro">
+        <div class="wags-headline">
+          <span class="home-hero-sublabel2 wags-body">CHAMPS</span>
+          <span>Prize money</span>
+          <p class="home-hero-sublabel home-hero-subtext">
+            Weekly winners ledger
+          </p>
+        </div>
+      </div>
+    </section>
     <div v-if="loading" class="page-stack">
       <div
         style="height: 60px; opacity: 0.5; animation: pulse 1.5s infinite"
