@@ -82,157 +82,132 @@ function onSeasonStats() {
 </script>
 
 <template>
-  <section class="season-splash" aria-label="Season complete">
-    <div class="season-splash__atmosphere" aria-hidden="true"></div>
-    <div class="season-splash__inner">
-      <p class="season-splash__brand">WAGS</p>
-      <h1 class="season-splash__title">{{ seasonTitle }}</h1>
-      <p class="season-splash__lede">Season complete. Honour roll locked in.</p>
-
-      <ul v-if="awards.length" class="season-splash__roll">
-        <li v-for="(row, idx) in awards" :key="row.type" :style="{ '--i': idx }">
-          <span class="season-splash__award">{{ row.label }}</span>
-          <strong class="season-splash__name">{{ row.player }}</strong>
-        </li>
-      </ul>
-      <p v-else class="season-splash__lede">Loading honour roll…</p>
-
-      <div class="season-splash__actions">
-        <button type="button" class="season-splash__primary" @click="onWinter">
-          Winter WAGS
-        </button>
-        <button type="button" class="season-splash__secondary" @click="onSeasonStats">
-          {{ seasonYear }} season stats
-        </button>
+  <section class="page-stack season-landing" aria-label="Season complete">
+    <section class="hero-block home-hero">
+      <div class="home-hero__intro">
+        <div class="wags-headline">
+          <span class="home-hero-sublabel2 wags-body">SEASON COMPLETE</span>
+          <span>{{ seasonTitle }}</span>
+          <p class="home-hero-sublabel home-hero-subtext">
+            Honour roll locked in.
+          </p>
+        </div>
       </div>
-    </div>
+    </section>
+
+    <section class="home-dashboard" aria-label="Honour roll">
+      <p v-if="!awards.length" class="empty-state">Loading honour roll…</p>
+
+      <article
+        v-for="row in awards"
+        :key="row.type"
+        class="honour-card"
+        :class="`honour-card--${row.type}`"
+      >
+        <p class="honour-eyebrow">{{ row.label }}</p>
+        <h3 class="honour-name">{{ row.player }}</h3>
+      </article>
+    </section>
+
+    <section class="season-landing__actions" aria-label="Next steps">
+      <button type="button" class="home-card row-button season-cta" @click="onWinter">
+        <span class="home-hero-sublabel">Winter WAGS</span>
+        <strong>Open winter season</strong>
+      </button>
+      <button
+        type="button"
+        class="home-card row-button season-cta"
+        @click="onSeasonStats"
+      >
+        <span class="home-hero-sublabel">{{ seasonYear }} season stats</span>
+        <strong>View results &amp; standings</strong>
+      </button>
+    </section>
   </section>
 </template>
 
 <style scoped>
-.season-splash {
-  position: relative;
-  min-height: calc(100dvh - 5.5rem);
+.season-landing {
   display: grid;
-  place-items: center;
-  padding: 1.25rem;
-  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
-  overflow: auto;
-  color: #f3f0e8;
-  border-radius: 0;
-  background: #121512;
+  gap: 1rem;
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
 }
 
-.season-splash__atmosphere {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 80% 55% at 50% -10%, rgba(88, 129, 87, 0.35), transparent 60%),
-    radial-gradient(ellipse 70% 40% at 80% 100%, rgba(212, 175, 55, 0.12), transparent 55%),
-    linear-gradient(180deg, #1a221c 0%, #121512 55%, #0d100e 100%);
-  pointer-events: none;
-}
-
-.season-splash__inner {
-  position: relative;
-  width: min(100%, 26rem);
+.home-dashboard {
   display: grid;
   gap: 0.85rem;
-  text-align: center;
 }
 
-.season-splash__brand {
-  margin: 0;
-  font-size: clamp(2.4rem, 10vw, 3.4rem);
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-indent: 0.18em;
-  line-height: 1;
-  animation: rise 0.55s ease both;
+.honour-card {
+  padding: 1.15rem 1.2rem;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--line, #3a3a3c) 100%, transparent);
+  background: var(--surface-2);
 }
 
-.season-splash__title {
-  margin: 0;
-  font-size: clamp(1.15rem, 4.2vw, 1.45rem);
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  animation: rise 0.55s ease 0.05s both;
+.honour-card--championship {
+  border-color: color-mix(in srgb, #d4af37 45%, var(--line, #3a3a3c));
 }
 
-.season-splash__lede {
-  margin: 0;
-  color: rgba(243, 240, 232, 0.68);
-  font-size: 0.95rem;
-  animation: rise 0.55s ease 0.1s both;
+.honour-card--chumps {
+  border-color: color-mix(in srgb, #8ecae6 40%, var(--line, #3a3a3c));
 }
 
-.season-splash__roll {
-  list-style: none;
-  margin: 0.65rem 0 0;
-  padding: 0;
-  display: grid;
-  gap: 0.55rem;
-  text-align: left;
+.honour-card--best14,
+.honour-card--rs_cup {
+  border-color: color-mix(in srgb, #90be6d 40%, var(--line, #3a3a3c));
 }
 
-.season-splash__roll li {
-  display: grid;
-  gap: 0.1rem;
-  padding: 0.7rem 0.85rem;
-  border-bottom: 1px solid rgba(243, 240, 232, 0.12);
-  animation: rise 0.5s ease calc(0.12s + var(--i) * 0.04s) both;
+.honour-card--league_1,
+.honour-card--league_2,
+.honour-card--league_3,
+.honour-card--league_4 {
+  border-color: color-mix(in srgb, #adb5bd 35%, var(--line, #3a3a3c));
 }
 
-.season-splash__award {
-  font-size: 0.68rem;
+.honour-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(243, 240, 232, 0.55);
+  color: var(--muted, #8e8e93);
 }
 
-.season-splash__name {
-  font-size: 1.08rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+.honour-name {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
 }
 
-.season-splash__actions {
+.season-landing__actions {
   display: grid;
-  gap: 0.55rem;
-  margin-top: 0.85rem;
-  animation: rise 0.55s ease 0.35s both;
+  gap: 0.65rem;
 }
 
-.season-splash__primary,
-.season-splash__secondary {
-  min-height: 2.85rem;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  font: inherit;
-  font-weight: 700;
+.season-cta {
+  width: 100%;
+  text-align: left;
   cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
 }
 
-.season-splash__primary {
-  background: #588157;
-  color: #f7f4ec;
+.season-cta strong {
+  display: block;
+  margin-top: 0.15rem;
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
 }
 
-.season-splash__secondary {
-  background: transparent;
-  border-color: rgba(243, 240, 232, 0.22);
-  color: #f3f0e8;
-}
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.empty-state {
+  margin: 0;
+  color: var(--muted, #8e8e93);
+  font-size: 0.92rem;
 }
 </style>
