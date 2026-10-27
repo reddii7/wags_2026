@@ -12,7 +12,6 @@ import { useRoute, useRouter } from "vue-router";
 import NavIcon from "./components/NavIcon.vue";
 import AppDialog from "./components/AppDialog.vue";
 import SignInForm from "./components/SignInForm.vue";
-import SeasonSplash from "./components/SeasonSplash.vue";
 import { triggerHapticFeedback } from "./utils/haptics";
 import { supabase } from "./lib/supabase";
 import {
@@ -32,7 +31,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261027-season-splash-v35";
+const CLIENT_BUILD_ID = "20261027-season-splash-v36";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -446,8 +445,15 @@ function switchSection(section) {
   triggerHapticFeedback();
   const targetPath = section?.path || "/";
   if (section?.name === "stats" && route.path === "/stats") {
-    if (route.query.tab) {
+    if (route.query.tab || route.query.season) {
       router.replace("/stats");
+    }
+    return;
+  }
+  // Home nav always returns to the permanent season landing (clears winter mode).
+  if (section?.name === "home") {
+    if (route.path !== "/" || route.query.mode) {
+      router.push("/");
     }
     return;
   }
@@ -468,18 +474,38 @@ function handleNavigate(target) {
   if (target && typeof target === "object" && !Array.isArray(target)) {
     const section = String(target.section || "").toLowerCase();
     const tab = String(target.tab || "").toLowerCase();
+    const seasonId =
+      target.seasonId != null && String(target.seasonId).trim() !== ""
+        ? String(target.seasonId).trim()
+        : "";
+    const mode =
+      target.mode != null && String(target.mode).trim() !== ""
+        ? String(target.mode).trim().toLowerCase()
+        : "";
+
     if (section === "stats") {
-      if (tab && STATS_HUB_TAB_IDS.has(tab)) {
-        if (tab === "results") {
-          router.push("/stats");
-        } else {
-          router.push({ path: "/stats", query: { tab } });
-        }
+      const query = {};
+      if (tab && STATS_HUB_TAB_IDS.has(tab) && tab !== "results") {
+        query.tab = tab;
+      }
+      if (seasonId) query.season = seasonId;
+      if (Object.keys(query).length) {
+        router.push({ path: "/stats", query });
       } else {
         router.push("/stats");
       }
       return;
     }
+
+    if (section === "home") {
+      if (mode === "winter") {
+        router.push({ path: "/", query: { mode: "winter" } });
+      } else {
+        router.push("/");
+      }
+      return;
+    }
+
     const targetSection = sections.find((s) => s.name === section);
     if (targetSection) {
       switchSection(targetSection);
@@ -751,13 +777,6 @@ onBeforeUnmount(() => {
         <span class="bottom-nav-label">{{ section.label }}</span>
       </button>
     </nav>
-
-    <SeasonSplash
-      v-if="globalMetadata.api_version"
-      :metadata="globalMetadata"
-      @continue="() => {}"
-      @view-history="handleNavigate({ section: 'stats', tab: 'history' })"
-    />
   </div>
 </template>
 
