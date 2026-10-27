@@ -7,11 +7,12 @@ import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
 import ResultsView from "./ResultsView.vue";
 import WinnersTable from "./WinnersTable.vue";
+import SeasonHistoryView from "./SeasonHistoryView.vue";
 
 const route = useRoute();
 const router = useRouter();
 
-const STATS_TAB_IDS = ["results", "leagues", "best14", "winners"];
+const STATS_TAB_IDS = ["results", "leagues", "best14", "winners", "history"];
 
 const props = defineProps({
   metadata: { type: Object, required: true },
@@ -28,6 +29,7 @@ const tabs = [
   { id: "leagues", label: "LEAGUES", component: markRaw(LeaguesView) },
   { id: "best14", label: "BEST 14", component: markRaw(Best14View) },
   { id: "winners", label: "CHAMPS", component: markRaw(WinnersTable) },
+  { id: "history", label: "HISTORY", component: markRaw(SeasonHistoryView) },
 ];
 
 const activeTabId = ref(tabs[0].id);

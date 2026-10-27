@@ -460,6 +460,7 @@ const STATS_HUB_TAB_IDS = new Set([
   "leagues",
   "best14",
   "winners",
+  "history",
 ]);
 
 function handleNavigate(target) {
