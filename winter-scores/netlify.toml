@@ -1,0 +1,22 @@
+# Standalone Winter Scores tool (net Stableford points only — §9, no snake/camel).
+# Create a separate Netlify site with base directory "winter-scores".
+#
+# Environment (Site settings):
+#   VITE_SUPABASE_URL       — same project as the member app
+#   VITE_SUPABASE_ANON_KEY  — public anon key (never service_role)
+#
+# Access: member email/password + members.is_winter_scorer = true
+
+[build]
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
