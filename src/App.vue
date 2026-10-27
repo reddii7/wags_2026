@@ -32,7 +32,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261027-next-handicaps-v38";
+const CLIENT_BUILD_ID = "20261027-next-handicaps-v39";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -350,9 +350,9 @@ async function hardRefresh() {
       console.error("Failed to clear caches:", err);
     }
   }
-  // Hard reload by appending a cache-busting timestamp to the URL.
-  // This is the only way to force iOS Safari to fetch a fresh index.html for a Home Screen icon.
-  const url = new URL(window.location.origin);
+  // Hard reload with cache-bust, preserving the current path (e.g. /handicaps).
+  // Going to origin-only dropped deep links and looked like blank sections.
+  const url = new URL(window.location.href);
   url.searchParams.set("t", Date.now().toString());
   // Using href instead of replace is often more effective at breaking the standalone cache
   window.location.href = url.toString();

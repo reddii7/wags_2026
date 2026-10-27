@@ -1,6 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20261027-next-handicaps-v38";
+// Keep in sync with production client (suttonwags). Next/preview soft-applies mismatches;
+// bumping this while only wagsnext is redeployed forces production into hardRefresh loops.
+const BUILD_ID = "20261027-season-splash-v37";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";

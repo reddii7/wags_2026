@@ -262,9 +262,9 @@ const loadHistory = async () => {
 };
 
 watch(
-  () => props.metadata,
-  (meta) => {
-    if (meta && !meta.loading) {
+  () => [props.metadata?.loading, props.metadata?.profiles, props.metadata?.handicap_history],
+  () => {
+    if (props.metadata && !props.metadata.loading) {
       loadPlayers();
     }
   },
@@ -327,6 +327,14 @@ watch(selectedPlayerId, async (playerId, previous) => {
             {{ row.change }}
           </span>
           <span v-else class="hc-last-chg-none">-</span>
+        </template>
+        <template #current_handicap="{ row }">
+          {{
+            row.current_handicap == null ||
+            !Number.isFinite(Number(row.current_handicap))
+              ? "—"
+              : Number(row.current_handicap).toFixed(1)
+          }}
         </template>
       </QuietList>
     </section>
