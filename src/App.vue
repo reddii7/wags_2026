@@ -31,7 +31,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261027-season-splash-v36";
+const CLIENT_BUILD_ID = "20261027-season-splash-v37";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
