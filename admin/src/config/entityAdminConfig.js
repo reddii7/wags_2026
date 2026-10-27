@@ -68,6 +68,7 @@ export const ENTITY_ADMIN_PAGES = [
         { key: "handicap_index", label: "Current HCP" },
         { key: "initial_handicap_index", label: "Initial HCP" },
         { key: "is_admin", label: "Admin" },
+        { key: "is_winter_scorer", label: "Winter scorer" },
       ],
       formFields: [
         { key: "full_name", label: "Full name", type: "text", required: true },
@@ -89,6 +90,12 @@ export const ENTITY_ADMIN_PAGES = [
           default: 18.0,
         },
         { key: "is_admin", label: "Is admin", type: "boolean", default: false },
+        {
+          key: "is_winter_scorer",
+          label: "Winter scorer (points-only Winter Scores app)",
+          type: "boolean",
+          default: false,
+        },
         {
           key: "league_campaign_id",
           label: "League — campaign (optional)",
