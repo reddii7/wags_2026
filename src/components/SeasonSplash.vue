@@ -1,15 +1,12 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed } from "vue";
 import { triggerHapticFeedback } from "../utils/haptics";
 
 const props = defineProps({
   metadata: { type: Object, required: true },
 });
 
-const emit = defineEmits(["continue", "view-history"]);
-
-const visible = ref(false);
-const leaving = ref(false);
+const emit = defineEmits(["winter", "season-stats"]);
 
 const AWARD_ORDER = [
   { type: "championship", label: "Championship" },
@@ -36,6 +33,21 @@ const closedSummer = computed(() => {
   return closed[0] || null;
 });
 
+const winterSeason = computed(() => {
+  const seasons = Array.isArray(props.metadata?.seasons)
+    ? props.metadata.seasons
+    : [];
+  return (
+    seasons.find(
+      (s) =>
+        String(s?.kind || "") === "winter_reduced" &&
+        String(s?.status || "").toLowerCase() === "open",
+    ) ||
+    seasons.find((s) => String(s?.kind || "") === "winter_reduced") ||
+    null
+  );
+});
+
 const awards = computed(() => {
   const season = closedSummer.value;
   if (!season) return [];
@@ -56,116 +68,59 @@ const seasonTitle = computed(() => {
   return s.label || `Summer ${s.start_year}`;
 });
 
-const storageKey = computed(() => {
-  const id = closedSummer.value?.id;
-  return id ? `wags_season_splash_dismissed_${id}` : "";
-});
+const seasonYear = computed(() => closedSummer.value?.start_year || 2026);
 
-function shouldShow() {
-  if (props.metadata?.loading) return false;
-  if (!closedSummer.value) return false;
-  if (!awards.value.length) return false;
-  try {
-    if (storageKey.value && localStorage.getItem(storageKey.value) === "1") {
-      return false;
-    }
-  } catch {
-    /* ignore */
-  }
-  return true;
-}
-
-function refreshVisibility() {
-  visible.value = shouldShow();
-}
-
-function dismiss(andEmit) {
+function onWinter() {
   triggerHapticFeedback();
-  leaving.value = true;
-  try {
-    if (storageKey.value) localStorage.setItem(storageKey.value, "1");
-  } catch {
-    /* ignore */
-  }
-  window.setTimeout(() => {
-    visible.value = false;
-    leaving.value = false;
-    andEmit?.();
-  }, 280);
+  emit("winter", winterSeason.value);
 }
 
-function onContinue() {
-  dismiss(() => emit("continue"));
+function onSeasonStats() {
+  triggerHapticFeedback();
+  emit("season-stats", closedSummer.value);
 }
-
-function onViewHistory() {
-  dismiss(() => emit("view-history"));
-}
-
-onMounted(refreshVisibility);
-watch(
-  () => [
-    props.metadata?.loading,
-    props.metadata?.seasons,
-    props.metadata?.awards,
-  ],
-  refreshVisibility,
-);
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="visible"
-      class="season-splash"
-      :class="{ 'season-splash--leaving': leaving }"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Season complete"
-    >
-      <div class="season-splash__atmosphere" aria-hidden="true"></div>
-      <div class="season-splash__inner">
-        <p class="season-splash__brand">WAGS</p>
-        <h1 class="season-splash__title">{{ seasonTitle }}</h1>
-        <p class="season-splash__lede">Season complete. Honour roll locked in.</p>
+  <section class="season-splash" aria-label="Season complete">
+    <div class="season-splash__atmosphere" aria-hidden="true"></div>
+    <div class="season-splash__inner">
+      <p class="season-splash__brand">WAGS</p>
+      <h1 class="season-splash__title">{{ seasonTitle }}</h1>
+      <p class="season-splash__lede">Season complete. Honour roll locked in.</p>
 
-        <ul class="season-splash__roll">
-          <li v-for="(row, idx) in awards" :key="row.type" :style="{ '--i': idx }">
-            <span class="season-splash__award">{{ row.label }}</span>
-            <strong class="season-splash__name">{{ row.player }}</strong>
-          </li>
-        </ul>
+      <ul v-if="awards.length" class="season-splash__roll">
+        <li v-for="(row, idx) in awards" :key="row.type" :style="{ '--i': idx }">
+          <span class="season-splash__award">{{ row.label }}</span>
+          <strong class="season-splash__name">{{ row.player }}</strong>
+        </li>
+      </ul>
+      <p v-else class="season-splash__lede">Loading honour roll…</p>
 
-        <div class="season-splash__actions">
-          <button type="button" class="season-splash__primary" @click="onContinue">
-            Enter app
-          </button>
-          <button type="button" class="season-splash__secondary" @click="onViewHistory">
-            View history
-          </button>
-        </div>
+      <div class="season-splash__actions">
+        <button type="button" class="season-splash__primary" @click="onWinter">
+          Winter WAGS
+        </button>
+        <button type="button" class="season-splash__secondary" @click="onSeasonStats">
+          {{ seasonYear }} season stats
+        </button>
       </div>
     </div>
-  </Teleport>
+  </section>
 </template>
 
 <style scoped>
 .season-splash {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
+  position: relative;
+  min-height: calc(100dvh - 5.5rem);
   display: grid;
   place-items: center;
   padding: 1.25rem;
-  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
   overflow: auto;
-  background: #121512;
   color: #f3f0e8;
-  animation: splash-in 0.45s ease both;
-}
-
-.season-splash--leaving {
-  animation: splash-out 0.28s ease both;
+  border-radius: 0;
+  background: #121512;
 }
 
 .season-splash__atmosphere {
@@ -268,22 +223,6 @@ watch(
   background: transparent;
   border-color: rgba(243, 240, 232, 0.22);
   color: #f3f0e8;
-}
-
-@keyframes splash-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes splash-out {
-  to {
-    opacity: 0;
-    transform: scale(1.02);
-  }
 }
 
 @keyframes rise {

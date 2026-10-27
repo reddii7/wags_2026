@@ -1,11 +1,14 @@
 <script setup>
 import { computed, ref, watch, nextTick } from "vue";
+import { useRoute } from "vue-router";
 import { resolveHomeDashboardBlock } from "../composables/resolveHomeDashboard.js";
+import SeasonSplash from "../components/SeasonSplash.vue";
 
 const emit = defineEmits(["navigate"]);
 const props = defineProps({
   metadata: { type: Object, required: true },
 });
+const route = useRoute();
 
 const loading = ref(true);
 const error = ref("");
@@ -24,9 +27,43 @@ const homePayload = ref({
   handicap_changes: [],
 });
 
+const closedSummer = computed(() => {
+  const seasons = Array.isArray(props.metadata?.seasons)
+    ? props.metadata.seasons
+    : [];
+  return (
+    seasons
+      .filter(
+        (s) =>
+          String(s?.kind || "") === "summer_main" &&
+          String(s?.status || "").toLowerCase() === "closed",
+      )
+      .sort((a, b) => Number(b.start_year || 0) - Number(a.start_year || 0))[0] ||
+    null
+  );
+});
+
+/** Permanent season landing on Home unless user chose Winter via CTA. */
+const showSeasonLanding = computed(() => {
+  if (props.metadata?.loading) return false;
+  if (!closedSummer.value) return false;
+  return String(route.query.mode || "").toLowerCase() !== "winter";
+});
+
 const homeContract = computed(() =>
   resolveHomeDashboardBlock(props.metadata),
 );
+
+function onWinter() {
+  emit("navigate", { section: "home", mode: "winter" });
+}
+
+function onSeasonStats(season) {
+  emit("navigate", {
+    section: "stats",
+    seasonId: season?.id || closedSummer.value?.id,
+  });
+}
 
 function normRoundId(id) {
   return String(id ?? "")
@@ -204,7 +241,13 @@ watch(
 </script>
 
 <template>
-  <section class="page-stack home-page">
+  <SeasonSplash
+    v-if="showSeasonLanding"
+    :metadata="metadata"
+    @winter="onWinter"
+    @season-stats="onSeasonStats"
+  />
+  <section v-else class="page-stack home-page">
     <section class="hero-block home-hero">
       <div class="home-hero__intro">
         <div class="wags-headline">

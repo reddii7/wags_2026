@@ -51,12 +51,28 @@ function applyTabFromRoute() {
 
 watch(() => route.query.tab, applyTabFromRoute, { immediate: true });
 
+function resolveSeasonFromQuery(metaSeasons) {
+  const raw = route.query.season;
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const wanted = raw.trim();
+  return (
+    metaSeasons.find((s) => String(s?.id) === wanted) ||
+    metaSeasons.find((s) => String(s?.start_year) === wanted) ||
+    null
+  );
+}
+
 // Hydrate seasons from metadata and set default selected season robustly
 watch(
-  () => props.metadata,
-  (meta) => {
+  [() => props.metadata, () => route.query.season],
+  ([meta]) => {
     if (meta && Array.isArray(meta.seasons)) {
       seasons.value = meta.seasons;
+      const fromQuery = resolveSeasonFromQuery(meta.seasons);
+      if (fromQuery) {
+        selectedSeasonId.value = fromQuery.id;
+        return;
+      }
       // Prefer latest active/current season on initial load.
       const preferredResultsSeasonId = String(
         meta?.defaults?.results_season_id || "",
@@ -101,13 +117,30 @@ watch(selectedSeasonId, (newVal, oldVal) => {
   }
 });
 
+function statsQuery(extra = {}) {
+  const query = { ...extra };
+  const season =
+    selectedSeasonId.value != null && String(selectedSeasonId.value).trim() !== ""
+      ? String(selectedSeasonId.value).trim()
+      : "";
+  if (season && typeof route.query.season === "string" && route.query.season) {
+    query.season = season;
+  }
+  return query;
+}
+
 function setTab(id) {
   triggerHapticFeedback();
   activeTabId.value = id;
   if (id === "results") {
-    router.replace("/stats");
+    const query = statsQuery();
+    if (Object.keys(query).length) {
+      router.replace({ path: "/stats", query });
+    } else {
+      router.replace("/stats");
+    }
   } else {
-    router.replace({ path: "/stats", query: { tab: id } });
+    router.replace({ path: "/stats", query: statsQuery({ tab: id }) });
   }
 }
 
@@ -120,6 +153,12 @@ function pickSeason(seasonId) {
   triggerHapticFeedback();
   selectedSeasonId.value = seasonId;
   seasonPickerOpen.value = false;
+  const query = { ...route.query };
+  if (seasonId) query.season = String(seasonId);
+  else delete query.season;
+  if (activeTabId.value === "results") delete query.tab;
+  else query.tab = activeTabId.value;
+  router.replace({ path: "/stats", query });
 }
 </script>
 
