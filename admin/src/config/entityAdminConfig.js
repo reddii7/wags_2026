@@ -290,7 +290,7 @@ export const ENTITY_ADMIN_PAGES = [
           enumKey: "campaign_kind",
           required: true,
         },
-        { key: "year", label: "Year", type: "number", required: true, default: 2026 },
+        { key: "year", label: "Year", type: "number", required: true, default: 2027 },
         {
           key: "status",
           label: "Status",
