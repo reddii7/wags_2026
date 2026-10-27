@@ -12,6 +12,7 @@ import { useRoute, useRouter } from "vue-router";
 import NavIcon from "./components/NavIcon.vue";
 import AppDialog from "./components/AppDialog.vue";
 import SignInForm from "./components/SignInForm.vue";
+import SeasonSplash from "./components/SeasonSplash.vue";
 import { triggerHapticFeedback } from "./utils/haptics";
 import { supabase } from "./lib/supabase";
 import {
@@ -31,7 +32,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20260923-leagues-best10-v34";
+const CLIENT_BUILD_ID = "20261027-season-splash-v35";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -750,6 +751,13 @@ onBeforeUnmount(() => {
         <span class="bottom-nav-label">{{ section.label }}</span>
       </button>
     </nav>
+
+    <SeasonSplash
+      v-if="globalMetadata.api_version"
+      :metadata="globalMetadata"
+      @continue="() => {}"
+      @view-history="handleNavigate({ section: 'stats', tab: 'history' })"
+    />
   </div>
 </template>
 

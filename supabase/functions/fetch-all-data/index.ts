@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20260923-leagues-best10-v34";
+const BUILD_ID = "20261027-season-splash-v35";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -582,7 +582,8 @@ async function greenfieldFetchAll(
 
   const seasons = camps.map((c: any) => {
     const id = String(c.id);
-    const isOpen = String(c.status || "").toLowerCase() === "open";
+    const status = String(c.status || "").toLowerCase();
+    const isOpen = status === "open";
     return {
       id,
       start_year:
@@ -590,6 +591,8 @@ async function greenfieldFetchAll(
         new Date(String(c.start_date || "2000-01-01")).getFullYear(),
       name: String(c.label || ""),
       label: String(c.label || ""),
+      kind: String(c.kind || ""),
+      status,
       is_active: isOpen,
       is_current: Boolean(homeCampaignId && id === homeCampaignId),
     };
