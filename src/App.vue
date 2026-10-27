@@ -31,7 +31,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261027-season-splash-v37";
+const CLIENT_BUILD_ID = "20260923-leagues-best10-v34";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -445,15 +445,8 @@ function switchSection(section) {
   triggerHapticFeedback();
   const targetPath = section?.path || "/";
   if (section?.name === "stats" && route.path === "/stats") {
-    if (route.query.tab || route.query.season) {
+    if (route.query.tab) {
       router.replace("/stats");
-    }
-    return;
-  }
-  // Home nav always returns to the permanent season landing (clears winter mode).
-  if (section?.name === "home") {
-    if (route.path !== "/" || route.query.mode) {
-      router.push("/");
     }
     return;
   }
@@ -467,45 +460,24 @@ const STATS_HUB_TAB_IDS = new Set([
   "leagues",
   "best14",
   "winners",
-  "history",
 ]);
 
 function handleNavigate(target) {
   if (target && typeof target === "object" && !Array.isArray(target)) {
     const section = String(target.section || "").toLowerCase();
     const tab = String(target.tab || "").toLowerCase();
-    const seasonId =
-      target.seasonId != null && String(target.seasonId).trim() !== ""
-        ? String(target.seasonId).trim()
-        : "";
-    const mode =
-      target.mode != null && String(target.mode).trim() !== ""
-        ? String(target.mode).trim().toLowerCase()
-        : "";
-
     if (section === "stats") {
-      const query = {};
-      if (tab && STATS_HUB_TAB_IDS.has(tab) && tab !== "results") {
-        query.tab = tab;
-      }
-      if (seasonId) query.season = seasonId;
-      if (Object.keys(query).length) {
-        router.push({ path: "/stats", query });
+      if (tab && STATS_HUB_TAB_IDS.has(tab)) {
+        if (tab === "results") {
+          router.push("/stats");
+        } else {
+          router.push({ path: "/stats", query: { tab } });
+        }
       } else {
         router.push("/stats");
       }
       return;
     }
-
-    if (section === "home") {
-      if (mode === "winter") {
-        router.push({ path: "/", query: { mode: "winter" } });
-      } else {
-        router.push("/");
-      }
-      return;
-    }
-
     const targetSection = sections.find((s) => s.name === section);
     if (targetSection) {
       switchSection(targetSection);

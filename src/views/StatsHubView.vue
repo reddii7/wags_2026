@@ -7,12 +7,11 @@ import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
 import ResultsView from "./ResultsView.vue";
 import WinnersTable from "./WinnersTable.vue";
-import SeasonHistoryView from "./SeasonHistoryView.vue";
 
 const route = useRoute();
 const router = useRouter();
 
-const STATS_TAB_IDS = ["results", "leagues", "best14", "winners", "history"];
+const STATS_TAB_IDS = ["results", "leagues", "best14", "winners"];
 
 const props = defineProps({
   metadata: { type: Object, required: true },
@@ -29,7 +28,6 @@ const tabs = [
   { id: "leagues", label: "LEAGUES", component: markRaw(LeaguesView) },
   { id: "best14", label: "BEST 14", component: markRaw(Best14View) },
   { id: "winners", label: "CHAMPS", component: markRaw(WinnersTable) },
-  { id: "history", label: "HISTORY", component: markRaw(SeasonHistoryView) },
 ];
 
 const activeTabId = ref(tabs[0].id);
@@ -51,28 +49,12 @@ function applyTabFromRoute() {
 
 watch(() => route.query.tab, applyTabFromRoute, { immediate: true });
 
-function resolveSeasonFromQuery(metaSeasons) {
-  const raw = route.query.season;
-  if (typeof raw !== "string" || !raw.trim()) return null;
-  const wanted = raw.trim();
-  return (
-    metaSeasons.find((s) => String(s?.id) === wanted) ||
-    metaSeasons.find((s) => String(s?.start_year) === wanted) ||
-    null
-  );
-}
-
 // Hydrate seasons from metadata and set default selected season robustly
 watch(
-  [() => props.metadata, () => route.query.season],
-  ([meta]) => {
+  () => props.metadata,
+  (meta) => {
     if (meta && Array.isArray(meta.seasons)) {
       seasons.value = meta.seasons;
-      const fromQuery = resolveSeasonFromQuery(meta.seasons);
-      if (fromQuery) {
-        selectedSeasonId.value = fromQuery.id;
-        return;
-      }
       // Prefer latest active/current season on initial load.
       const preferredResultsSeasonId = String(
         meta?.defaults?.results_season_id || "",
@@ -117,30 +99,13 @@ watch(selectedSeasonId, (newVal, oldVal) => {
   }
 });
 
-function statsQuery(extra = {}) {
-  const query = { ...extra };
-  const season =
-    selectedSeasonId.value != null && String(selectedSeasonId.value).trim() !== ""
-      ? String(selectedSeasonId.value).trim()
-      : "";
-  if (season && typeof route.query.season === "string" && route.query.season) {
-    query.season = season;
-  }
-  return query;
-}
-
 function setTab(id) {
   triggerHapticFeedback();
   activeTabId.value = id;
   if (id === "results") {
-    const query = statsQuery();
-    if (Object.keys(query).length) {
-      router.replace({ path: "/stats", query });
-    } else {
-      router.replace("/stats");
-    }
+    router.replace("/stats");
   } else {
-    router.replace({ path: "/stats", query: statsQuery({ tab: id }) });
+    router.replace({ path: "/stats", query: { tab: id } });
   }
 }
 
@@ -153,12 +118,6 @@ function pickSeason(seasonId) {
   triggerHapticFeedback();
   selectedSeasonId.value = seasonId;
   seasonPickerOpen.value = false;
-  const query = { ...route.query };
-  if (seasonId) query.season = String(seasonId);
-  else delete query.season;
-  if (activeTabId.value === "results") delete query.tab;
-  else query.tab = activeTabId.value;
-  router.replace({ path: "/stats", query });
 }
 </script>
 
