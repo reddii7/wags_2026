@@ -112,10 +112,19 @@ function onSeasonStats(season) {
 }
 
 function openWeekHub() {
+  const season = preferredSeason.value;
   const round = focusRoundId.value;
   emit("navigate", {
     section: "week",
+    seasonId: season?.id || undefined,
     roundId: round || undefined,
+  });
+}
+
+function openWeekHubFromSeason(season) {
+  emit("navigate", {
+    section: "week",
+    seasonId: season?.id || closedSummer.value?.id,
   });
 }
 
@@ -298,6 +307,7 @@ watch(
     :metadata="metadata"
     @winter="onWinter"
     @season-stats="onSeasonStats"
+    @week-hub="openWeekHubFromSeason"
   />
   <section v-else class="page-stack home-page home-latest">
     <section class="hero-block home-hero">

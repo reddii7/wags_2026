@@ -5,9 +5,10 @@ import { triggerHapticFeedback } from "../utils/haptics";
 import AppDialog from "../components/AppDialog.vue";
 import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
-import ResultsView from "./ResultsView.vue";
+import WeekHubView from "./WeekHubView.vue";
 import WinnersTable from "./WinnersTable.vue";
 import SeasonHistoryView from "./SeasonHistoryView.vue";
+import { resolvePreferredSeason } from "../composables/useWeekResults.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -18,6 +19,8 @@ const props = defineProps({
   metadata: { type: Object, required: true },
 });
 
+const emit = defineEmits(["navigate"]);
+
 const seasons = ref(
   Array.isArray(props.metadata?.seasons) ? props.metadata.seasons : [],
 );
@@ -25,7 +28,7 @@ const selectedSeasonId = ref(null);
 const seasonPickerOpen = ref(false);
 
 const tabs = [
-  { id: "results", label: "RESULTS", component: markRaw(ResultsView) },
+  { id: "results", label: "WEEK", component: markRaw(WeekHubView) },
   { id: "leagues", label: "LEAGUES", component: markRaw(LeaguesView) },
   { id: "best14", label: "BEST 14", component: markRaw(Best14View) },
   { id: "winners", label: "CHAMPS", component: markRaw(WinnersTable) },
@@ -73,23 +76,13 @@ watch(
         selectedSeasonId.value = fromQuery.id;
         return;
       }
-      // Prefer latest active/current season on initial load.
-      const preferredResultsSeasonId = String(
-        meta?.defaults?.results_season_id || "",
-      );
-      const preferred = preferredResultsSeasonId
-        ? meta.seasons.find((s) => String(s?.id) === preferredResultsSeasonId)
-        : null;
-      const current =
-        meta.seasons.find((s) => s.is_current) ||
-        meta.seasons.find((s) => s.is_active) ||
-        preferred ||
-        meta.seasons[0];
+      // Prefer a season that actually has weekly results (not empty winter).
+      const preferred = resolvePreferredSeason(meta);
       if (
         !selectedSeasonId.value ||
         !meta.seasons.some((s) => s.id === selectedSeasonId.value)
       ) {
-        selectedSeasonId.value = current?.id;
+        selectedSeasonId.value = preferred?.id;
       }
     }
   },
@@ -215,6 +208,7 @@ function pickSeason(seasonId) {
         v-if="selectedSeason"
         :season="selectedSeason"
         :metadata="metadata"
+        @navigate="emit('navigate', $event)"
       />
     </main>
 

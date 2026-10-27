@@ -6,7 +6,7 @@ const props = defineProps({
   metadata: { type: Object, required: true },
 });
 
-const emit = defineEmits(["winter", "season-stats"]);
+const emit = defineEmits(["winter", "season-stats", "week-hub"]);
 
 const AWARD_ORDER = [
   { type: "championship", label: "Championship" },
@@ -79,6 +79,11 @@ function onSeasonStats() {
   triggerHapticFeedback();
   emit("season-stats", closedSummer.value);
 }
+
+function onWeekHub() {
+  triggerHapticFeedback();
+  emit("week-hub", closedSummer.value);
+}
 </script>
 
 <template>
@@ -110,6 +115,10 @@ function onSeasonStats() {
     </section>
 
     <section class="season-landing__actions" aria-label="Next steps">
+      <button type="button" class="home-card row-button season-cta" @click="onWeekHub">
+        <span class="home-hero-sublabel">Week hub</span>
+        <strong>Browse {{ seasonYear }} weeks</strong>
+      </button>
       <button type="button" class="home-card row-button season-cta" @click="onWinter">
         <span class="home-hero-sublabel">Winter WAGS</span>
         <strong>Open winter season</strong>

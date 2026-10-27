@@ -536,8 +536,11 @@ function handleNavigate(target) {
         target.roundId != null && String(target.roundId).trim() !== ""
           ? String(target.roundId).trim()
           : "";
-      if (roundId) {
-        router.push({ path: "/week", query: { round: roundId } });
+      const query = {};
+      if (seasonId) query.season = seasonId;
+      if (roundId) query.round = roundId;
+      if (Object.keys(query).length) {
+        router.push({ path: "/week", query });
       } else {
         router.push("/week");
       }

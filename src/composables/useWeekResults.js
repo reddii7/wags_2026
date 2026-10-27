@@ -13,24 +13,43 @@ export function resolveSeasonResultsContract(metadata, season) {
   );
 }
 
+function seasonHasWeekResults(metadata, season) {
+  if (!season) return false;
+  const rv = resolveSeasonResultsContract(metadata, season);
+  return Array.isArray(rv?.competitions) && rv.competitions.length > 0;
+}
+
+/**
+ * Prefer the campaign the API marks current/home, but if that season has no
+ * weekly results yet (e.g. empty winter), fall back to the latest summer with
+ * a results_view — otherwise Week Hub looks blank.
+ */
 export function resolvePreferredSeason(metadata) {
   const seasons = Array.isArray(metadata?.seasons) ? metadata.seasons : [];
   if (!seasons.length) return null;
+
   const preferredId = String(
     metadata?.defaults?.home_season_id ||
       metadata?.defaults?.results_season_id ||
       "",
   );
-  if (preferredId) {
-    const hit = seasons.find((s) => String(s?.id) === preferredId);
-    if (hit) return hit;
-  }
-  return (
+  const preferred = preferredId
+    ? seasons.find((s) => String(s?.id) === preferredId)
+    : null;
+  if (preferred && seasonHasWeekResults(metadata, preferred)) return preferred;
+
+  const current =
     seasons.find((s) => s?.is_current) ||
     seasons.find((s) => s?.is_active) ||
-    seasons[0] ||
-    null
-  );
+    null;
+  if (current && seasonHasWeekResults(metadata, current)) return current;
+
+  const withResults = seasons
+    .filter((s) => seasonHasWeekResults(metadata, s))
+    .sort((a, b) => Number(b.start_year || 0) - Number(a.start_year || 0));
+  if (withResults[0]) return withResults[0];
+
+  return preferred || current || seasons[0] || null;
 }
 
 export function pickDefaultCompetitionId(resultsContract) {

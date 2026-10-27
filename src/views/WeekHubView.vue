@@ -24,10 +24,23 @@ const route = useRoute();
 const router = useRouter();
 
 const selectedCompetitionId = ref(null);
+const embeddedInStats = computed(() => String(route.name) === "stats");
 
-const activeSeason = computed(
-  () => props.season || resolvePreferredSeason(props.metadata),
-);
+const activeSeason = computed(() => {
+  if (props.season) return props.season;
+  const seasons = Array.isArray(props.metadata?.seasons)
+    ? props.metadata.seasons
+    : [];
+  const q =
+    typeof route.query.season === "string" ? route.query.season.trim() : "";
+  if (q) {
+    const hit =
+      seasons.find((s) => String(s?.id) === q) ||
+      seasons.find((s) => String(s?.start_year) === q);
+    if (hit) return hit;
+  }
+  return resolvePreferredSeason(props.metadata);
+});
 
 const resultsContract = computed(() =>
   resolveSeasonResultsContract(props.metadata, activeSeason.value),
@@ -165,7 +178,14 @@ function syncSelection() {
 function selectWeek(id) {
   triggerHapticFeedback();
   selectedCompetitionId.value = id;
+  if (embeddedInStats.value) {
+    const query = { ...route.query, round: id };
+    if (!query.tab) query.tab = "results";
+    router.replace({ path: "/stats", query });
+    return;
+  }
   const query = { ...route.query, round: id };
+  if (activeSeason.value?.id) query.season = String(activeSeason.value.id);
   router.replace({ path: "/week", query });
 }
 
@@ -187,6 +207,12 @@ watch(
       <div class="home-hero__intro">
         <div class="wags-headline">
           <span class="home-hero-sublabel2 wags-body">WEEK HUB</span>
+          <span
+            v-if="activeSeason?.label || activeSeason?.start_year"
+            class="home-hero-sublabel wags-body"
+          >
+            {{ activeSeason.label || `Season ${activeSeason.start_year}` }}
+          </span>
           <span class="home-hero-sublabel wags-body">{{ heroWeekLine }}</span>
           <template v-if="rows.length">
             <span>{{ heroMessage }}</span>
