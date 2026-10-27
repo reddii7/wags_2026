@@ -12,6 +12,7 @@ import PreviewRscupView from "@/views/PreviewRscupView.vue";
 import PreviewStatsHubView from "@/views/PreviewStatsHubView.vue";
 import RpcDevView from "@/views/RpcDevView.vue";
 import SeasonCloseView from "@/views/SeasonCloseView.vue";
+import SeasonAwardsView from "@/views/SeasonAwardsView.vue";
 import SendNotificationView from "@/views/SendNotificationView.vue";
 import ScoreEntryView from "@/views/ScoreEntryView.vue";
 import ScoreSubmissionsView from "@/views/ScoreSubmissionsView.vue";
@@ -47,6 +48,12 @@ const layoutChildren = [
     name: "season-close",
     component: SeasonCloseView,
     meta: { title: "Close summer (P/R)" },
+  },
+  {
+    path: "manage/season-awards",
+    name: "season-awards",
+    component: SeasonAwardsView,
+    meta: { title: "Season awards" },
   },
   {
     path: "manage/weekly-finance",
