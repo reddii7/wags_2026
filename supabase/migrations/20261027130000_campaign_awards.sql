@@ -61,11 +61,17 @@ begin
     return;
   end if;
 
+  -- Live roster spelling is "Chris Boards" (not Broad).
   select id into v_broad
   from public.members
-  where lower(full_name) = lower('Chris Broad')
+  where lower(full_name) in (lower('Chris Boards'), lower('Chris Broad'))
+     or lower(full_name) like 'chris%board%'
      or lower(full_name) like 'chris%broad%'
-  order by case when lower(full_name) = lower('Chris Broad') then 0 else 1 end
+  order by case
+    when lower(full_name) = lower('Chris Boards') then 0
+    when lower(full_name) = lower('Chris Broad') then 1
+    else 2
+  end
   limit 1;
 
   select id into v_blades
