@@ -249,24 +249,33 @@ async function loadGlobalMetadata(silent = false, bustCache = false) {
       }
 
       if (!silent && data.build_id && data.build_id !== CLIENT_BUILD_ID) {
-        const refreshCount = parseInt(
-          sessionStorage.getItem("pwa-refresh-count") || "0",
-        );
-        if (refreshCount >= 2) {
-          console.warn(
-            "Build ID mismatch persists; loading data without another hard reload.",
+        // Preview/next site shares production API — never hard-reload on mismatch.
+        if (isPreviewChannel.value) {
+          console.info(
+            "[preview] build_id differs from API; applying payload without reload.",
+            { server: data.build_id, client: CLIENT_BUILD_ID },
           );
           sessionStorage.removeItem("pwa-refresh-count");
         } else {
-          console.warn(
-            `Build mismatch: server=${data.build_id}, client=${CLIENT_BUILD_ID}. Forcing update...`,
+          const refreshCount = parseInt(
+            sessionStorage.getItem("pwa-refresh-count") || "0",
           );
-          sessionStorage.setItem(
-            "pwa-refresh-count",
-            (refreshCount + 1).toString(),
-          );
-          hardRefresh();
-          return;
+          if (refreshCount >= 2) {
+            console.warn(
+              "Build ID mismatch persists; loading data without another hard reload.",
+            );
+            sessionStorage.removeItem("pwa-refresh-count");
+          } else {
+            console.warn(
+              `Build mismatch: server=${data.build_id}, client=${CLIENT_BUILD_ID}. Forcing update...`,
+            );
+            sessionStorage.setItem(
+              "pwa-refresh-count",
+              (refreshCount + 1).toString(),
+            );
+            hardRefresh();
+            return;
+          }
         }
       } else {
         sessionStorage.removeItem("pwa-refresh-count");
@@ -362,8 +371,24 @@ const sections = [
   { name: "rscup", label: "RS CUP", icon: "trophy", path: "/rscup" },
 ];
 
-const statsRouteNames = new Set(["stats", "results", "leagues", "best14"]);
+const statsRouteNames = new Set([
+  "stats",
+  "results",
+  "leagues",
+  "best14",
+  "week",
+]);
 const selectedCompetitionId = ref(null);
+
+/** Preview channel (wagsnext) — never force-reload production users. */
+const isPreviewChannel = computed(() => {
+  if (typeof window === "undefined") return false;
+  const host = String(window.location.hostname || "").toLowerCase();
+  return (
+    host.includes("wagsnext") ||
+    String(import.meta.env.VITE_APP_CHANNEL || "") === "next"
+  );
+});
 
 const selectedSeason = computed(() => {
   const seasons = Array.isArray(globalMetadata.value?.seasons)
@@ -427,9 +452,9 @@ const currentViewProps = computed(() => {
     metadata: globalMetadata.value,
   };
 
-  if (statsRouteNames.has(routeName)) {
+  if (statsRouteNames.has(routeName) || routeName === "week") {
     props.season =
-      routeName === "results"
+      routeName === "results" || routeName === "week"
         ? selectedResultsSeason.value
         : selectedSeason.value;
   }
@@ -502,6 +527,19 @@ function handleNavigate(target) {
         router.push({ path: "/", query: { mode: "winter" } });
       } else {
         router.push("/");
+      }
+      return;
+    }
+
+    if (section === "week") {
+      const roundId =
+        target.roundId != null && String(target.roundId).trim() !== ""
+          ? String(target.roundId).trim()
+          : "";
+      if (roundId) {
+        router.push({ path: "/week", query: { round: roundId } });
+      } else {
+        router.push("/week");
       }
       return;
     }
@@ -717,6 +755,9 @@ onBeforeUnmount(() => {
     :data-theme="theme"
     :class="{ 'chrome-hidden': chromeHidden }"
   >
+    <div v-if="isPreviewChannel" class="app-preview-banner" role="status">
+      NEXT preview — production stays on suttonwags.com
+    </div>
     <div
       v-if="globalMetadata.loadError && !globalMetadata.loading"
       class="app-load-error"
@@ -783,6 +824,19 @@ onBeforeUnmount(() => {
 <style>
 .bottom-nav {
   background: var(--bg) !important;
+}
+
+.app-preview-banner {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 0.4rem 0.85rem;
+  background: color-mix(in srgb, var(--accent, #588157) 28%, #1c1c1e);
+  color: var(--text, #eee);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: center;
 }
 
 

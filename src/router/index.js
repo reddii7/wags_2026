@@ -7,12 +7,14 @@ import HandicapsView from '../views/HandicapsView.vue';
 import RSCupView from '../views/RSCupView.vue';
 import LoginView from '../views/LoginView.vue';
 import StatsHubView from '../views/StatsHubView.vue';
+import WeekHubView from '../views/WeekHubView.vue';
 import { useSession } from '../composables/useSession';
 
 const router = createRouter({
     history: createWebHistory(),
     routes: [
         { path: '/', name: 'home', component: HomeView },
+        { path: '/week', name: 'week', component: WeekHubView },
         { path: '/best14', name: 'best14', component: Best14View },
         { path: '/leagues', name: 'leagues', component: LeaguesView },
         { path: '/results', name: 'results', component: ResultsView },
