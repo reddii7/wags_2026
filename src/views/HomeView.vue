@@ -106,7 +106,8 @@ function onWinter() {
 
 function onSeasonStats(season) {
   emit("navigate", {
-    section: "stats",
+    section: "season",
+    tab: "history",
     seasonId: season?.id || closedSummer.value?.id,
   });
 }
@@ -420,7 +421,7 @@ watch(
       <button
         class="home-card row-button"
         type="button"
-        @click="$emit('navigate', { section: 'stats', tab: 'leagues' })"
+        @click="$emit('navigate', { section: 'standings', tab: 'leagues' })"
       >
         <div class="home-card__header">
           <span class="home-hero-sublabel">Division leaders</span>
@@ -448,7 +449,7 @@ watch(
       <button
         class="home-card row-button"
         type="button"
-        @click="$emit('navigate', { section: 'stats', tab: 'best14' })"
+        @click="$emit('navigate', { section: 'standings', tab: 'best14' })"
       >
         <div class="home-card__header">
           <span class="home-hero-sublabel">Best 14 leaders</span>
@@ -477,7 +478,7 @@ watch(
         type="button"
         @click="
           $emit('navigate', {
-            section: 'stats',
+            section: 'season',
             seasonId: closedSummer.id,
             tab: 'history',
           })

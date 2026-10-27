@@ -306,7 +306,7 @@ watch(
       <button
         type="button"
         class="home-card row-button week-hub__shortcut"
-        @click="emit('navigate', { section: 'stats', tab: 'leagues' })"
+        @click="emit('navigate', { section: 'standings', tab: 'leagues' })"
       >
         <span class="home-hero-sublabel">Standings</span>
         <strong>Leagues</strong>
@@ -314,7 +314,7 @@ watch(
       <button
         type="button"
         class="home-card row-button week-hub__shortcut"
-        @click="emit('navigate', { section: 'stats', tab: 'best14' })"
+        @click="emit('navigate', { section: 'standings', tab: 'best14' })"
       >
         <span class="home-hero-sublabel">Season</span>
         <strong>Best 14</strong>

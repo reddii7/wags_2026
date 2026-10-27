@@ -26,8 +26,9 @@ const router = useRouter();
 
 // Stats hub uses ?tab= for sub-views; keying RouterView on fullPath remounted the
 // whole hub on every tab change and reset the season selector to defaults.
+const hubRouteNames = new Set(["stats", "standings", "season"]);
 const routerViewComponentKey = computed(() =>
-  String(route.name) === "stats" ? route.path : route.fullPath,
+  hubRouteNames.has(String(route.name)) ? route.path : route.fullPath,
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
@@ -366,17 +367,25 @@ function loadDataFromSupabase(...args) {
 
 const sections = [
   { name: "home", label: "Home", icon: "home", path: "/" },
-  { name: "stats", label: "Stats", icon: "results", path: "/stats" },
-  { name: "handicaps", label: "Handicaps", icon: "users", path: "/handicaps" },
-  { name: "rscup", label: "RS CUP", icon: "trophy", path: "/rscup" },
+  { name: "week", label: "Week", icon: "week", path: "/week" },
+  {
+    name: "standings",
+    label: "Standings",
+    icon: "standings",
+    path: "/standings",
+  },
+  { name: "more", label: "More", icon: "more", path: "/more" },
 ];
 
-const statsRouteNames = new Set([
+const seasonScopedRoutes = new Set([
   "stats",
   "results",
   "leagues",
   "best14",
   "week",
+  "standings",
+  "season",
+  "player",
 ]);
 const selectedCompetitionId = ref(null);
 
@@ -443,7 +452,25 @@ const selectedResultsSeason = computed(() => {
 
 const currentNavName = computed(() => {
   const routeName = String(route.name || "home");
-  return statsRouteNames.has(routeName) ? "stats" : routeName;
+  if (routeName === "results" || routeName === "week") return "week";
+  if (
+    routeName === "standings" ||
+    routeName === "leagues" ||
+    routeName === "best14" ||
+    routeName === "stats"
+  ) {
+    return "standings";
+  }
+  if (
+    routeName === "more" ||
+    routeName === "handicaps" ||
+    routeName === "rscup" ||
+    routeName === "season" ||
+    routeName === "player"
+  ) {
+    return "more";
+  }
+  return routeName;
 });
 
 const currentViewProps = computed(() => {
@@ -452,7 +479,7 @@ const currentViewProps = computed(() => {
     metadata: globalMetadata.value,
   };
 
-  if (statsRouteNames.has(routeName) || routeName === "week") {
+  if (seasonScopedRoutes.has(routeName)) {
     props.season =
       routeName === "results" || routeName === "week"
         ? selectedResultsSeason.value
@@ -469,9 +496,15 @@ const currentViewProps = computed(() => {
 function switchSection(section) {
   triggerHapticFeedback();
   const targetPath = section?.path || "/";
-  if (section?.name === "stats" && route.path === "/stats") {
+  if (section?.name === "standings" && route.path === "/standings") {
     if (route.query.tab || route.query.season) {
-      router.replace("/stats");
+      router.replace("/standings");
+    }
+    return;
+  }
+  if (section?.name === "week" && route.path === "/week") {
+    if (route.query.round || route.query.season) {
+      router.replace("/week");
     }
     return;
   }
@@ -487,13 +520,8 @@ function switchSection(section) {
   }
 }
 
-const STATS_HUB_TAB_IDS = new Set([
-  "results",
-  "leagues",
-  "best14",
-  "winners",
-  "history",
-]);
+const STANDINGS_TAB_IDS = new Set(["leagues", "best14"]);
+const SEASON_TAB_IDS = new Set(["history", "champs", "winners"]);
 
 function handleNavigate(target) {
   if (target && typeof target === "object" && !Array.isArray(target)) {
@@ -507,18 +535,59 @@ function handleNavigate(target) {
       target.mode != null && String(target.mode).trim() !== ""
         ? String(target.mode).trim().toLowerCase()
         : "";
+    const playerId =
+      target.playerId != null && String(target.playerId).trim() !== ""
+        ? String(target.playerId).trim()
+        : "";
+
+    if (section === "player" && playerId) {
+      router.push({ name: "player", params: { id: playerId } });
+      return;
+    }
 
     if (section === "stats") {
+      // Legacy callers → new F1 hubs
+      if (tab === "leagues" || tab === "best14") {
+        const query = { tab };
+        if (seasonId) query.season = seasonId;
+        router.push({ path: "/standings", query });
+        return;
+      }
+      if (tab === "history" || tab === "winners" || tab === "champs") {
+        const query = {
+          tab: tab === "winners" ? "champs" : tab === "champs" ? "champs" : "history",
+        };
+        if (seasonId) query.season = seasonId;
+        router.push({ path: "/season", query });
+        return;
+      }
       const query = {};
-      if (tab && STATS_HUB_TAB_IDS.has(tab) && tab !== "results") {
-        query.tab = tab;
-      }
       if (seasonId) query.season = seasonId;
-      if (Object.keys(query).length) {
-        router.push({ path: "/stats", query });
-      } else {
-        router.push("/stats");
-      }
+      router.push({ path: "/week", query });
+      return;
+    }
+
+    if (section === "standings") {
+      const query = {};
+      if (tab && STANDINGS_TAB_IDS.has(tab) && tab !== "leagues") query.tab = tab;
+      if (seasonId) query.season = seasonId;
+      router.push({
+        path: "/standings",
+        query: Object.keys(query).length ? query : undefined,
+      });
+      return;
+    }
+
+    if (section === "season") {
+      const query = {};
+      const normalizedTab =
+        tab === "winners" ? "champs" : SEASON_TAB_IDS.has(tab) ? tab : "";
+      if (normalizedTab && normalizedTab !== "history") query.tab = normalizedTab;
+      if (seasonId) query.season = seasonId;
+      router.push({
+        path: "/season",
+        query: Object.keys(query).length ? query : undefined,
+      });
       return;
     }
 
@@ -547,6 +616,11 @@ function handleNavigate(target) {
       return;
     }
 
+    if (section === "handicaps" || section === "rscup" || section === "more") {
+      router.push(section === "more" ? "/more" : `/${section}`);
+      return;
+    }
+
     const targetSection = sections.find((s) => s.name === section);
     if (targetSection) {
       switchSection(targetSection);
@@ -560,12 +634,8 @@ function handleNavigate(target) {
     if (colon > 0) {
       const base = normalized.slice(0, colon);
       const rest = normalized.slice(colon + 1);
-      if (base === "stats" && STATS_HUB_TAB_IDS.has(rest)) {
-        if (rest === "results") {
-          router.push("/stats");
-        } else {
-          router.push({ path: "/stats", query: { tab: rest } });
-        }
+      if (base === "stats") {
+        handleNavigate({ section: "stats", tab: rest });
         return;
       }
     }

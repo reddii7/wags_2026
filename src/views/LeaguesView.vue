@@ -3,6 +3,11 @@ import { ref, computed, watch } from "vue";
 import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
 import { triggerHapticFeedback } from "../utils/haptics";
+import { leagueThemeForName } from "../lib/leagueTheme.js";
+
+function leagueAccent(name) {
+  return leagueThemeForName(name).color;
+}
 
 const props = defineProps({
   season: { type: Object, required: true },
@@ -456,6 +461,7 @@ const closeBest10 = () => {
           type="button"
           class="league-round-item"
           :class="{ active: leagueNavIdx === idx }"
+          :style="{ '--league-accent': leagueAccent(name) }"
           @click="leagueNavIdx = idx"
         >
           {{ formatLeagueTitle(name) }}
@@ -538,7 +544,7 @@ const closeBest10 = () => {
 }
 
 .league-round-item.active {
-  color: var(--text);
+  color: var(--league-accent, var(--text));
 }
 
 .league-round-line {
@@ -548,6 +554,6 @@ const closeBest10 = () => {
   right: 0.4rem;
   height: 2px;
   border-radius: 2px 2px 0 0;
-  background: var(--accent);
+  background: var(--league-accent, var(--accent));
 }
 </style>

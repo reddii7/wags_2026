@@ -17,6 +17,7 @@ const props = defineProps({
     required: true,
   },
 });
+const emit = defineEmits(["navigate"]);
 
 const players = ref([]);
 const selectedPlayerId = ref(null);
@@ -152,10 +153,8 @@ const loadPlayers = async () => {
 const openHistory = async (playerId) => {
   if (!playerId) return;
   triggerHapticFeedback();
-  error.value = "";
-  selectedPlayerId.value = playerId;
-  isHistoryOpen.value = true;
-  await loadHistory();
+  // F1-style driver page: open full player profile.
+  emit("navigate", { section: "player", playerId });
 };
 
 const closeHistory = () => {
