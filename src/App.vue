@@ -26,23 +26,13 @@ const router = useRouter();
 
 // Stats hub uses ?tab= for sub-views; keying RouterView on fullPath remounted the
 // whole hub on every tab change and reset the season selector to defaults.
+const hubRouteNames = new Set(["stats", "standings", "season"]);
 const routerViewComponentKey = computed(() =>
-  String(route.name) === "stats" ? route.path : route.fullPath,
+  hubRouteNames.has(String(route.name)) ? route.path : route.fullPath,
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261027-next-look-v40";
-
-/** Preview channel (wagsnext) — never force-reload production users. */
-const isPreviewChannel = computed(() => {
-  if (typeof window === "undefined") return false;
-  const host = String(window.location.hostname || "").toLowerCase();
-  return (
-    host.includes("wagsnext") ||
-    String(import.meta.env.VITE_APP_CHANNEL || "") === "next"
-  );
-});
-
+const CLIENT_BUILD_ID = "20261027-next-f1-look-v41";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -360,7 +350,8 @@ async function hardRefresh() {
       console.error("Failed to clear caches:", err);
     }
   }
-  // Hard reload with cache-bust, preserving the current path.
+  // Hard reload with cache-bust, preserving the current path (e.g. /handicaps).
+  // Going to origin-only dropped deep links and looked like blank sections.
   const url = new URL(window.location.href);
   url.searchParams.set("t", Date.now().toString());
   // Using href instead of replace is often more effective at breaking the standalone cache
@@ -375,15 +366,38 @@ function loadDataFromSupabase(...args) {
 }
 
 const sections = [
-  { name: "home", label: "Home", icon: "home", path: "/" },
-  { name: "stats", label: "Stats", icon: "results", path: "/stats" },
-  { name: "handicaps", label: "Handicaps", icon: "users", path: "/handicaps" },
-  { name: "rscup", label: "RS CUP", icon: "trophy", path: "/rscup" },
+  { name: "home", label: "Latest", icon: "home", path: "/" },
+  { name: "week", label: "Week", icon: "week", path: "/week" },
+  {
+    name: "standings",
+    label: "Standings",
+    icon: "standings",
+    path: "/standings",
+  },
+  { name: "more", label: "More", icon: "more", path: "/more" },
 ];
 
-const statsRouteNames = new Set(["stats", "results", "leagues", "best14"]);
+const seasonScopedRoutes = new Set([
+  "stats",
+  "results",
+  "leagues",
+  "best14",
+  "week",
+  "standings",
+  "season",
+  "player",
+]);
 const selectedCompetitionId = ref(null);
 
+/** Preview channel (wagsnext) — never force-reload production users. */
+const isPreviewChannel = computed(() => {
+  if (typeof window === "undefined") return false;
+  const host = String(window.location.hostname || "").toLowerCase();
+  return (
+    host.includes("wagsnext") ||
+    String(import.meta.env.VITE_APP_CHANNEL || "") === "next"
+  );
+});
 
 const selectedSeason = computed(() => {
   const seasons = Array.isArray(globalMetadata.value?.seasons)
@@ -438,7 +452,25 @@ const selectedResultsSeason = computed(() => {
 
 const currentNavName = computed(() => {
   const routeName = String(route.name || "home");
-  return statsRouteNames.has(routeName) ? "stats" : routeName;
+  if (routeName === "results" || routeName === "week") return "week";
+  if (
+    routeName === "standings" ||
+    routeName === "leagues" ||
+    routeName === "best14" ||
+    routeName === "stats"
+  ) {
+    return "standings";
+  }
+  if (
+    routeName === "more" ||
+    routeName === "handicaps" ||
+    routeName === "rscup" ||
+    routeName === "season" ||
+    routeName === "player"
+  ) {
+    return "more";
+  }
+  return routeName;
 });
 
 const currentViewProps = computed(() => {
@@ -447,9 +479,9 @@ const currentViewProps = computed(() => {
     metadata: globalMetadata.value,
   };
 
-  if (statsRouteNames.has(routeName)) {
+  if (seasonScopedRoutes.has(routeName)) {
     props.season =
-      routeName === "results"
+      routeName === "results" || routeName === "week"
         ? selectedResultsSeason.value
         : selectedSeason.value;
   }
@@ -464,9 +496,15 @@ const currentViewProps = computed(() => {
 function switchSection(section) {
   triggerHapticFeedback();
   const targetPath = section?.path || "/";
-  if (section?.name === "stats" && route.path === "/stats") {
+  if (section?.name === "standings" && route.path === "/standings") {
     if (route.query.tab || route.query.season) {
-      router.replace("/stats");
+      router.replace("/standings");
+    }
+    return;
+  }
+  if (section?.name === "week" && route.path === "/week") {
+    if (route.query.round || route.query.season) {
+      router.replace("/week");
     }
     return;
   }
@@ -482,13 +520,8 @@ function switchSection(section) {
   }
 }
 
-const STATS_HUB_TAB_IDS = new Set([
-  "results",
-  "leagues",
-  "best14",
-  "winners",
-  "history",
-]);
+const STANDINGS_TAB_IDS = new Set(["leagues", "best14"]);
+const SEASON_TAB_IDS = new Set(["history", "champs", "winners"]);
 
 function handleNavigate(target) {
   if (target && typeof target === "object" && !Array.isArray(target)) {
@@ -502,18 +535,59 @@ function handleNavigate(target) {
       target.mode != null && String(target.mode).trim() !== ""
         ? String(target.mode).trim().toLowerCase()
         : "";
+    const playerId =
+      target.playerId != null && String(target.playerId).trim() !== ""
+        ? String(target.playerId).trim()
+        : "";
+
+    if (section === "player" && playerId) {
+      router.push({ name: "player", params: { id: playerId } });
+      return;
+    }
 
     if (section === "stats") {
+      // Legacy callers → new F1 hubs
+      if (tab === "leagues" || tab === "best14") {
+        const query = { tab };
+        if (seasonId) query.season = seasonId;
+        router.push({ path: "/standings", query });
+        return;
+      }
+      if (tab === "history" || tab === "winners" || tab === "champs") {
+        const query = {
+          tab: tab === "winners" ? "champs" : tab === "champs" ? "champs" : "history",
+        };
+        if (seasonId) query.season = seasonId;
+        router.push({ path: "/season", query });
+        return;
+      }
       const query = {};
-      if (tab && STATS_HUB_TAB_IDS.has(tab) && tab !== "results") {
-        query.tab = tab;
-      }
       if (seasonId) query.season = seasonId;
-      if (Object.keys(query).length) {
-        router.push({ path: "/stats", query });
-      } else {
-        router.push("/stats");
-      }
+      router.push({ path: "/week", query });
+      return;
+    }
+
+    if (section === "standings") {
+      const query = {};
+      if (tab && STANDINGS_TAB_IDS.has(tab) && tab !== "leagues") query.tab = tab;
+      if (seasonId) query.season = seasonId;
+      router.push({
+        path: "/standings",
+        query: Object.keys(query).length ? query : undefined,
+      });
+      return;
+    }
+
+    if (section === "season") {
+      const query = {};
+      const normalizedTab =
+        tab === "winners" ? "champs" : SEASON_TAB_IDS.has(tab) ? tab : "";
+      if (normalizedTab && normalizedTab !== "history") query.tab = normalizedTab;
+      if (seasonId) query.season = seasonId;
+      router.push({
+        path: "/season",
+        query: Object.keys(query).length ? query : undefined,
+      });
       return;
     }
 
@@ -523,6 +597,27 @@ function handleNavigate(target) {
       } else {
         router.push("/");
       }
+      return;
+    }
+
+    if (section === "week") {
+      const roundId =
+        target.roundId != null && String(target.roundId).trim() !== ""
+          ? String(target.roundId).trim()
+          : "";
+      const query = {};
+      if (seasonId) query.season = seasonId;
+      if (roundId) query.round = roundId;
+      if (Object.keys(query).length) {
+        router.push({ path: "/week", query });
+      } else {
+        router.push("/week");
+      }
+      return;
+    }
+
+    if (section === "handicaps" || section === "rscup" || section === "more") {
+      router.push(section === "more" ? "/more" : `/${section}`);
       return;
     }
 
@@ -539,12 +634,8 @@ function handleNavigate(target) {
     if (colon > 0) {
       const base = normalized.slice(0, colon);
       const rest = normalized.slice(colon + 1);
-      if (base === "stats" && STATS_HUB_TAB_IDS.has(rest)) {
-        if (rest === "results") {
-          router.push("/stats");
-        } else {
-          router.push({ path: "/stats", query: { tab: rest } });
-        }
+      if (base === "stats") {
+        handleNavigate({ section: "stats", tab: rest });
         return;
       }
     }
@@ -805,19 +896,21 @@ onBeforeUnmount(() => {
 
 <style>
 .bottom-nav {
-  background: var(--bg) !important;
+  background: #0f0f16 !important;
 }
 
 .app-preview-banner {
   position: sticky;
   top: 0;
   z-index: 40;
-  padding: 0.28rem 0.85rem;
-  background: color-mix(in srgb, var(--line, #3a3a3c) 55%, var(--bg, #1e1e1e));
-  color: var(--muted, #8e8e93);
+  padding: 0.32rem 0.85rem;
+  background: #0f0f16;
+  color: rgba(255, 255, 255, 0.55);
+  border-bottom: 3px solid var(--f1-red, #e10600);
+  font-family: var(--font-display, sans-serif);
   font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-align: center;
   text-transform: uppercase;
 }

@@ -51,43 +51,48 @@ const rows = computed(() => {
 <style scoped>
 .honour-grid {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.55rem;
 }
 
 .honour-card {
-  padding: 1.15rem 1.2rem;
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--award-accent) 45%, var(--line));
-  background: var(--surface-2);
+  position: relative;
+  padding: 1rem 1rem 1rem 1.05rem;
+  border-radius: 0;
+  border: 0;
+  border-left: 4px solid var(--award-accent, var(--f1-red, #e10600));
+  background: var(--surface-2, #1f1f2b);
 }
 
 .honour-eyebrow {
-  margin: 0 0 0.35rem;
-  font-size: 0.72rem;
+  margin: 0 0 0.25rem;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted, #8e8e93);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .honour-name {
   margin: 0;
-  font-size: 1.35rem;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--text);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #fff;
 }
 
 .honour-notes {
-  margin: 0.45rem 0 0;
-  color: var(--muted, #8e8e93);
+  margin: 0.4rem 0 0;
+  color: rgba(255, 255, 255, 0.55);
   font-size: 0.88rem;
   line-height: 1.4;
 }
 
 .empty-state {
   margin: 0;
-  color: var(--muted, #8e8e93);
+  color: rgba(255, 255, 255, 0.55);
   font-size: 0.92rem;
 }
 </style>

@@ -227,8 +227,9 @@ function pickSeason(seasonId) {
   position: sticky;
   top: 0;
   z-index: 5;
-  background: var(--bg-strong);
+  background: #0f0f16;
   padding: 0.35rem 0 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .f1-season-row {
@@ -236,7 +237,8 @@ function pickSeason(seasonId) {
   align-items: center;
   gap: 0.55rem;
   width: 100%;
-  padding: 0.55rem 1rem 0.35rem;
+  padding: 0.7rem 1rem 0.45rem;
+  font-family: var(--font-display);
 }
 
 .f1-season-row-trigger {
@@ -252,57 +254,66 @@ function pickSeason(seasonId) {
   width: 1.55rem;
   height: 1.55rem;
   border-radius: 999px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   display: grid;
   place-items: center;
-  color: var(--text);
+  color: #fff;
 }
 
 .f1-year-text {
-  font-size: 1.35rem;
+  font-size: 1.55rem;
   font-weight: 800;
-  color: var(--text);
+  letter-spacing: 0.02em;
+  color: #fff;
 }
 
 .f1-season-label {
   font-size: 0.95rem;
-  font-weight: 650;
-  color: var(--text);
+  font-weight: 700;
+  color: #fff;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
 }
 
 .hub-season-status {
   margin-left: auto;
-  color: var(--muted);
-  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .f1-section-nav {
   display: flex;
-  justify-content: space-evenly;
-  gap: 0.25rem;
-  padding: 0.35rem 0.5rem 0.55rem;
-  border-bottom: 1px solid var(--line);
+  justify-content: flex-start;
+  gap: 1.1rem;
+  padding: 0.2rem 1rem 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.f1-section-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .f1-section-tab {
   background: none;
   border: none;
-  color: var(--muted);
-  font-size: 0.9rem;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  padding: 0.35rem 0.2rem 0.45rem;
+  color: rgba(255, 255, 255, 0.48);
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.55rem 0 0.7rem;
   cursor: pointer;
   position: relative;
+  white-space: nowrap;
 }
 
 .f1-section-tab.active {
-  color: var(--accent);
+  color: #fff;
 }
 
 .f1-section-underline {
@@ -311,9 +322,9 @@ function pickSeason(seasonId) {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 0.18rem;
-  background: var(--accent);
-  border-radius: 0.12rem 0.12rem 0 0;
+  height: 3px;
+  background: var(--f1-red, #e10600);
+  border-radius: 0;
 }
 
 .hub-content {

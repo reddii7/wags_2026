@@ -361,16 +361,19 @@ watch(
   position: relative;
   background: transparent;
   border: none;
-  color: var(--muted);
-  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.48);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
   font-weight: 700;
-  padding: 0.6rem 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.7rem 0.85rem;
   min-width: 3.2rem;
   cursor: pointer;
 }
 
 .f1-round-item.active {
-  color: var(--accent);
+  color: #fff;
 }
 
 .f1-round-line {
@@ -378,10 +381,10 @@ watch(
   position: absolute;
   left: 0.55rem;
   right: 0.55rem;
-  bottom: 0.15rem;
-  height: 0.16rem;
-  border-radius: 0.1rem;
-  background: var(--accent);
+  bottom: 0.1rem;
+  height: 3px;
+  border-radius: 0;
+  background: var(--f1-red, #e10600);
 }
 
 .week-hub__movers {
@@ -399,16 +402,19 @@ watch(
   width: 100%;
   text-align: left;
   cursor: pointer;
-  border: 1px solid var(--line);
+  border: 0;
+  border-left: 4px solid var(--f1-red, #e10600);
   background: var(--surface-2);
 }
 
 .week-hub__shortcut strong {
   display: block;
   margin-top: 0.15rem;
-  font-family: var(--font-serif);
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #fff;
 }
 </style>

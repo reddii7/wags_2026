@@ -83,16 +83,19 @@ const links = computed(() => [
   width: 100%;
   text-align: left;
   cursor: pointer;
-  border: 1px solid var(--line);
+  border: 0;
+  border-left: 4px solid var(--f1-red, #e10600);
   background: var(--surface-2);
 }
 
 .more-link strong {
   display: block;
   margin-top: 0.2rem;
-  font-family: var(--font-serif);
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #fff;
 }
 </style>
