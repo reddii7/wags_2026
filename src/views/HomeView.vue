@@ -19,6 +19,7 @@ const best14Leaders = ref([]);
 const leagueLeaders = ref([]);
 const handicapMovements = ref([]);
 const winterTab = ref("week"); // week | best10
+const selectedWeekId = ref("");
 const selectedPlayerId = ref("");
 const homePayload = ref({
   week_label: "WEEK — , —",
@@ -104,6 +105,68 @@ const winterContract = computed(() => {
 
 const summerContract = computed(() => dashForSeason(summerSeason.value));
 
+const winterResults = computed(() => {
+  const rv = winterContract.value?.results_view;
+  return rv && typeof rv === "object" ? rv : null;
+});
+
+const winterWeeks = computed(() => {
+  const comps = winterResults.value?.competitions;
+  if (!Array.isArray(comps)) return [];
+  const rows = winterResults.value?.rows_by_competition || {};
+  return comps
+    .filter((comp) => Array.isArray(rows?.[comp.id]) && rows[comp.id].length)
+    .slice()
+    .sort((a, b) => Number(a.week_number) - Number(b.week_number));
+});
+
+const selectedWeekSummary = computed(() => {
+  const id = selectedWeekId.value;
+  const summary = winterResults.value?.summary_by_competition?.[id];
+  return summary && typeof summary === "object" ? summary : null;
+});
+
+const selectedWeekRows = computed(() => {
+  const id = selectedWeekId.value;
+  const rows = winterResults.value?.rows_by_competition?.[id];
+  if (!Array.isArray(rows) || !rows.length) return weekScores.value;
+  const winners = new Set(
+    (Array.isArray(selectedWeekSummary.value?.winner_names)
+      ? selectedWeekSummary.value.winner_names
+      : []
+    ).map((name) => String(name)),
+  );
+  return rows.map((row) => ({
+    position: row.position,
+    user_id: row.user_id,
+    full_name: row.player || row.full_name,
+    score: row.score,
+    is_winner:
+      winners.size > 0
+        ? winners.has(String(row.player || row.full_name || ""))
+        : false,
+  }));
+});
+
+const selectedWeekTitle = computed(() => {
+  const summary = selectedWeekSummary.value;
+  const weekNo = Number(summary?.week_number);
+  const dateLabel = formatDayMonth(summary?.week_date);
+  if (Number.isFinite(weekNo) && weekNo > 0 && dateLabel) {
+    return `WEEK ${weekNo}, ${dateLabel}`;
+  }
+  return homePayload.value.week_label;
+});
+
+const selectedWeekHero = computed(() => {
+  const raw = String(selectedWeekSummary.value?.hero_message || "").trim();
+  if (!raw) return homePayload.value.hero_message;
+  return raw.replace(
+    "added to his season winnings.",
+    "paid on the night.",
+  );
+});
+
 const selectedBest10Card = computed(() => {
   if (!selectedPlayerId.value) return null;
   const card = best10ByMember.value?.[String(selectedPlayerId.value)];
@@ -113,6 +176,36 @@ const selectedBest10Card = computed(() => {
 const activeHero = computed(() =>
   isWinter.value ? homePayload.value : summerPayload.value,
 );
+
+function formatDayMonth(isoLike) {
+  const dStr = typeof isoLike === "string" ? isoLike.trim().slice(0, 10) : "";
+  if (!dStr || !/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return "";
+  const d = new Date(`${dStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+  }).format(d);
+}
+
+function syncSelectedWeek() {
+  const weeks = winterWeeks.value;
+  if (!weeks.length) {
+    selectedWeekId.value = "";
+    return;
+  }
+  if (weeks.some((week) => week.id === selectedWeekId.value)) return;
+  const fallback = String(winterResults.value?.default_competition_id || "");
+  selectedWeekId.value = weeks.some((week) => week.id === fallback)
+    ? fallback
+    : weeks[weeks.length - 1].id;
+}
+
+function selectWeek(weekId) {
+  triggerHapticFeedback();
+  selectedWeekId.value = String(weekId);
+  winterTab.value = "week";
+}
 
 function formatPounds(pence) {
   const n = Number(pence) || 0;
@@ -269,6 +362,7 @@ watch(
       winterTab.value = "week";
     }
     loadHomeData();
+    syncSelectedWeek();
   },
   { immediate: true },
 );
@@ -343,10 +437,15 @@ watch(
             ← Home
           </button>
           <span class="home-hero-sublabel2 wags-body">Winter</span>
-          <span>{{ homePayload.week_label }}</span>
-          <template v-if="!homePayload.no_results">
+          <span>{{ winterTab === "week" ? selectedWeekTitle : "Best 10" }}</span>
+          <template v-if="winterTab === 'week' && selectedWeekHero">
             <p class="home-hero-sublabel home-hero-subtext">
-              {{ homePayload.hero_message }}
+              {{ selectedWeekHero }}
+            </p>
+          </template>
+          <template v-else-if="winterTab === 'best10' && !homePayload.no_results">
+            <p class="home-hero-sublabel home-hero-subtext">
+              {{ formatPounds(homePayload.rolling_pot_pence) }} rolling pot
             </p>
           </template>
           <template v-else-if="!loading && !metadata.loading">
@@ -369,8 +468,28 @@ watch(
       <p class="empty-state">{{ error }}</p>
     </section>
 
+    <nav
+      v-else-if="winterWeeks.length"
+      class="f1-round-nav"
+      aria-label="Weeks"
+    >
+      <div class="f1-round-scroll">
+        <button
+          v-for="week in winterWeeks"
+          :key="week.id"
+          type="button"
+          class="f1-round-item"
+          :class="{ active: selectedWeekId === week.id }"
+          @click="selectWeek(week.id)"
+        >
+          {{ week.week_label || `WK${week.week_number}` }}
+          <span v-if="selectedWeekId === week.id" class="f1-round-line"></span>
+        </button>
+      </div>
+    </nav>
+
     <section
-      v-else
+      v-if="!loading && !error"
       class="home-dashboard home-dashboard--single"
       aria-label="Winter standings"
     >
@@ -408,7 +527,7 @@ watch(
 
         <div v-if="winterTab === 'week'" class="home-compact-list">
           <div
-            v-for="row in weekScores"
+            v-for="row in selectedWeekRows"
             :key="`${row.user_id}-${row.position}`"
             class="home-compact-row"
             :class="{ 'home-compact-row--winner': row.is_winner }"
@@ -417,7 +536,7 @@ watch(
             <span class="home-name">{{ row.full_name }}</span>
             <span class="home-value">{{ row.score }}</span>
           </div>
-          <p v-if="!weekScores.length" class="empty-state">No scores this week.</p>
+          <p v-if="!selectedWeekRows.length" class="empty-state">No scores this week.</p>
         </div>
 
         <div v-else class="rolling-pot" aria-label="Rolling pot">
@@ -528,6 +647,50 @@ watch(
 
 .home-dashboard--single {
   grid-template-columns: 1fr;
+}
+
+.f1-round-nav {
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+  padding: 0.15rem 0 0;
+}
+
+.f1-round-scroll {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.15rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.f1-round-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.f1-round-item {
+  position: relative;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.65rem 0.8rem 0.75rem;
+  min-width: 3.2rem;
+  cursor: pointer;
+}
+
+.f1-round-item.active {
+  color: var(--text);
+}
+
+.f1-round-line {
+  display: block;
+  height: 0.16rem;
+  width: calc(100% - 1.2rem);
+  margin: 0.35rem auto 0;
+  background: var(--accent);
+  border-radius: 0.1rem;
 }
 
 .rolling-pot {
