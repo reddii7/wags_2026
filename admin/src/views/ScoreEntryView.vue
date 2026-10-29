@@ -7,6 +7,7 @@ import {
   isDuplicateKeyError,
   friendlyDuplicateScoreMessage,
   loadCampaignRoster,
+  loadWinterEntryRoster,
   loadActiveMembers,
   loadRoundById,
   rosterSourceLabel,
@@ -34,12 +35,25 @@ const success = ref("");
 /** Default to full sheet so points + snake/camel stay editable until Save all. */
 const filter = ref("all");
 const search = ref("");
+/** Members added this session for winter (until saved / round change). */
+const extraRoster = ref([]);
+const allMembers = ref([]);
+const addPlayerId = ref("");
 
 const drafts = ref({});
 /** Baseline loaded from DB — used for dirty detection / discard. */
 const baselines = ref({});
 /** @type {import('vue').Ref<Record<string, HTMLInputElement | null>>} */
 const pointsRefs = ref({});
+
+const isWinterRound = computed(() => {
+  const opt = roundOptions.value.find((o) => o.id === roundId.value);
+  return (
+    opt?.roundType === "winter_weekly" ||
+    roundDetail.value?.round_type === "winter_weekly" ||
+    roundDetail.value?.campaigns?.kind === "winter_reduced"
+  );
+});
 
 function emptyDraft() {
   return {
@@ -149,13 +163,31 @@ async function loadAll({ preserveDirty = false } = {}) {
     if (sErr) throw sErr;
     scores.value = scoreRows ?? [];
 
-    if (opt?.campaignId) {
+    const winter =
+      opt?.roundType === "winter_weekly" ||
+      roundDetail.value?.round_type === "winter_weekly" ||
+      roundDetail.value?.campaigns?.kind === "winter_reduced";
+
+    if (winter && opt?.campaignId) {
+      const result = await loadWinterEntryRoster(sb, opt.campaignId, scores.value);
+      const seen = new Set(result.roster.map((m) => String(m.memberId)));
+      const extras = extraRoster.value.filter((m) => !seen.has(String(m.memberId)));
+      roster.value = [...result.roster, ...extras].sort((a, b) =>
+        a.fullName.localeCompare(b.fullName),
+      );
+      rosterSource.value = result.source;
+      allMembers.value = await loadActiveMembers(sb);
+    } else if (opt?.campaignId) {
+      extraRoster.value = [];
       const result = await loadCampaignRoster(sb, opt.campaignId);
       roster.value = result.roster;
       rosterSource.value = result.source;
+      allMembers.value = [];
     } else {
+      extraRoster.value = [];
       roster.value = await loadActiveMembers(sb);
       rosterSource.value = "members";
+      allMembers.value = [];
     }
 
     const nextDrafts = {};
@@ -163,11 +195,16 @@ async function loadAll({ preserveDirty = false } = {}) {
     for (const m of roster.value) {
       const existing = scores.value.find((s) => s.member_id === m.memberId);
       const loaded = draftFromScore(existing);
+      if (winter) {
+        loaded.snake = false;
+        loaded.camel = false;
+      }
       nextBaselines[m.memberId] = cloneDraft(loaded);
       if (preserveDirty && drafts.value[m.memberId] && isScoreDraftDirty(drafts.value[m.memberId], nextBaselines[m.memberId])) {
         nextDrafts[m.memberId] = {
           ...drafts.value[m.memberId],
           rowId: loaded.rowId ?? drafts.value[m.memberId].rowId,
+          ...(winter ? { snake: false, camel: false } : {}),
         };
       } else {
         nextDrafts[m.memberId] = loaded;
@@ -182,6 +219,35 @@ async function loadAll({ preserveDirty = false } = {}) {
   } finally {
     loading.value = false;
   }
+}
+
+const addablePlayers = computed(() => {
+  if (!isWinterRound.value) return [];
+  const onSheet = new Set(roster.value.map((m) => String(m.memberId)));
+  return allMembers.value.filter((m) => !onSheet.has(String(m.memberId)));
+});
+
+async function addPlayerToSheet() {
+  if (!isWinterRound.value || roundFinalized.value || !addPlayerId.value) return;
+  const member = allMembers.value.find((m) => String(m.memberId) === String(addPlayerId.value));
+  if (!member) return;
+  if (roster.value.some((m) => String(m.memberId) === String(member.memberId))) {
+    addPlayerId.value = "";
+    return;
+  }
+  extraRoster.value = [...extraRoster.value, member];
+  roster.value = [...roster.value, member].sort((a, b) => a.fullName.localeCompare(b.fullName));
+  drafts.value = {
+    ...drafts.value,
+    [member.memberId]: emptyDraft(),
+  };
+  baselines.value = {
+    ...baselines.value,
+    [member.memberId]: cloneDraft(emptyDraft()),
+  };
+  addPlayerId.value = "";
+  await nextTick();
+  focusMemberPoints(member.memberId);
 }
 
 const roundFinalized = computed(() => Boolean(roundDetail.value?.finalized));
@@ -323,7 +389,10 @@ async function saveAll() {
 
   const payloads = [];
   for (const m of members) {
-    const payload = buildRoundPlayerPayload(roundId.value, m.memberId, drafts.value[m.memberId]);
+    const draft = isWinterRound.value
+      ? { ...drafts.value[m.memberId], snake: false, camel: false, fee: 500 }
+      : drafts.value[m.memberId];
+    const payload = buildRoundPlayerPayload(roundId.value, m.memberId, draft);
     if (payload) payloads.push(payload);
   }
 
@@ -393,6 +462,10 @@ watch(roundId, async (next, prev) => {
       return;
     }
   }
+  if (prev && next !== prev) {
+    extraRoster.value = [];
+    addPlayerId.value = "";
+  }
   router.replace({ query: { ...route.query, round: roundId.value || undefined } });
   await loadAll();
 });
@@ -417,8 +490,14 @@ watch(filter, () => {
         <p class="eyebrow">Weekly workflow</p>
         <h1>Enter scores</h1>
         <p class="lede">
-          Fill the whole sheet first — points, snakes, and camels stay local.
-          Press <kbd>Enter</kbd> to move down, then <strong>Save all</strong> when the sheet is complete.
+          <template v-if="isWinterRound">
+            Winter sheet starts with known winter scorers only — add anyone new as they play.
+            Enter net points, press <kbd>Enter</kbd> to move down, then <strong>Save all</strong>.
+          </template>
+          <template v-else>
+            Fill the whole sheet first — points, snakes, and camels stay local.
+            Press <kbd>Enter</kbd> to move down, then <strong>Save all</strong> when the sheet is complete.
+          </template>
         </p>
       </div>
       <button type="button" class="secondary-button" :disabled="loading || saving" @click="loadAll()">
@@ -449,6 +528,27 @@ watch(filter, () => {
           <span>Search</span>
           <input v-model="search" type="search" placeholder="Player name…" />
         </label>
+        <div v-if="isWinterRound && !roundFinalized" class="field-pill field-pill--grow add-player">
+          <span>Add player</span>
+          <div class="add-player__row">
+            <select v-model="addPlayerId" :disabled="loading || saving || !addablePlayers.length">
+              <option value="">
+                {{ addablePlayers.length ? "Choose player…" : "Everyone is on the sheet" }}
+              </option>
+              <option v-for="m in addablePlayers" :key="m.memberId" :value="m.memberId">
+                {{ m.fullName }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="secondary-button"
+              :disabled="!addPlayerId || loading || saving"
+              @click="addPlayerToSheet"
+            >
+              Add
+            </button>
+          </div>
+        </div>
       </section>
 
       <p v-if="roundId" :class="['status-line', roundFinalized ? 'status-line--lock' : '']">
@@ -487,8 +587,8 @@ watch(filter, () => {
               <tr>
                 <th class="col-player">Player</th>
                 <th class="col-pts">Pts</th>
-                <th class="col-tick">Snake</th>
-                <th class="col-tick">Camel</th>
+                <th v-if="!isWinterRound" class="col-tick">Snake</th>
+                <th v-if="!isWinterRound" class="col-tick">Camel</th>
               </tr>
             </thead>
             <tbody>
@@ -520,7 +620,7 @@ watch(filter, () => {
                     @keydown.enter.prevent="onPointsEnter(m)"
                   />
                 </td>
-                <td class="col-tick">
+                <td v-if="!isWinterRound" class="col-tick">
                   <input
                     v-model="drafts[m.memberId].snake"
                     type="checkbox"
@@ -529,7 +629,7 @@ watch(filter, () => {
                     :aria-label="`Snake for ${m.fullName}`"
                   />
                 </td>
-                <td class="col-tick">
+                <td v-if="!isWinterRound" class="col-tick">
                   <input
                     v-model="drafts[m.memberId].camel"
                     type="checkbox"
@@ -542,7 +642,12 @@ watch(filter, () => {
             </tbody>
           </table>
         </div>
-        <p v-if="!displayList.length" class="empty-state">No players match this filter.</p>
+        <p v-if="!displayList.length" class="empty-state">
+          <template v-if="isWinterRound && !roster.length">
+            No winter scorers yet — use <strong>Add player</strong> for each person who played.
+          </template>
+          <template v-else>No players match this filter.</template>
+        </p>
       </section>
 
       <footer v-if="!roundFinalized" class="save-bar" :class="{ 'save-bar--active': dirtyCount }">
@@ -681,6 +786,22 @@ h1,
 .field-pill--grow {
   flex: 1;
   min-width: 12rem;
+}
+
+.add-player__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.add-player__row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.add-player__row .secondary-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .field-pill span {

@@ -271,6 +271,56 @@ export async function checkRoundFinalizeReady(sb, round) {
   };
 }
 
+/**
+ * Winter live entry roster: only members who already have a winter_weekly
+ * score in this campaign (plus anyone already on the current round).
+ * @returns {{ roster: Array<{memberId, fullName}>, source: string }}
+ */
+export async function loadWinterEntryRoster(sb, campaignId, currentRoundScores = []) {
+  if (!sb || !campaignId) {
+    return { roster: [], source: "none" };
+  }
+
+  const byId = new Map();
+
+  for (const row of currentRoundScores ?? []) {
+    const memberId = row?.member_id;
+    const fullName = row?.members?.full_name;
+    if (!memberId || !fullName) continue;
+    byId.set(String(memberId), { memberId, fullName: String(fullName) });
+  }
+
+  const { data: winterRounds, error: rErr } = await sb
+    .from("rounds")
+    .select("id")
+    .eq("campaign_id", campaignId)
+    .eq("round_type", "winter_weekly");
+  if (rErr) throw rErr;
+
+  const roundIds = (winterRounds ?? []).map((r) => r.id).filter(Boolean);
+  if (roundIds.length) {
+    const CHUNK = 40;
+    for (let i = 0; i < roundIds.length; i += CHUNK) {
+      const chunk = roundIds.slice(i, i + CHUNK);
+      const { data, error } = await sb
+        .from("round_players")
+        .select("member_id, members(full_name)")
+        .in("round_id", chunk)
+        .eq("entered", true);
+      if (error) throw error;
+      for (const row of data ?? []) {
+        if (!row.member_id || !row.members?.full_name) continue;
+        byId.set(String(row.member_id), {
+          memberId: row.member_id,
+          fullName: String(row.members.full_name),
+        });
+      }
+    }
+  }
+
+  return { roster: mapMemberRows([...byId.values()]), source: "winter_scorers" };
+}
+
 /** Human label for where the roster list came from. */
 export function rosterSourceLabel(source) {
   switch (source) {
@@ -280,6 +330,8 @@ export function rosterSourceLabel(source) {
       return "League assignments for this campaign";
     case "members":
       return "All members (no campaign roster found)";
+    case "winter_scorers":
+      return "Winter scorers only — use Add player for newcomers";
     default:
       return "";
   }
