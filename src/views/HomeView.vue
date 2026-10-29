@@ -30,6 +30,7 @@ const homePayload = ref({
     camels: 0,
   },
   paid_out_pence: 0,
+  rolling_pot_pence: 0,
   winner_name: null,
 });
 const summerPayload = ref({
@@ -173,6 +174,7 @@ function mapHomeBlock(dash) {
       camels: Number(dashHome?.stats?.camels) || 0,
     },
     paid_out_pence: Number(dashHome?.paid_out_pence) || 0,
+    rolling_pot_pence: Number(dashHome?.rolling_pot_pence) || 0,
     winner_name: dashHome?.winner_name ? String(dashHome.winner_name) : null,
   };
 }
@@ -199,6 +201,7 @@ const loadHomeData = async () => {
       no_results: true,
       stats: { players: 0, snakes: 0, camels: 0 },
       paid_out_pence: 0,
+      rolling_pot_pence: 0,
       winner_name: null,
     };
 
@@ -417,7 +420,12 @@ watch(
           <p v-if="!weekScores.length" class="empty-state">No scores this week.</p>
         </div>
 
-        <div v-else class="home-compact-list">
+        <div v-else class="rolling-pot" aria-label="Rolling pot">
+          <span class="home-hero-sublabel">Rolling pot</span>
+          <strong>{{ formatPounds(homePayload.rolling_pot_pence) }}</strong>
+          <p class="rolling-pot__note">Best 10 · builds each week</p>
+        </div>
+        <div v-if="winterTab === 'best10'" class="home-compact-list">
           <div
             v-for="row in best10Leaders"
             :key="row.user_id || row.id"
@@ -520,6 +528,31 @@ watch(
 
 .home-dashboard--single {
   grid-template-columns: 1fr;
+}
+
+.rolling-pot {
+  padding: 0.35rem 0 0.85rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.35rem;
+}
+
+.rolling-pot strong {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 2.6rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--text);
+}
+
+.rolling-pot__note {
+  margin: 0.45rem 0 0;
+  color: var(--muted, #8e8e93);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .home-card__header--tabs {

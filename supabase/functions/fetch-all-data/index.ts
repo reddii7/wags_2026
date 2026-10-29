@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20261029-home-hub-v45";
+const BUILD_ID = "20261029-home-hub-v46";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -1054,6 +1054,7 @@ async function greenfieldFetchAll(
         handicap_changes: [],
         focus_round_id: focusFromRpc ?? focusRoundBuilt,
         paid_out_pence: Number(h.paid_out_pence) || 0,
+        rolling_pot_pence: Number(h.rolling_pot_pence) || 0,
         winner_member_id: h.winner_member_id
           ? String(h.winner_member_id)
           : null,
