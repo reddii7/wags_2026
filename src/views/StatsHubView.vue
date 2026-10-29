@@ -46,11 +46,11 @@ const selectedSeasonId = ref(null);
 const seasonPickerOpen = ref(false);
 
 const tabs = [
-  { id: "results", label: "RESULTS", component: markRaw(ResultsView) },
-  { id: "leagues", label: "LEAGUES", component: markRaw(LeaguesView) },
-  { id: "best14", label: "BEST 14", component: markRaw(Best14View) },
-  { id: "winners", label: "CHAMPS", component: markRaw(WinnersTable) },
-  { id: "history", label: "HISTORY", component: markRaw(SeasonHistoryView) },
+  { id: "results", label: "Results", component: markRaw(ResultsView) },
+  { id: "leagues", label: "Leagues", component: markRaw(LeaguesView) },
+  { id: "best14", label: "Best 14", component: markRaw(Best14View) },
+  { id: "winners", label: "Champs", component: markRaw(WinnersTable) },
+  { id: "history", label: "History", component: markRaw(SeasonHistoryView) },
 ];
 
 const activeTabId = ref(tabs[0].id);
@@ -94,17 +94,33 @@ watch(
         selectedSeasonId.value = fromQuery.id;
         return;
       }
-      // Prefer latest active/current season on initial load.
+      // Stats hub defaults to summer (winter standings live on Home → Winter).
+      const openSummer = seasons.value.find(
+        (s) =>
+          String(s?.kind || "") === "summer_main" &&
+          String(s?.status || "").toLowerCase() === "open",
+      );
+      const anySummer = seasons.value.find(
+        (s) => String(s?.kind || "") === "summer_main",
+      );
       const preferredResultsSeasonId = String(
         meta?.defaults?.results_season_id || "",
       );
-      const preferred = preferredResultsSeasonId
+      const preferredDefault = preferredResultsSeasonId
         ? seasons.value.find((s) => String(s?.id) === preferredResultsSeasonId)
         : null;
+      const preferredSummer =
+        preferredDefault &&
+        String(preferredDefault?.kind || "") === "summer_main"
+          ? preferredDefault
+          : null;
       const current =
+        openSummer ||
+        preferredSummer ||
+        anySummer ||
         seasons.value.find((s) => s.is_current) ||
         seasons.value.find((s) => s.is_active) ||
-        preferred ||
+        preferredDefault ||
         seasons.value[0];
       if (
         !selectedSeasonId.value ||
@@ -349,11 +365,27 @@ function pickSeason(seasonId) {
 
 .f1-section-nav {
   display: flex;
-  gap: 1.1rem;
-  padding: 0 0.5rem;
-  margin-top: 0.5rem;
+  gap: 1rem;
+  padding: 0 1rem 0.15rem;
+  margin-top: 0.35rem;
   border-bottom: 1px solid var(--line);
-  justify-content: space-evenly;
+  justify-content: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.f1-section-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.f1-section-nav :deep(.f1-section-tab),
+.f1-section-nav .f1-section-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.88rem;
+  padding: 0.35rem 0.15rem 0.55rem;
 }
 
 .stats-season-list {
