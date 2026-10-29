@@ -15,6 +15,9 @@ const error = ref("");
 const weekScores = ref([]);
 const best10Leaders = ref([]);
 const best10ByMember = ref({});
+const best14Leaders = ref([]);
+const leagueLeaders = ref([]);
+const handicapMovements = ref([]);
 const winterTab = ref("week"); // week | best10
 const selectedPlayerId = ref("");
 const homePayload = ref({
@@ -29,10 +32,12 @@ const homePayload = ref({
   paid_out_pence: 0,
   winner_name: null,
 });
-
-const showWinterDetail = computed(
-  () => String(route.query.mode || "").toLowerCase() === "winter",
-);
+const summerPayload = ref({
+  week_label: "WEEK — , —",
+  hero_message: "No results yet.",
+  no_results: true,
+  stats: { players: 0, snakes: 0, camels: 0 },
+});
 
 const seasons = computed(() => {
   const list = Array.isArray(props.metadata?.seasons)
@@ -56,28 +61,53 @@ const winterSeason = computed(
     null,
 );
 
-const summerSeasons = computed(() =>
-  seasons.value
+/** Current summer only — older years live in Stats season picker. */
+const summerSeason = computed(() => {
+  const summers = seasons.value
     .filter((s) => String(s?.kind || "") === "summer_main")
-    .sort((a, b) => Number(b.start_year || 0) - Number(a.start_year || 0)),
-);
+    .sort((a, b) => Number(b.start_year || 0) - Number(a.start_year || 0));
+  return (
+    summers.find((s) => String(s?.status || "").toLowerCase() === "open") ||
+    summers[0] ||
+    null
+  );
+});
 
-const homeContract = computed(() =>
-  resolveHomeDashboardBlock(props.metadata),
-);
+const seasonMode = computed(() => {
+  const raw = String(route.query.mode || "").toLowerCase();
+  if (raw === "summer" && summerSeason.value) return "summer";
+  if (raw === "winter" && winterSeason.value) return "winter";
+  if (winterSeason.value) return "winter";
+  if (summerSeason.value) return "summer";
+  return "winter";
+});
+
+const isWinter = computed(() => seasonMode.value === "winter");
+
+function dashForSeason(season) {
+  if (!season?.id) return null;
+  const dash = props.metadata?.dashboard || {};
+  const byId = dash[String(season.id)];
+  if (byId && typeof byId === "object") return byId;
+  const yr =
+    season.start_year != null && String(season.start_year).trim() !== ""
+      ? String(season.start_year)
+      : "";
+  if (yr && dash[yr] && typeof dash[yr] === "object") return dash[yr];
+  return null;
+}
 
 const winterContract = computed(() => {
-  const dash = props.metadata?.dashboard || {};
-  const wid = winterSeason.value?.id;
-  if (wid && dash[String(wid)] && typeof dash[String(wid)] === "object") {
-    return dash[String(wid)];
-  }
-  const resolved = homeContract.value;
+  const fromSeason = dashForSeason(winterSeason.value);
+  if (fromSeason) return fromSeason;
+  const resolved = resolveHomeDashboardBlock(props.metadata);
   if (resolved && String(resolved.mode || "").toLowerCase() === "winter") {
     return resolved;
   }
   return null;
 });
+
+const summerContract = computed(() => dashForSeason(summerSeason.value));
 
 const selectedBest10Card = computed(() => {
   if (!selectedPlayerId.value) return null;
@@ -85,21 +115,9 @@ const selectedBest10Card = computed(() => {
   return card && typeof card === "object" ? card : null;
 });
 
-function seasonLabel(season) {
-  if (!season) return "Season";
-  if (season.name || season.label) return String(season.name || season.label);
-  if (String(season.kind || "") === "winter_reduced") {
-    return `Winter ${season.start_year || ""}`.trim();
-  }
-  return `Summer ${season.start_year || ""}`.trim();
-}
-
-function seasonStatus(season) {
-  const st = String(season?.status || "").toLowerCase();
-  if (st === "open") return "Live";
-  if (st === "closed") return "Complete";
-  return st || "";
-}
+const activeHero = computed(() =>
+  isWinter.value ? homePayload.value : summerPayload.value,
+);
 
 function formatPounds(pence) {
   const n = Number(pence) || 0;
@@ -111,22 +129,40 @@ function openPlayerBest10(userId) {
     String(selectedPlayerId.value) === String(userId) ? "" : String(userId);
 }
 
-function openWinter() {
+function setSeasonMode(mode) {
   triggerHapticFeedback();
-  emit("navigate", { section: "home", mode: "winter" });
+  const next = String(mode || "").toLowerCase() === "summer" ? "summer" : "winter";
+  emit("navigate", { section: "home", mode: next });
 }
 
-function openSummer(season) {
-  triggerHapticFeedback();
-  emit("navigate", {
-    section: "stats",
-    seasonId: season?.id,
-  });
-}
-
-function backToHub() {
-  triggerHapticFeedback();
-  emit("navigate", { section: "home" });
+function mapHomeBlock(dash) {
+  const dashHome =
+    dash &&
+    typeof dash === "object" &&
+    dash.home &&
+    typeof dash.home === "object"
+      ? dash.home
+      : null;
+  if (!dashHome) return null;
+  return {
+    week_label:
+      typeof dashHome.week_label === "string" && dashHome.week_label.trim()
+        ? dashHome.week_label
+        : "WEEK — , —",
+    hero_message:
+      typeof dashHome.hero_message === "string" && dashHome.hero_message.trim()
+        ? dashHome.hero_message
+        : "No results yet.",
+    no_results:
+      typeof dashHome?.no_results === "boolean" ? dashHome.no_results : false,
+    stats: {
+      players: Number(dashHome?.stats?.players) || 0,
+      snakes: Number(dashHome?.stats?.snakes) || 0,
+      camels: Number(dashHome?.stats?.camels) || 0,
+    },
+    paid_out_pence: Number(dashHome?.paid_out_pence) || 0,
+    winner_name: dashHome?.winner_name ? String(dashHome.winner_name) : null,
+  };
 }
 
 const loadHomeData = async () => {
@@ -145,62 +181,44 @@ const loadHomeData = async () => {
       throw new Error("Unsupported API contract version.");
     }
 
-    const dash = winterContract.value || homeContract.value;
-    if (!dash) {
-      homePayload.value = {
-        week_label: "WEEK — , —",
-        hero_message: "No results yet.",
-        no_results: true,
-        stats: { players: 0, snakes: 0, camels: 0 },
-        paid_out_pence: 0,
-        winner_name: null,
-      };
-      weekScores.value = [];
-      best10Leaders.value = [];
-      best10ByMember.value = {};
-      return;
-    }
-
-    const dashHome =
-      dash &&
-      typeof dash === "object" &&
-      dash.home &&
-      typeof dash.home === "object"
-        ? dash.home
-        : null;
-    if (!dashHome) {
-      throw new Error("Missing dashboard.home contract payload.");
-    }
-
-    homePayload.value = {
-      week_label:
-        typeof dashHome.week_label === "string" && dashHome.week_label.trim()
-          ? dashHome.week_label
-          : "WEEK — , —",
-      hero_message:
-        typeof dashHome.hero_message === "string" &&
-        dashHome.hero_message.trim()
-          ? dashHome.hero_message
-          : "No results yet.",
-      no_results:
-        typeof dashHome?.no_results === "boolean" ? dashHome.no_results : false,
-      stats: {
-        players: Number(dashHome?.stats?.players) || 0,
-        snakes: Number(dashHome?.stats?.snakes) || 0,
-        camels: Number(dashHome?.stats?.camels) || 0,
-      },
-      paid_out_pence: Number(dashHome?.paid_out_pence) || 0,
-      winner_name: dashHome?.winner_name ? String(dashHome.winner_name) : null,
+    const empty = {
+      week_label: "WEEK — , —",
+      hero_message: "No results yet.",
+      no_results: true,
+      stats: { players: 0, snakes: 0, camels: 0 },
+      paid_out_pence: 0,
+      winner_name: null,
     };
 
-    weekScores.value = Array.isArray(dash?.week_scores) ? dash.week_scores : [];
-    best10Leaders.value = Array.isArray(dash?.best10_leaders)
-      ? dash.best10_leaders
+    const winterDash = winterContract.value;
+    const winterMapped = mapHomeBlock(winterDash);
+    homePayload.value = winterMapped || empty;
+    weekScores.value = Array.isArray(winterDash?.week_scores)
+      ? winterDash.week_scores
+      : [];
+    best10Leaders.value = Array.isArray(winterDash?.best10_leaders)
+      ? winterDash.best10_leaders
       : [];
     best10ByMember.value =
-      dash?.best10_by_member && typeof dash.best10_by_member === "object"
-        ? dash.best10_by_member
+      winterDash?.best10_by_member &&
+      typeof winterDash.best10_by_member === "object"
+        ? winterDash.best10_by_member
         : {};
+
+    const summerDash = summerContract.value;
+    const summerMapped = mapHomeBlock(summerDash);
+    summerPayload.value = summerMapped || empty;
+    best14Leaders.value = Array.isArray(summerDash?.best14_leaders)
+      ? summerDash.best14_leaders
+      : [];
+    leagueLeaders.value = Array.isArray(summerDash?.league_leaders)
+      ? summerDash.league_leaders
+      : [];
+    handicapMovements.value = Array.isArray(
+      summerDash?.home?.handicap_changes,
+    )
+      ? summerDash.home.handicap_changes
+      : [];
   } catch (err) {
     console.error("Dashboard mapping error:", err);
   } finally {
@@ -231,7 +249,7 @@ watch(
       return;
     }
     error.value = "";
-    if (!showWinterDetail.value) {
+    if (!isWinter.value) {
       selectedPlayerId.value = "";
       winterTab.value = "week";
     }
@@ -242,16 +260,65 @@ watch(
 </script>
 
 <template>
-  <!-- Season hub -->
-  <section v-if="!showWinterDetail" class="page-stack home-page home-hub">
+  <section class="page-stack home-page">
     <section class="hero-block home-hero">
       <div class="home-hero__intro">
         <div class="wags-headline">
           <span class="home-hero-sublabel2 wags-body">SUTTON WAGS</span>
-          <span>Home</span>
-          <p class="home-hero-sublabel home-hero-subtext">
-            Pick Winter or Summer.
-          </p>
+
+          <div
+            class="season-switch"
+            role="tablist"
+            aria-label="Winter or Summer"
+          >
+            <button
+              type="button"
+              role="tab"
+              class="season-switch__btn"
+              :aria-selected="isWinter"
+              :class="{ 'season-switch__btn--active': isWinter }"
+              :disabled="!winterSeason"
+              @click="setSeasonMode('winter')"
+            >
+              Winter
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="season-switch__btn"
+              :aria-selected="!isWinter"
+              :class="{ 'season-switch__btn--active': !isWinter }"
+              :disabled="!summerSeason"
+              @click="setSeasonMode('summer')"
+            >
+              Summer
+            </button>
+          </div>
+
+          <span class="home-hero-sublabel2 wags-body home-week-line">
+            LATEST —
+            <span>{{ activeHero.week_label }}</span>
+          </span>
+
+          <template v-if="!activeHero.no_results">
+            <span>{{ activeHero.hero_message }}</span>
+            <p class="home-hero-sublabel home-hero-subtext">
+              <template v-if="isWinter">
+                {{ activeHero.stats.players }} played
+                <template v-if="activeHero.paid_out_pence">
+                  · {{ formatPounds(activeHero.paid_out_pence) }} paid on the night
+                </template>
+              </template>
+              <template v-else>
+                {{ activeHero.stats.players }} played,
+                {{ activeHero.stats.snakes }} snakes,
+                {{ activeHero.stats.camels }} camels.
+              </template>
+            </p>
+          </template>
+          <template v-else-if="!loading && !metadata.loading">
+            No results yet.
+          </template>
         </div>
       </div>
     </section>
@@ -269,111 +336,9 @@ watch(
       <p class="empty-state">{{ error || metadata.loadError }}</p>
     </section>
 
+    <!-- Winter: week / Best 10 -->
     <section
-      v-else
-      class="home-dashboard home-hub__links"
-      aria-label="Seasons"
-    >
-      <button
-        v-if="winterSeason"
-        type="button"
-        class="home-card row-button home-hub__link"
-        @click="openWinter"
-      >
-        <div class="home-card__header">
-          <span class="home-hero-sublabel">
-            {{ seasonLabel(winterSeason) }}
-            <span v-if="seasonStatus(winterSeason)" class="home-hub__badge">
-              {{ seasonStatus(winterSeason) }}
-            </span>
-          </span>
-        </div>
-        <strong class="home-hub__title">Week scores &amp; Best 10</strong>
-        <p v-if="!homePayload.no_results" class="home-hub__teaser">
-          {{ homePayload.hero_message }}
-        </p>
-        <p v-else class="home-hub__teaser">No winter results yet.</p>
-      </button>
-
-      <button
-        v-for="season in summerSeasons"
-        :key="season.id"
-        type="button"
-        class="home-card row-button home-hub__link"
-        @click="openSummer(season)"
-      >
-        <div class="home-card__header">
-          <span class="home-hero-sublabel">
-            {{ seasonLabel(season) }}
-            <span v-if="seasonStatus(season)" class="home-hub__badge">
-              {{ seasonStatus(season) }}
-            </span>
-          </span>
-        </div>
-        <strong class="home-hub__title">
-          {{
-            String(season.status || "").toLowerCase() === "closed"
-              ? "Results & honour roll"
-              : "Results, leagues & Best 14"
-          }}
-        </strong>
-        <p class="home-hub__teaser">
-          {{
-            String(season.status || "").toLowerCase() === "closed"
-              ? "Browse the finished summer season."
-              : "Summer still open — browse scores and standings."
-          }}
-        </p>
-      </button>
-    </section>
-  </section>
-
-  <!-- Winter detail -->
-  <section v-else class="page-stack home-page">
-    <section class="hero-block home-hero">
-      <div class="home-hero__intro">
-        <div class="wags-headline">
-          <button
-            type="button"
-            class="home-back"
-            @click="backToHub"
-          >
-            ← Home
-          </button>
-          <span class="home-hero-sublabel2 wags-body">
-            {{ homePayload.week_label }}
-          </span>
-          <template v-if="!homePayload.no_results">
-            <span>{{ homePayload.hero_message }}</span>
-            <p class="home-hero-sublabel home-hero-subtext">
-              {{ homePayload.stats.players }} played
-              <template v-if="homePayload.paid_out_pence">
-                · {{ formatPounds(homePayload.paid_out_pence) }} paid on the night
-              </template>
-            </p>
-          </template>
-          <template v-else-if="!loading && !metadata.loading">
-            No results yet.
-          </template>
-        </div>
-      </div>
-    </section>
-
-    <section
-      v-if="loading"
-      class="content-panel content-panel--minimal home-status"
-    >
-      <p class="empty-state">Loading winter…</p>
-    </section>
-    <section
-      v-else-if="error"
-      class="content-panel content-panel--minimal home-status"
-    >
-      <p class="empty-state">{{ error }}</p>
-    </section>
-
-    <section
-      v-else
+      v-else-if="isWinter"
       class="home-dashboard"
       aria-label="Winter standings"
     >
@@ -473,63 +438,156 @@ watch(
         </div>
       </section>
     </section>
+
+    <!-- Summer: current summer only -->
+    <section
+      v-else
+      class="home-dashboard"
+      aria-label="Summer standings"
+    >
+      <button
+        class="home-card row-button"
+        type="button"
+        @click="$emit('navigate', { section: 'handicaps' })"
+      >
+        <div class="home-card__header">
+          <span class="home-hero-sublabel">Handicap changes</span>
+        </div>
+        <div class="home-compact-list">
+          <template v-if="handicapMovements.length">
+            <div
+              v-for="(item, idx) in handicapMovements"
+              :key="`${item.user_id}-${idx}`"
+              class="home-compact-row"
+            >
+              <span class="home-rank">{{ idx + 1 }}</span>
+              <span class="home-name">{{ item.full_name }}</span>
+              <span class="home-value">
+                <span
+                  class="mini-pill mini-pill--delta home-pill-compact"
+                  :class="
+                    item.newRounded < item.oldRounded
+                      ? 'mini-pill--positive'
+                      : 'mini-pill--negative'
+                  "
+                >
+                  {{ item.oldRounded }}→{{ item.newRounded }}
+                </span>
+              </span>
+            </div>
+          </template>
+          <template v-else>
+            <div class="home-empty-inline">No Playing Handicap changes</div>
+          </template>
+        </div>
+      </button>
+
+      <button
+        class="home-card row-button"
+        type="button"
+        @click="
+          $emit('navigate', {
+            section: 'stats',
+            tab: 'best14',
+            seasonId: summerSeason?.id,
+          })
+        "
+      >
+        <div class="home-card__header">
+          <span class="home-hero-sublabel">Best 14 LEADERS</span>
+        </div>
+        <div class="home-compact-list">
+          <div
+            v-for="player in best14Leaders"
+            :key="player.id"
+            class="home-compact-row"
+          >
+            <span class="home-rank">{{ player.position }}</span>
+            <span class="home-name">{{ player.full_name }}</span>
+            <span class="home-value">{{ player.total_score }}</span>
+          </div>
+          <p v-if="!best14Leaders.length" class="empty-state">No Best 14 yet.</p>
+        </div>
+      </button>
+
+      <button
+        class="home-card row-button"
+        type="button"
+        @click="
+          $emit('navigate', {
+            section: 'stats',
+            tab: 'leagues',
+            seasonId: summerSeason?.id,
+          })
+        "
+      >
+        <div class="home-card__header">
+          <span class="home-hero-sublabel">Division leaders</span>
+        </div>
+        <div class="home-compact-list">
+          <div
+            v-for="(leader, idx) in leagueLeaders.slice(0, 4)"
+            :key="leader.league_name || idx"
+            class="home-compact-row"
+          >
+            <span class="home-rank home-rank--league">{{
+              leader.position ?? idx + 1
+            }}</span>
+            <span class="home-name">{{ leader.full_name }}</span>
+            <span class="home-value">{{ leader.total_score }}</span>
+          </div>
+          <p v-if="!leagueLeaders.length" class="empty-state">No leagues yet.</p>
+        </div>
+      </button>
+    </section>
   </section>
 </template>
 
 <style scoped>
-.home-hub__links {
+.season-switch {
   display: grid;
-  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  margin: 0.15rem 0 1.1rem;
+  padding: 0.3rem;
+  border: 1px solid var(--line, #3a3a3c);
+  border-radius: 16px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
 }
 
-.home-hub__link {
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-}
-
-.home-hub__title {
-  display: block;
-  margin-top: 0.2rem;
-  font-family: var(--font-serif);
-  font-size: 1.2rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--text);
-}
-
-.home-hub__teaser {
-  margin: 0.45rem 0 0;
-  color: var(--muted, #8e8e93);
-  font-size: 0.9rem;
-  line-height: 1.35;
-}
-
-.home-hub__badge {
-  margin-left: 0.45rem;
-  color: var(--accent, #3a5a40);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.home-back {
-  display: inline-flex;
-  align-items: center;
-  margin: 0 0 0.55rem;
-  padding: 0;
+.season-switch__btn {
   border: 0;
+  border-radius: 12px;
+  padding: 0.95rem 0.75rem;
   background: transparent;
   color: var(--muted, #8e8e93);
   font: inherit;
-  font-size: 0.82rem;
+  font-family: var(--font-serif);
+  font-size: 1.35rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: -0.02em;
   cursor: pointer;
+}
+
+.season-switch__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.season-switch__btn--active {
+  background: var(--surface-4, rgba(255, 255, 255, 0.14));
+  color: var(--text, #f5f5f7);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #3a5a40) 45%, transparent);
+}
+
+.home-week-line {
+  margin-top: 0.15rem;
+}
+
+.home-empty-inline {
+  font-size: 0.95em;
+  opacity: 0.7;
+  padding: 0.35em 0 0.15em;
 }
 
 .winter-toggle {

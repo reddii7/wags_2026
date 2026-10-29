@@ -31,7 +31,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261029-home-hub-v41";
+const CLIENT_BUILD_ID = "20261029-home-hub-v42";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -450,12 +450,10 @@ function switchSection(section) {
     }
     return;
   }
-  // Home nav returns to the live home (winter when open — no splash gate).
+  // Home nav returns to the season hub (defaults to Winter when live).
   if (section?.name === "home") {
-    if (route.path !== "/") {
-      router.push("/");
-    } else if (route.query.mode) {
-      router.replace({ path: "/", query: {} });
+    if (route.path !== "/" || route.query.mode) {
+      router.push({ path: "/" });
     }
     return;
   }
@@ -499,8 +497,8 @@ function handleNavigate(target) {
     }
 
     if (section === "home") {
-      if (mode === "winter") {
-        router.push({ path: "/", query: { mode: "winter" } });
+      if (mode === "winter" || mode === "summer") {
+        router.push({ path: "/", query: { mode } });
       } else if (route.path !== "/" || route.query.mode) {
         router.push({ path: "/" });
       }
