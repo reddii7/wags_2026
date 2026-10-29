@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20261027-season-splash-v37";
+const BUILD_ID = "20261029-winter-home-v38";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -58,6 +58,13 @@ const isSummerMainCampaign = (c: any): boolean => {
   return String(c?.track ?? "").trim().toLowerCase() === "main_summer";
 };
 
+const isWinterReducedCampaign = (c: any): boolean => {
+  const k = String(c?.kind ?? "").trim().toLowerCase();
+  if (k === "winter_reduced") return true;
+  if (k !== "") return false;
+  return String(c?.track ?? "").trim().toLowerCase() === "winter_reduced";
+};
+
 /** PostgREST jsonb arrays are usually arrays; normalize object-shaped JSON arrays. */
 const asJsonObjectArray = (val: unknown): any[] => {
   if (Array.isArray(val)) return val;
@@ -73,23 +80,31 @@ const asJsonObjectArray = (val: unknown): any[] => {
   return [];
 };
 
-/** Parallel Postgres RPCs per campaign: results contract + summer home snapshot. */
+/** Parallel Postgres RPCs per campaign: results contract + summer/winter home. */
 async function loadGreenfieldRpcSnapshots(
   supabase: ReturnType<typeof createClient>,
   camps: any[],
 ): Promise<{
   resultsContracts: Map<string, Record<string, unknown>>;
   homeSnapshots: Map<string, Record<string, unknown>>;
+  winterHomeSnapshots: Map<string, Record<string, unknown>>;
 }> {
   const resultsContracts = new Map<string, Record<string, unknown>>();
   const homeSnapshots = new Map<string, Record<string, unknown>>();
+  const winterHomeSnapshots = new Map<string, Record<string, unknown>>();
   const rows = await Promise.all(
     camps.map(async (c: any) => {
       const cid = String(c.id);
       const summer = isSummerMainCampaign(c);
-      const [homeRpc, resultsRpc] = await Promise.all([
+      const winter = isWinterReducedCampaign(c);
+      const [homeRpc, winterRpc, resultsRpc] = await Promise.all([
         summer
           ? supabase.rpc("get_member_home_snapshot", { p_campaign_id: cid })
+          : Promise.resolve({ data: null, error: null }),
+        winter
+          ? supabase.rpc("get_member_winter_home_snapshot", {
+              p_campaign_id: cid,
+            })
           : Promise.resolve({ data: null, error: null }),
         supabase.rpc("get_member_results_contract", { p_campaign_id: cid }),
       ]);
@@ -107,6 +122,20 @@ async function loadGreenfieldRpcSnapshots(
       ) {
         homeEntry = [cid, homeRpc.data as Record<string, unknown>];
       }
+      let winterEntry: [string, Record<string, unknown>] | null = null;
+      if (winter && winterRpc.error) {
+        console.warn(
+          `[fetch-all-data] get_member_winter_home_snapshot(${cid}):`,
+          winterRpc.error.message ?? JSON.stringify(winterRpc.error),
+        );
+      } else if (
+        winter &&
+        winterRpc.data &&
+        typeof winterRpc.data === "object" &&
+        (winterRpc.data as { ok?: boolean }).ok !== false
+      ) {
+        winterEntry = [cid, winterRpc.data as Record<string, unknown>];
+      }
       let resultsEntry: [string, Record<string, unknown>] | null = null;
       if (resultsRpc.error) {
         console.warn(
@@ -120,16 +149,19 @@ async function loadGreenfieldRpcSnapshots(
       ) {
         resultsEntry = [cid, resultsRpc.data as Record<string, unknown>];
       }
-      return { homeEntry, resultsEntry };
+      return { homeEntry, winterEntry, resultsEntry };
     }),
   );
   for (const row of rows) {
     if (row.homeEntry) homeSnapshots.set(row.homeEntry[0], row.homeEntry[1]);
+    if (row.winterEntry) {
+      winterHomeSnapshots.set(row.winterEntry[0], row.winterEntry[1]);
+    }
     if (row.resultsEntry) {
       resultsContracts.set(row.resultsEntry[0], row.resultsEntry[1]);
     }
   }
-  return { resultsContracts, homeSnapshots };
+  return { resultsContracts, homeSnapshots, winterHomeSnapshots };
 }
 
 function flattenResultsAndRoundsFromContracts(
@@ -396,10 +428,12 @@ async function greenfieldFetchAll(
     ? {
         resultsContracts: new Map<string, Record<string, unknown>>(),
         homeSnapshots: new Map<string, Record<string, unknown>>(),
+        winterHomeSnapshots: new Map<string, Record<string, unknown>>(),
       }
     : await loadGreenfieldRpcSnapshots(supabase, camps);
   const resultsContractByCampaignId = greenfieldRpc.resultsContracts;
   const homeSnapshotByCampaignId = greenfieldRpc.homeSnapshots;
+  const winterHomeSnapshotByCampaignId = greenfieldRpc.winterHomeSnapshots;
   const { results, rounds } = shellOnly
     ? { results: [] as any[], rounds: [] as any[] }
     : flattenResultsAndRoundsFromContracts(
@@ -923,7 +957,8 @@ async function greenfieldFetchAll(
           }))
       : [];
 
-    const dashBlock = {
+    const dashBlock: Record<string, any> = {
+      mode: isWinterReducedCampaign(c) ? "winter" : "summer",
       home: {
         week_label: weekLabel,
         hero_message: heroOut,
@@ -934,6 +969,9 @@ async function greenfieldFetchAll(
       },
       best14_leaders,
       league_leaders,
+      week_scores: [] as any[],
+      best10_leaders: [] as any[],
+      best10_by_member: {} as Record<string, unknown>,
       results_view,
     };
 
@@ -971,6 +1009,54 @@ async function greenfieldFetchAll(
       const llgRpc = asJsonObjectArray(llg);
       dashBlock.best14_leaders = b14Rpc.length ? b14Rpc : best14_leaders;
       dashBlock.league_leaders = llgRpc.length ? llgRpc : league_leaders;
+    }
+
+    const winterSnap = winterHomeSnapshotByCampaignId.get(cid);
+    if (
+      !shellOnly &&
+      isWinterReducedCampaign(c) &&
+      winterSnap &&
+      typeof winterSnap.home === "object" &&
+      winterSnap.home !== null
+    ) {
+      const h = winterSnap.home as Record<string, unknown>;
+      const hFocus = h.focus_round_id;
+      const focusFromRpc =
+        hFocus != null && String(hFocus).trim() !== "" ? String(hFocus) : null;
+      dashBlock.mode = "winter";
+      dashBlock.home = {
+        week_label: String(h.week_label ?? dashBlock.home.week_label),
+        hero_message: String(h.hero_message ?? dashBlock.home.hero_message),
+        no_results:
+          typeof h.no_results === "boolean"
+            ? h.no_results
+            : dashBlock.home.no_results,
+        stats:
+          h.stats && typeof h.stats === "object"
+            ? {
+                players: Number((h.stats as any).players) || 0,
+                snakes: 0,
+                camels: 0,
+              }
+            : { players: 0, snakes: 0, camels: 0 },
+        handicap_changes: [],
+        focus_round_id: focusFromRpc ?? focusRoundBuilt,
+        paid_out_pence: Number(h.paid_out_pence) || 0,
+        winner_member_id: h.winner_member_id
+          ? String(h.winner_member_id)
+          : null,
+        winner_name: h.winner_name ? String(h.winner_name) : null,
+      };
+      dashBlock.best14_leaders = [];
+      dashBlock.league_leaders = [];
+      dashBlock.week_scores = asJsonObjectArray(winterSnap.week_scores);
+      dashBlock.best10_leaders = asJsonObjectArray(winterSnap.best10_leaders);
+      dashBlock.best10_by_member =
+        winterSnap.best10_by_member &&
+        typeof winterSnap.best10_by_member === "object" &&
+        !Array.isArray(winterSnap.best10_by_member)
+          ? (winterSnap.best10_by_member as Record<string, unknown>)
+          : {};
     }
 
     dashboard[cid] = dashBlock;

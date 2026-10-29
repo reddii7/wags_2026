@@ -15,6 +15,12 @@ const error = ref("");
 const best14Leaders = ref([]);
 const leagueLeaders = ref([]);
 const handicapMovements = ref([]);
+const weekScores = ref([]);
+const best10Leaders = ref([]);
+const best10ByMember = ref({});
+const winterMode = ref(false);
+const winterTab = ref("week"); // week | best10
+const selectedPlayerId = ref("");
 const homePayload = ref({
   week_label: "WEEK — , —",
   hero_message: "No results yet.",
@@ -25,6 +31,8 @@ const homePayload = ref({
     camels: 0,
   },
   handicap_changes: [],
+  paid_out_pence: 0,
+  winner_name: null,
 });
 
 const closedSummer = computed(() => {
@@ -53,6 +61,12 @@ const showSeasonLanding = computed(() => {
 const homeContract = computed(() =>
   resolveHomeDashboardBlock(props.metadata),
 );
+
+const selectedBest10Card = computed(() => {
+  if (!selectedPlayerId.value) return null;
+  const card = best10ByMember.value?.[String(selectedPlayerId.value)];
+  return card && typeof card === "object" ? card : null;
+});
 
 function onWinter() {
   emit("navigate", { section: "home", mode: "winter" });
@@ -89,6 +103,11 @@ function formatDayMonthYear(isoLike) {
     month: "short",
     year: "numeric",
   }).format(d);
+}
+
+function formatPounds(pence) {
+  const n = Number(pence) || 0;
+  return `£${(n / 100).toFixed(n % 100 === 0 ? 0 : 2)}`;
 }
 
 const inferredSeasonYear = computed(() => {
@@ -133,6 +152,11 @@ const homeWeekDisplayLine = computed(() => {
   return wl || "WEEK — , —";
 });
 
+function openPlayerBest10(userId) {
+  selectedPlayerId.value =
+    String(selectedPlayerId.value) === String(userId) ? "" : String(userId);
+}
+
 const loadHomeData = async () => {
   if (props.metadata.loading) {
     loading.value = true;
@@ -174,6 +198,11 @@ const loadHomeData = async () => {
         ? dashHome.hero_message
         : "No results yet.";
 
+    winterMode.value =
+      String(dash.mode || "").toLowerCase() === "winter" ||
+      (Array.isArray(dash.week_scores) && dash.week_scores.length > 0) ||
+      (Array.isArray(dash.best10_leaders) && dash.best10_leaders.length > 0);
+
     homePayload.value = {
       week_label: weekLabel,
       hero_message: heroMessage,
@@ -187,23 +216,32 @@ const loadHomeData = async () => {
       handicap_changes: Array.isArray(dashHome?.handicap_changes)
         ? dashHome.handicap_changes
         : [],
+      paid_out_pence: Number(dashHome?.paid_out_pence) || 0,
+      winner_name: dashHome?.winner_name ? String(dashHome.winner_name) : null,
     };
 
-    // Backend-prepared home card leaders.
-    const dashboardBest14 = Array.isArray(dash?.best14_leaders)
+    best14Leaders.value = Array.isArray(dash?.best14_leaders)
       ? dash.best14_leaders
       : [];
-    const dashboardLeagues = Array.isArray(dash?.league_leaders)
+    leagueLeaders.value = Array.isArray(dash?.league_leaders)
       ? dash.league_leaders
       : [];
-
-    best14Leaders.value = dashboardBest14;
-
-    leagueLeaders.value = dashboardLeagues;
-
     handicapMovements.value = Array.isArray(homePayload.value.handicap_changes)
       ? homePayload.value.handicap_changes
       : [];
+    weekScores.value = Array.isArray(dash?.week_scores) ? dash.week_scores : [];
+    best10Leaders.value = Array.isArray(dash?.best10_leaders)
+      ? dash.best10_leaders
+      : [];
+    best10ByMember.value =
+      dash?.best10_by_member && typeof dash.best10_by_member === "object"
+        ? dash.best10_by_member
+        : {};
+
+    if (!winterMode.value) {
+      winterTab.value = "week";
+      selectedPlayerId.value = "";
+    }
   } catch (err) {
     console.error("Dashboard mapping error:", err);
   } finally {
@@ -258,9 +296,17 @@ watch(
           <template v-if="!homePayload.no_results">
             <span>{{ homePayload.hero_message }}</span>
             <p class="home-hero-sublabel home-hero-subtext">
-              {{ homePayload.stats.players }} played,
-              {{ homePayload.stats.snakes }} snakes,
-              {{ homePayload.stats.camels }} camels.
+              <template v-if="winterMode">
+                {{ homePayload.stats.players }} played
+                <template v-if="homePayload.paid_out_pence">
+                  · {{ formatPounds(homePayload.paid_out_pence) }} paid on the night
+                </template>
+              </template>
+              <template v-else>
+                {{ homePayload.stats.players }} played,
+                {{ homePayload.stats.snakes }} snakes,
+                {{ homePayload.stats.camels }} camels.
+              </template>
             </p>
           </template>
           <template v-else-if="!loading && !metadata.loading">
@@ -283,13 +329,115 @@ watch(
       <p class="empty-state">{{ error }}</p>
     </section>
 
+    <!-- Winter home: week scores / Best 10 (all data from DB contract) -->
     <section
-      v-if="!loading && !error"
+      v-if="!loading && !error && winterMode"
+      class="home-dashboard"
+      aria-label="Winter standings"
+    >
+      <div class="winter-toggle" role="tablist" aria-label="Winter view">
+        <button
+          type="button"
+          role="tab"
+          class="winter-toggle__btn"
+          :aria-selected="winterTab === 'week'"
+          :class="{ 'winter-toggle__btn--active': winterTab === 'week' }"
+          @click="winterTab = 'week'"
+        >
+          This week
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="winter-toggle__btn"
+          :aria-selected="winterTab === 'best10'"
+          :class="{ 'winter-toggle__btn--active': winterTab === 'best10' }"
+          @click="winterTab = 'best10'"
+        >
+          Best 10
+        </button>
+      </div>
+
+      <section v-if="winterTab === 'week'" class="home-card">
+        <div class="home-card__header">
+          <span class="home-hero-sublabel">Week scores</span>
+        </div>
+        <div class="home-compact-list">
+          <div
+            v-for="row in weekScores"
+            :key="`${row.user_id}-${row.position}`"
+            class="home-compact-row"
+            :class="{ 'home-compact-row--winner': row.is_winner }"
+          >
+            <span class="home-rank">{{ row.position }}</span>
+            <span class="home-name">{{ row.full_name }}</span>
+            <span class="home-value">{{ row.score }}</span>
+          </div>
+          <p v-if="!weekScores.length" class="empty-state">No scores this week.</p>
+        </div>
+      </section>
+
+      <section v-else class="home-card">
+        <div class="home-card__header">
+          <span class="home-hero-sublabel">Best 10</span>
+        </div>
+        <div class="home-compact-list">
+          <button
+            v-for="row in best10Leaders"
+            :key="row.user_id || row.id"
+            type="button"
+            class="home-compact-row home-compact-row--btn"
+            :class="{
+              'home-compact-row--open':
+                String(selectedPlayerId) === String(row.user_id || row.id),
+            }"
+            @click="openPlayerBest10(row.user_id || row.id)"
+          >
+            <span class="home-rank">{{ row.position }}</span>
+            <span class="home-name">{{ row.full_name }}</span>
+            <span class="home-value">{{ row.total_score }}</span>
+          </button>
+          <p v-if="!best10Leaders.length" class="empty-state">No Best 10 yet.</p>
+        </div>
+
+        <div v-if="selectedBest10Card" class="best10-card">
+          <div class="home-card__header">
+            <span class="home-hero-sublabel">{{ selectedBest10Card.full_name }}</span>
+            <strong class="best10-card__total">
+              Best 10 · {{ selectedBest10Card.best_10_total }}
+            </strong>
+          </div>
+          <div class="home-compact-list">
+            <div
+              v-for="score in selectedBest10Card.scores || []"
+              :key="score.round_id"
+              class="home-compact-row"
+              :class="{
+                'home-compact-row--drop': !score.counts_in_best10,
+              }"
+            >
+              <span class="home-rank">
+                {{ score.counts_in_best10 ? score.best10_rank : "—" }}
+              </span>
+              <span class="home-name">
+                WK{{ score.week_number || "?" }}
+                <span class="best10-card__meta">
+                  {{ score.counts_in_best10 ? "counts" : "spare" }}
+                </span>
+              </span>
+              <span class="home-value">{{ score.score }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- Summer home unchanged -->
+    <section
+      v-if="!loading && !error && !winterMode"
       class="home-dashboard"
       aria-label="Main sections"
     >
-      <!-- Results summary moved to hero above -->
-
       <button
         class="home-card row-button"
         type="button"
@@ -383,18 +531,75 @@ watch(
 </template>
 
 <style scoped>
-.home-label {
-  color: #888;
-  font-size: 0.85em;
-  margin-right: 0.25em;
-}
-.home-num {
-  font-weight: bold;
-  font-size: 1.1em;
+.winter-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  padding: 0.25rem;
+  border: 1px solid var(--line, #3a3a3c);
+  border-radius: 999px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
 }
 
-/* Use the same color for the headline as the player names */
-.home-news-headline.home-name {
-  color: #e2e2e2;
+.winter-toggle__btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.7rem 0.85rem;
+  background: transparent;
+  color: var(--muted, #8e8e93);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.winter-toggle__btn--active {
+  background: var(--surface-4, rgba(255, 255, 255, 0.12));
+  color: var(--text, #f5f5f7);
+}
+
+.home-compact-row--winner .home-name,
+.home-compact-row--winner .home-value {
+  font-weight: 750;
+}
+
+.home-compact-row--btn {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.home-compact-row--open {
+  opacity: 1;
+}
+
+.home-compact-row--drop {
+  opacity: 0.55;
+}
+
+.best10-card {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line, #3a3a3c);
+}
+
+.best10-card__total {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.95rem;
+}
+
+.best10-card__meta {
+  margin-left: 0.4rem;
+  color: var(--muted, #8e8e93);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 </style>
