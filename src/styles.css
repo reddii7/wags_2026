@@ -430,6 +430,10 @@ select {
     pointer-events: none;
 }
 
+.app-shell.winter-open .app-main {
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}
+
 @media (max-width: 900px) {
     .app-main {
         width: min(100%, 680px);

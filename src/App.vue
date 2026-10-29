@@ -31,7 +31,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261029-home-hub-v44";
+const CLIENT_BUILD_ID = "20261029-home-hub-v45";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -421,6 +421,13 @@ const currentNavName = computed(() => {
   return statsRouteNames.has(routeName) ? "stats" : routeName;
 });
 
+/** Winter has no stats, handicaps, or cup — hide the summer nav. */
+const winterOpen = computed(
+  () =>
+    String(route.name || "") === "home" &&
+    String(route.query.mode || "").toLowerCase() === "winter",
+);
+
 const currentViewProps = computed(() => {
   const routeName = String(route.name || "home");
   const props = {
@@ -714,7 +721,7 @@ onBeforeUnmount(() => {
   <div
     class="app-shell"
     :data-theme="theme"
-    :class="{ 'chrome-hidden': chromeHidden }"
+    :class="{ 'chrome-hidden': chromeHidden, 'winter-open': winterOpen }"
   >
     <div
       v-if="globalMetadata.loadError && !globalMetadata.loading"
@@ -764,7 +771,7 @@ onBeforeUnmount(() => {
       </div>
     </main>
 
-    <nav class="bottom-nav" aria-label="Primary">
+    <nav v-if="!winterOpen" class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
         :key="section.name"
