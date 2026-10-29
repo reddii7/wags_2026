@@ -7,12 +7,11 @@ import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
 import ResultsView from "./ResultsView.vue";
 import WinnersTable from "./WinnersTable.vue";
-import SeasonHistoryView from "./SeasonHistoryView.vue";
 
 const route = useRoute();
 const router = useRouter();
 
-const STATS_TAB_IDS = ["results", "leagues", "best14", "winners", "history"];
+const STATS_TAB_IDS = ["results", "leagues", "best14", "winners"];
 
 const props = defineProps({
   metadata: { type: Object, required: true },
@@ -46,11 +45,10 @@ const selectedSeasonId = ref(null);
 const seasonPickerOpen = ref(false);
 
 const tabs = [
-  { id: "results", label: "Results", component: markRaw(ResultsView) },
-  { id: "leagues", label: "Leagues", component: markRaw(LeaguesView) },
-  { id: "best14", label: "Best 14", component: markRaw(Best14View) },
-  { id: "winners", label: "Champs", component: markRaw(WinnersTable) },
-  { id: "history", label: "History", component: markRaw(SeasonHistoryView) },
+  { id: "results", label: "RESULTS", component: markRaw(ResultsView) },
+  { id: "leagues", label: "LEAGUES", component: markRaw(LeaguesView) },
+  { id: "best14", label: "BEST 14", component: markRaw(Best14View) },
+  { id: "winners", label: "CHAMPS", component: markRaw(WinnersTable) },
 ];
 
 const activeTabId = ref(tabs[0].id);
@@ -365,27 +363,11 @@ function pickSeason(seasonId) {
 
 .f1-section-nav {
   display: flex;
-  gap: 1rem;
-  padding: 0 1rem 0.15rem;
-  margin-top: 0.35rem;
+  gap: 1.1rem;
+  padding: 0 0.5rem;
+  margin-top: 0.5rem;
   border-bottom: 1px solid var(--line);
-  justify-content: flex-start;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.f1-section-nav::-webkit-scrollbar {
-  display: none;
-}
-
-.f1-section-nav :deep(.f1-section-tab),
-.f1-section-nav .f1-section-tab {
-  flex: 0 0 auto;
-  white-space: nowrap;
-  font-size: 0.88rem;
-  padding: 0.35rem 0.15rem 0.55rem;
+  justify-content: space-evenly;
 }
 
 .stats-season-list {
