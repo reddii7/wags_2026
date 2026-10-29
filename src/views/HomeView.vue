@@ -3,6 +3,7 @@ import { computed, ref, watch, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import { resolveHomeDashboardBlock } from "../composables/resolveHomeDashboard.js";
 import { triggerHapticFeedback } from "../utils/haptics";
+import NavIcon from "../components/NavIcon.vue";
 
 const emit = defineEmits(["navigate"]);
 const props = defineProps({
@@ -429,13 +430,10 @@ watch(
   </section>
 
   <!-- Winter, standalone: no summer nav. Home is the way back. -->
-  <section v-else class="page-stack home-page">
+  <section v-else class="page-stack home-page winter-screen">
     <section class="hero-block home-hero">
       <div class="home-hero__intro">
         <div class="wags-headline">
-          <button type="button" class="home-back" @click="backHome">
-            ← Home
-          </button>
           <span class="home-hero-sublabel2 wags-body">Winter</span>
           <span>{{ winterTab === "week" ? selectedWeekTitle : "Best 10" }}</span>
           <template v-if="winterTab === 'week' && selectedWeekHero">
@@ -494,37 +492,6 @@ watch(
       aria-label="Winter standings"
     >
       <section class="home-card">
-        <div class="home-card__header home-card__header--tabs">
-          <nav class="board-tabs" aria-label="Winter board">
-            <button
-              type="button"
-              class="board-tabs__tab"
-              :class="{ 'board-tabs__tab--active': winterTab === 'week' }"
-              @click="setWinterTab('week')"
-            >
-              This week
-              <span
-                v-if="winterTab === 'week'"
-                class="board-tabs__line"
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              type="button"
-              class="board-tabs__tab"
-              :class="{ 'board-tabs__tab--active': winterTab === 'best10' }"
-              @click="setWinterTab('best10')"
-            >
-              Best 10
-              <span
-                v-if="winterTab === 'best10'"
-                class="board-tabs__line"
-                aria-hidden="true"
-              />
-            </button>
-          </nav>
-        </div>
-
         <div v-if="winterTab === 'week'" class="home-compact-list">
           <div
             v-for="row in selectedWeekRows"
@@ -596,6 +563,31 @@ watch(
         </div>
       </section>
     </section>
+
+    <nav class="winter-dock" aria-label="Winter">
+      <button type="button" @click="backHome">
+        <NavIcon name="home" />
+        <span>Home</span>
+      </button>
+      <button
+        type="button"
+        :class="{ active: winterTab === 'week' }"
+        :aria-current="winterTab === 'week' ? 'page' : undefined"
+        @click="setWinterTab('week')"
+      >
+        <NavIcon name="scores" />
+        <span>This wk</span>
+      </button>
+      <button
+        type="button"
+        :class="{ active: winterTab === 'best10' }"
+        :aria-current="winterTab === 'best10' ? 'page' : undefined"
+        @click="setWinterTab('best10')"
+      >
+        <NavIcon name="best14" />
+        <span>Best 10</span>
+      </button>
+    </nav>
   </section>
 </template>
 
@@ -630,19 +622,58 @@ watch(
   line-height: 1.35;
 }
 
-.home-back {
-  display: inline-flex;
-  margin: 0 0 0.7rem;
-  padding: 0;
+.winter-screen {
+  padding-bottom: calc(6.2rem + env(safe-area-inset-bottom, 0px));
+}
+
+.winter-dock {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: calc(0.65rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  width: min(92vw, 26rem);
+  padding: 0.28rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+}
+
+.winter-dock button {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.22rem;
+  min-height: 3.55rem;
+  margin: 0;
+  padding: 0.4rem 0.2rem 0.35rem;
   border: 0;
+  border-radius: 999px;
   background: transparent;
-  color: var(--muted, #8e8e93);
+  color: var(--muted);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.62rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+.winter-dock button.active {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--accent);
+}
+
+.winter-dock :deep(.nav-icon) {
+  width: 1.35rem;
+  height: 1.35rem;
 }
 
 .home-dashboard--single {
@@ -716,45 +747,6 @@ watch(
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.home-card__header--tabs {
-  margin-bottom: 0.15rem;
-}
-
-.board-tabs {
-  display: flex;
-  gap: 1.1rem;
-  width: 100%;
-}
-
-.board-tabs__tab {
-  position: relative;
-  border: 0;
-  background: none;
-  padding: 0 0.05rem 0.45rem;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.board-tabs__tab--active {
-  color: var(--text);
-}
-
-.board-tabs__line {
-  display: block;
-  height: 0.14rem;
-  width: 100%;
-  background: var(--accent);
-  border-radius: 0.1rem;
-  position: absolute;
-  left: 0;
-  bottom: 0;
 }
 
 .home-empty-inline {
