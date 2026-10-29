@@ -81,6 +81,10 @@ const isWinter = computed(
   () => String(route.query.mode || "").toLowerCase() === "winter",
 );
 
+const winterDockIndex = computed(() =>
+  winterTab.value === "best10" ? 2 : 1,
+);
+
 function dashForSeason(season) {
   if (!season?.id) return null;
   const dash = props.metadata?.dashboard || {};
@@ -564,30 +568,43 @@ watch(
       </section>
     </section>
 
-    <nav class="winter-dock" aria-label="Winter">
-      <button type="button" @click="backHome">
-        <NavIcon name="home" />
-        <span>Home</span>
-      </button>
-      <button
-        type="button"
-        :class="{ active: winterTab === 'week' }"
-        :aria-current="winterTab === 'week' ? 'page' : undefined"
-        @click="setWinterTab('week')"
+    <Teleport to="body">
+      <nav
+        class="winter-dock"
+        aria-label="Winter"
+        :style="{ '--dock-i': winterDockIndex }"
       >
-        <NavIcon name="scores" />
-        <span>This wk</span>
-      </button>
-      <button
-        type="button"
-        :class="{ active: winterTab === 'best10' }"
-        :aria-current="winterTab === 'best10' ? 'page' : undefined"
-        @click="setWinterTab('best10')"
-      >
-        <NavIcon name="best14" />
-        <span>Best 10</span>
-      </button>
-    </nav>
+        <span class="winter-dock__capsule" aria-hidden="true"></span>
+        <button type="button" @click="backHome">
+          <span class="winter-dock__hit">
+            <NavIcon name="home" />
+            <span>Home</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          :class="{ active: winterTab === 'week' }"
+          :aria-current="winterTab === 'week' ? 'page' : undefined"
+          @click="setWinterTab('week')"
+        >
+          <span class="winter-dock__hit">
+            <NavIcon name="scores" />
+            <span>This wk</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          :class="{ active: winterTab === 'best10' }"
+          :aria-current="winterTab === 'best10' ? 'page' : undefined"
+          @click="setWinterTab('best10')"
+        >
+          <span class="winter-dock__hit">
+            <NavIcon name="best14" />
+            <span>Best 10</span>
+          </span>
+        </button>
+      </nav>
+    </Teleport>
   </section>
 </template>
 
@@ -628,107 +645,115 @@ watch(
 
 .winter-dock {
   position: fixed;
-  z-index: 40;
+  z-index: 80;
   left: 50%;
-  bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(0.45rem + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: stretch;
-  width: min(92vw, 26rem);
-  padding: 0.34rem;
+  width: min(90vw, 28rem);
+  min-height: 4.35rem;
+  padding: 5px;
   border-radius: 999px;
   overflow: hidden;
   isolation: isolate;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.34),
-      rgba(255, 255, 255, 0.08) 46%,
-      rgba(255, 255, 255, 0.02)
-    );
-  background-color: color-mix(in srgb, var(--bg) 22%, transparent);
-  border: 1px solid rgba(255, 255, 255, 0.38);
+  color: #fff;
+  background-color: rgba(46, 46, 50, 0.34);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.16),
+    rgba(255, 255, 255, 0.04) 22%,
+    rgba(0, 0, 0, 0.08) 100%
+  );
+  border: 1px solid rgba(214, 214, 220, 0.34);
   box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
-  backdrop-filter: blur(42px) saturate(1.85);
-  -webkit-backdrop-filter: blur(42px) saturate(1.85);
+    0 10px 28px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(34px) saturate(1.55);
+  -webkit-backdrop-filter: blur(34px) saturate(1.55);
 }
 
 .winter-dock::before {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 0;
   border-radius: inherit;
   pointer-events: none;
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.28),
-    transparent 42%
+    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.04) 18%,
+    transparent 46%
   );
 }
 
-:global(:root[data-theme="dark"]) .winter-dock {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.16),
-      rgba(255, 255, 255, 0.04) 42%,
-      rgba(0, 0, 0, 0.08)
-    );
-  background-color: rgba(18, 18, 20, 0.28);
-  border-color: rgba(255, 255, 255, 0.18);
+.winter-dock__capsule {
+  position: absolute;
+  z-index: 1;
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc((100% - 10px) / 3);
+  border-radius: 999px;
+  background: rgba(10, 10, 12, 0.62);
   box-shadow:
-    0 18px 44px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -12px 18px rgba(0, 0, 0, 0.28);
+  transform: translateX(calc(var(--dock-i) * 100%));
+  transition: transform 0.62s cubic-bezier(0.22, 1.4, 0.36, 1);
+  pointer-events: none;
 }
 
 .winter-dock button {
   position: relative;
-  z-index: 1;
-  flex: 1 1 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.winter-dock__hit {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.22rem;
-  min-height: 3.55rem;
-  margin: 0;
-  padding: 0.4rem 0.2rem 0.35rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  gap: 0.18rem;
+  min-height: 3.7rem;
+  transition: transform 0.18s ease;
+}
+
+.winter-dock button:active .winter-dock__hit {
+  transform: scale(0.92);
+}
+
+.winter-dock button span span {
+  font-family: "Avenir Next Condensed", "Arial Narrow", "SF Pro Text",
+    -apple-system, sans-serif;
+  font-size: 0.64rem;
+  font-weight: 600;
+  font-stretch: condensed;
+  letter-spacing: 0.07em;
+  line-height: 1;
   text-transform: uppercase;
-  cursor: pointer;
 }
 
 .winter-dock button.active {
-  position: relative;
-  z-index: 1;
-  background: rgba(0, 0, 0, 0.28);
-  color: var(--accent);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -10px 18px rgba(0, 0, 0, 0.16);
-}
-
-:global(:root[data-theme="dark"]) .winter-dock button.active {
-  background: rgba(0, 0, 0, 0.46);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -12px 18px rgba(0, 0, 0, 0.35);
+  color: #ff1e1e;
 }
 
 .winter-dock :deep(.nav-icon) {
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.28rem;
+  height: 1.28rem;
 }
 
 .home-dashboard--single {
