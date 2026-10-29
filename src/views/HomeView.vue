@@ -574,9 +574,32 @@ watch(
         aria-label="Winter"
         :style="{ '--dock-i': winterDockIndex }"
       >
-        <span class="winter-dock__glass" aria-hidden="true"></span>
-        <span class="winter-dock__rim" aria-hidden="true"></span>
-        <span class="winter-dock__capsule" aria-hidden="true"></span>
+        <svg class="winter-dock__defs" width="0" height="0" aria-hidden="true">
+          <filter
+            id="wags-winter-lens"
+            x="-8%"
+            y="-20%"
+            width="116%"
+            height="140%"
+            color-interpolation-filters="sRGB"
+          >
+            <feImage
+              preserveAspectRatio="none"
+              result="map"
+              href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='74'%3E%3ClinearGradient id='x'%3E%3Cstop stop-color='red'/%3E%3Cstop offset='1'/%3E%3C/linearGradient%3E%3ClinearGradient id='y' x2='0' y2='1'%3E%3Cstop stop-color='lime'/%3E%3Cstop offset='1'/%3E%3C/linearGradient%3E%3Crect width='400' height='74' fill='url(%23x)'/%3E%3Crect width='400' height='74' fill='url(%23y)' style='mix-blend-mode:screen'/%3E%3Crect x='16' y='14' width='368' height='46' rx='23' fill='gray' style='filter:blur(6px)'/%3E%3C/svg%3E"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="map"
+              scale="28"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        </svg>
+        <span class="winter-dock__body" aria-hidden="true"></span>
+        <span class="winter-dock__lens" aria-hidden="true"></span>
+        <span class="winter-dock__pill" aria-hidden="true"></span>
         <button type="button" @click="backHome">
           <span class="winter-dock__hit">
             <NavIcon name="home" />
@@ -655,73 +678,73 @@ watch(
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: stretch;
   width: min(92vw, 26.5rem);
-  height: 4.85rem;
-  padding: 6px;
+  height: 4.65rem;
+  padding: 5px;
   border-radius: 999px;
   background: transparent;
   color: #fff;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
 }
 
-.winter-dock__glass {
+.winter-dock__defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.winter-dock__body,
+.winter-dock__lens {
   position: absolute;
   inset: 0;
-  z-index: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: rgba(36, 36, 40, 0.28);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(28px) saturate(1.7);
-  backdrop-filter: blur(28px) saturate(1.7);
 }
 
-.winter-dock__rim {
-  position: absolute;
-  inset: 0;
+.winter-dock__body {
+  z-index: 0;
+  background: rgba(14, 14, 18, 0.42);
+  -webkit-backdrop-filter: blur(4px) saturate(1.85);
+  backdrop-filter: blur(4px) saturate(1.85);
+}
+
+.winter-dock__lens {
   z-index: 1;
-  border-radius: inherit;
-  padding: 1px;
+  background: linear-gradient(rgba(255, 255, 255, 0.2), transparent 48%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.38),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: url("#wags-winter-lens");
+  backdrop-filter: url("#wags-winter-lens");
+}
+
+.winter-dock__pill {
+  position: absolute;
+  z-index: 2;
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc((100% - 10px) / 3);
+  border-radius: 999px;
   pointer-events: none;
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.72) 0%,
-    rgba(255, 255, 255, 0.28) 12%,
-    rgba(255, 255, 255, 0.08) 42%,
-    rgba(255, 255, 255, 0.18) 100%
+    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.05) 42%,
+    rgba(0, 0, 0, 0.18)
   );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-}
-
-.winter-dock__capsule {
-  position: absolute;
-  z-index: 1;
-  top: 6px;
-  bottom: 6px;
-  left: 6px;
-  width: calc((100% - 12px) / 3);
-  border-radius: 999px;
-  background: rgba(6, 6, 10, 0.72);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 8px 16px rgba(0, 0, 0, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
   transform: translateX(calc(var(--dock-i) * 100%));
   transition: transform 0.55s cubic-bezier(0.22, 1.35, 0.36, 1);
-  pointer-events: none;
 }
 
 .winter-dock button {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -769,6 +792,26 @@ watch(
 
 .winter-dock :deep(.nav-icon path) {
   stroke-width: 1.65;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .winter-dock__body {
+    background: rgba(18, 18, 22, 0.94);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .winter-dock__lens {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .winter-dock__pill,
+  .winter-dock__hit {
+    transition: none;
+  }
 }
 
 .home-dashboard--single {
