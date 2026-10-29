@@ -574,6 +574,8 @@ watch(
         aria-label="Winter"
         :style="{ '--dock-i': winterDockIndex }"
       >
+        <span class="winter-dock__glass" aria-hidden="true"></span>
+        <span class="winter-dock__rim" aria-hidden="true"></span>
         <span class="winter-dock__capsule" aria-hidden="true"></span>
         <button type="button" @click="backHome">
           <span class="winter-dock__hit">
@@ -640,70 +642,80 @@ watch(
 }
 
 .winter-screen {
-  padding-bottom: calc(6.2rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(6.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 .winter-dock {
   position: fixed;
   z-index: 80;
   left: 50%;
-  bottom: calc(0.45rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(0.55rem + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: stretch;
-  width: min(90vw, 28rem);
-  min-height: 4.35rem;
-  padding: 5px;
+  width: min(92vw, 26.5rem);
+  height: 4.85rem;
+  padding: 6px;
   border-radius: 999px;
-  overflow: hidden;
-  isolation: isolate;
+  background: transparent;
   color: #fff;
-  background-color: rgba(46, 46, 50, 0.34);
-  background-image: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.16),
-    rgba(255, 255, 255, 0.04) 22%,
-    rgba(0, 0, 0, 0.08) 100%
-  );
-  border: 1px solid rgba(214, 214, 220, 0.34);
-  box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(34px) saturate(1.55);
-  -webkit-backdrop-filter: blur(34px) saturate(1.55);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
 }
 
-.winter-dock::before {
-  content: "";
+.winter-dock__glass {
   position: absolute;
   inset: 0;
   z-index: 0;
   border-radius: inherit;
   pointer-events: none;
+  background: rgba(36, 36, 40, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(28px) saturate(1.7);
+  backdrop-filter: blur(28px) saturate(1.7);
+}
+
+.winter-dock__rim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.2),
-    rgba(255, 255, 255, 0.04) 18%,
-    transparent 46%
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(255, 255, 255, 0.28) 12%,
+    rgba(255, 255, 255, 0.08) 42%,
+    rgba(255, 255, 255, 0.18) 100%
   );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
 }
 
 .winter-dock__capsule {
   position: absolute;
   z-index: 1;
-  top: 5px;
-  bottom: 5px;
-  left: 5px;
-  width: calc((100% - 10px) / 3);
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  width: calc((100% - 12px) / 3);
   border-radius: 999px;
-  background: rgba(10, 10, 12, 0.62);
+  background: rgba(6, 6, 10, 0.72);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -12px 18px rgba(0, 0, 0, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 8px 16px rgba(0, 0, 0, 0.28);
   transform: translateX(calc(var(--dock-i) * 100%));
-  transition: transform 0.62s cubic-bezier(0.22, 1.4, 0.36, 1);
+  transition: transform 0.55s cubic-bezier(0.22, 1.35, 0.36, 1);
   pointer-events: none;
 }
 
@@ -727,8 +739,7 @@ watch(
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.18rem;
-  min-height: 3.7rem;
+  gap: 0.22rem;
   transition: transform 0.18s ease;
 }
 
@@ -737,23 +748,27 @@ watch(
 }
 
 .winter-dock button span span {
-  font-family: "Avenir Next Condensed", "Arial Narrow", "SF Pro Text",
-    -apple-system, sans-serif;
-  font-size: 0.64rem;
-  font-weight: 600;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "SF Compact Text",
+    "SF Pro Text", -apple-system, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
   font-stretch: condensed;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;
 }
 
 .winter-dock button.active {
-  color: #ff1e1e;
+  color: #e10600;
 }
 
 .winter-dock :deep(.nav-icon) {
-  width: 1.28rem;
-  height: 1.28rem;
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.winter-dock :deep(.nav-icon path) {
+  stroke-width: 1.65;
 }
 
 .home-dashboard--single {
