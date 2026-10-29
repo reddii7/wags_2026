@@ -119,6 +119,8 @@ const activeHero = computed(() =>
   isWinter.value ? homePayload.value : summerPayload.value,
 );
 
+const seasonTitle = computed(() => (isWinter.value ? "Winter" : "Summer"));
+
 function formatPounds(pence) {
   const n = Number(pence) || 0;
   return `£${(n / 100).toFixed(n % 100 === 0 ? 0 : 2)}`;
@@ -133,6 +135,12 @@ function setSeasonMode(mode) {
   triggerHapticFeedback();
   const next = String(mode || "").toLowerCase() === "summer" ? "summer" : "winter";
   emit("navigate", { section: "home", mode: next });
+}
+
+function setWinterTab(tab) {
+  triggerHapticFeedback();
+  winterTab.value = tab;
+  if (tab !== "best10") selectedPlayerId.value = "";
 }
 
 function mapHomeBlock(dash) {
@@ -265,35 +273,38 @@ watch(
       <div class="home-hero__intro">
         <div class="wags-headline">
           <span class="home-hero-sublabel2 wags-body">SUTTON WAGS</span>
+          <span>{{ seasonTitle }}</span>
 
-          <div
-            class="season-switch"
-            role="tablist"
-            aria-label="Winter or Summer"
-          >
+          <nav class="home-season-nav" aria-label="Season">
             <button
               type="button"
-              role="tab"
-              class="season-switch__btn"
-              :aria-selected="isWinter"
-              :class="{ 'season-switch__btn--active': isWinter }"
+              class="home-season-nav__tab"
+              :class="{ 'home-season-nav__tab--active': isWinter }"
               :disabled="!winterSeason"
               @click="setSeasonMode('winter')"
             >
               Winter
+              <span
+                v-if="isWinter"
+                class="home-season-nav__line"
+                aria-hidden="true"
+              />
             </button>
             <button
               type="button"
-              role="tab"
-              class="season-switch__btn"
-              :aria-selected="!isWinter"
-              :class="{ 'season-switch__btn--active': !isWinter }"
+              class="home-season-nav__tab"
+              :class="{ 'home-season-nav__tab--active': !isWinter }"
               :disabled="!summerSeason"
               @click="setSeasonMode('summer')"
             >
               Summer
+              <span
+                v-if="!isWinter"
+                class="home-season-nav__line"
+                aria-hidden="true"
+              />
             </button>
-          </div>
+          </nav>
 
           <span class="home-hero-sublabel2 wags-body home-week-line">
             LATEST —
@@ -336,40 +347,45 @@ watch(
       <p class="empty-state">{{ error || metadata.loadError }}</p>
     </section>
 
-    <!-- Winter: week / Best 10 -->
+    <!-- Winter: one board card, This week / Best 10 in the header -->
     <section
       v-else-if="isWinter"
-      class="home-dashboard"
+      class="home-dashboard home-dashboard--single"
       aria-label="Winter standings"
     >
-      <div class="winter-toggle" role="tablist" aria-label="Winter view">
-        <button
-          type="button"
-          role="tab"
-          class="winter-toggle__btn"
-          :aria-selected="winterTab === 'week'"
-          :class="{ 'winter-toggle__btn--active': winterTab === 'week' }"
-          @click="winterTab = 'week'"
-        >
-          This week
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="winter-toggle__btn"
-          :aria-selected="winterTab === 'best10'"
-          :class="{ 'winter-toggle__btn--active': winterTab === 'best10' }"
-          @click="winterTab = 'best10'"
-        >
-          Best 10
-        </button>
-      </div>
-
-      <section v-if="winterTab === 'week'" class="home-card">
-        <div class="home-card__header">
-          <span class="home-hero-sublabel">Week scores</span>
+      <section class="home-card">
+        <div class="home-card__header home-card__header--tabs">
+          <nav class="board-tabs" aria-label="Winter board">
+            <button
+              type="button"
+              class="board-tabs__tab"
+              :class="{ 'board-tabs__tab--active': winterTab === 'week' }"
+              @click="setWinterTab('week')"
+            >
+              This week
+              <span
+                v-if="winterTab === 'week'"
+                class="board-tabs__line"
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              type="button"
+              class="board-tabs__tab"
+              :class="{ 'board-tabs__tab--active': winterTab === 'best10' }"
+              @click="setWinterTab('best10')"
+            >
+              Best 10
+              <span
+                v-if="winterTab === 'best10'"
+                class="board-tabs__line"
+                aria-hidden="true"
+              />
+            </button>
+          </nav>
         </div>
-        <div class="home-compact-list">
+
+        <div v-if="winterTab === 'week'" class="home-compact-list">
           <div
             v-for="row in weekScores"
             :key="`${row.user_id}-${row.position}`"
@@ -382,13 +398,8 @@ watch(
           </div>
           <p v-if="!weekScores.length" class="empty-state">No scores this week.</p>
         </div>
-      </section>
 
-      <section v-else class="home-card">
-        <div class="home-card__header">
-          <span class="home-hero-sublabel">Best 10</span>
-        </div>
-        <div class="home-compact-list">
+        <div v-else class="home-compact-list">
           <div
             v-for="row in best10Leaders"
             :key="row.user_id || row.id"
@@ -409,33 +420,33 @@ watch(
           </div>
           <p v-if="!best10Leaders.length" class="empty-state">No Best 10 yet.</p>
         </div>
+      </section>
 
-        <div v-if="selectedBest10Card" class="best10-card">
-          <div class="home-card__header">
-            <span class="home-hero-sublabel">
-              {{ selectedBest10Card.full_name }} · scores
+      <section v-if="selectedBest10Card" class="home-card">
+        <div class="home-card__header">
+          <span class="home-hero-sublabel">
+            {{ selectedBest10Card.full_name }}
+          </span>
+        </div>
+        <div class="home-compact-list">
+          <div
+            v-for="score in selectedBest10Card.scores || []"
+            :key="score.round_id"
+            class="home-compact-row"
+            :class="{
+              'home-compact-row--drop': !score.counts_in_best10,
+            }"
+          >
+            <span class="home-rank">
+              {{ score.counts_in_best10 ? score.best10_rank : "—" }}
             </span>
-          </div>
-          <div class="home-compact-list">
-            <div
-              v-for="score in selectedBest10Card.scores || []"
-              :key="score.round_id"
-              class="home-compact-row"
-              :class="{
-                'home-compact-row--drop': !score.counts_in_best10,
-              }"
-            >
-              <span class="home-rank">
-                {{ score.counts_in_best10 ? score.best10_rank : "—" }}
+            <span class="home-name">
+              WK{{ score.week_number || "?" }}
+              <span class="best10-card__meta">
+                {{ score.counts_in_best10 ? "counts" : "spare" }}
               </span>
-              <span class="home-name">
-                WK{{ score.week_number || "?" }}
-                <span class="best10-card__meta">
-                  {{ score.counts_in_best10 ? "counts" : "spare" }}
-                </span>
-              </span>
-              <span class="home-value">{{ score.score }}</span>
-            </div>
+            </span>
+            <span class="home-value">{{ score.score }}</span>
           </div>
         </div>
       </section>
@@ -546,77 +557,99 @@ watch(
 </template>
 
 <style scoped>
-.season-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.35rem;
-  margin: 0.15rem 0 1.1rem;
-  padding: 0.3rem;
-  border: 1px solid var(--line, #3a3a3c);
-  border-radius: 16px;
-  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+.home-season-nav {
+  display: flex;
+  gap: 1.35rem;
+  margin: 0.85rem 0 1.15rem;
+  padding-bottom: 0.15rem;
+  border-bottom: 1px solid var(--line);
 }
 
-.season-switch__btn {
+.home-season-nav__tab {
+  position: relative;
   border: 0;
-  border-radius: 12px;
-  padding: 0.95rem 0.75rem;
-  background: transparent;
-  color: var(--muted, #8e8e93);
+  background: none;
+  padding: 0 0.05rem 0.55rem;
+  color: var(--muted);
   font: inherit;
-  font-family: var(--font-serif);
-  font-size: 1.35rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: pointer;
 }
 
-.season-switch__btn:disabled {
+.home-season-nav__tab:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 
-.season-switch__btn--active {
-  background: var(--surface-4, rgba(255, 255, 255, 0.14));
-  color: var(--text, #f5f5f7);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #3a5a40) 45%, transparent);
+.home-season-nav__tab--active {
+  color: var(--accent);
+}
+
+.home-season-nav__line {
+  display: block;
+  height: 0.19rem;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 0.12rem 0.12rem 0 0;
+  position: absolute;
+  left: 0;
+  bottom: 0;
 }
 
 .home-week-line {
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
+}
+
+.home-dashboard--single {
+  grid-template-columns: 1fr;
+}
+
+.home-card__header--tabs {
+  margin-bottom: 0.15rem;
+}
+
+.board-tabs {
+  display: flex;
+  gap: 1.1rem;
+  width: 100%;
+}
+
+.board-tabs__tab {
+  position: relative;
+  border: 0;
+  background: none;
+  padding: 0 0.05rem 0.45rem;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.board-tabs__tab--active {
+  color: var(--text);
+}
+
+.board-tabs__line {
+  display: block;
+  height: 0.14rem;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 0.1rem;
+  position: absolute;
+  left: 0;
+  bottom: 0;
 }
 
 .home-empty-inline {
   font-size: 0.95em;
   opacity: 0.7;
   padding: 0.35em 0 0.15em;
-}
-
-.winter-toggle {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.4rem;
-  padding: 0.25rem;
-  border: 1px solid var(--line, #3a3a3c);
-  border-radius: 999px;
-  background: var(--surface-2, rgba(255, 255, 255, 0.04));
-}
-
-.winter-toggle__btn {
-  border: 0;
-  border-radius: 999px;
-  padding: 0.7rem 0.85rem;
-  background: transparent;
-  color: var(--muted, #8e8e93);
-  font: inherit;
-  font-weight: 700;
-  font-size: 0.84rem;
-  cursor: pointer;
-}
-
-.winter-toggle__btn--active {
-  background: var(--surface-4, rgba(255, 255, 255, 0.12));
-  color: var(--text, #f5f5f7);
 }
 
 .home-compact-row--winner .home-name,
@@ -630,12 +663,6 @@ watch(
 
 .home-compact-row--drop {
   opacity: 0.55;
-}
-
-.best10-card {
-  margin-top: 0.85rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--line, #3a3a3c);
 }
 
 .best10-card__meta {
