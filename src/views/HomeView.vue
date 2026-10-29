@@ -389,30 +389,32 @@ watch(
           <span class="home-hero-sublabel">Best 10</span>
         </div>
         <div class="home-compact-list">
-          <button
+          <div
             v-for="row in best10Leaders"
             :key="row.user_id || row.id"
-            type="button"
-            class="home-compact-row home-compact-row--btn"
+            class="home-compact-row"
             :class="{
-              'home-compact-row--open':
+              'home-compact-row--winner':
                 String(selectedPlayerId) === String(row.user_id || row.id),
             }"
+            role="button"
+            tabindex="0"
             @click="openPlayerBest10(row.user_id || row.id)"
+            @keydown.enter.prevent="openPlayerBest10(row.user_id || row.id)"
+            @keydown.space.prevent="openPlayerBest10(row.user_id || row.id)"
           >
             <span class="home-rank">{{ row.position }}</span>
             <span class="home-name">{{ row.full_name }}</span>
             <span class="home-value">{{ row.total_score }}</span>
-          </button>
+          </div>
           <p v-if="!best10Leaders.length" class="empty-state">No Best 10 yet.</p>
         </div>
 
         <div v-if="selectedBest10Card" class="best10-card">
           <div class="home-card__header">
-            <span class="home-hero-sublabel">{{ selectedBest10Card.full_name }}</span>
-            <strong class="best10-card__total">
-              Best 10 · {{ selectedBest10Card.best_10_total }}
-            </strong>
+            <span class="home-hero-sublabel">
+              {{ selectedBest10Card.full_name }} · scores
+            </span>
           </div>
           <div class="home-compact-list">
             <div
@@ -622,15 +624,8 @@ watch(
   font-weight: 750;
 }
 
-.home-compact-row--btn {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
+.home-compact-row[role="button"] {
   cursor: pointer;
-  padding: 0;
 }
 
 .home-compact-row--drop {
@@ -641,12 +636,6 @@ watch(
   margin-top: 0.85rem;
   padding-top: 0.85rem;
   border-top: 1px solid var(--line, #3a3a3c);
-}
-
-.best10-card__total {
-  display: block;
-  margin-top: 0.2rem;
-  font-size: 0.95rem;
 }
 
 .best10-card__meta {
