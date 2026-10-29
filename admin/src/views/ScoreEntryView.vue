@@ -99,14 +99,23 @@ async function loadRounds() {
     .order("round_date", { ascending: true })
     .limit(400);
   if (qerr) throw qerr;
-  const summer = (data ?? []).filter((r) => r.campaigns?.kind === "summer_main");
-  roundOptions.value = mapRoundOptions(summer.length ? summer : data ?? []);
+  // Live entry covers summer + winter weekly seasons (not cup/finals/away).
+  const series = (data ?? []).filter((r) => {
+    const kind = r.campaigns?.kind;
+    return kind === "summer_main" || kind === "winter_reduced";
+  });
+  roundOptions.value = mapRoundOptions(series.length ? series : data ?? []);
 
   const fromQuery = route.query.round;
   const pick =
     (typeof fromQuery === "string" && roundOptions.value.some((o) => o.id === fromQuery)
       ? fromQuery
-      : "") || pickDefaultRoundId(roundOptions.value.map((o) => o.raw)) || roundOptions.value[0]?.id || "";
+      : "") ||
+    pickDefaultRoundId(roundOptions.value.map((o) => o.raw), {
+      preferTypes: ["winter_weekly", "summer_weekly"],
+    }) ||
+    roundOptions.value[0]?.id ||
+    "";
   roundId.value = pick;
 }
 
