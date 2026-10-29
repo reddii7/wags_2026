@@ -31,7 +31,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261027-season-splash-v37";
+const CLIENT_BUILD_ID = "20261029-winter-home-v39";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -450,10 +450,12 @@ function switchSection(section) {
     }
     return;
   }
-  // Home nav always returns to the permanent season landing (clears winter mode).
+  // Home nav returns to the live home (winter when open — no splash gate).
   if (section?.name === "home") {
-    if (route.path !== "/" || route.query.mode) {
+    if (route.path !== "/") {
       router.push("/");
+    } else if (route.query.mode) {
+      router.replace({ path: "/", query: {} });
     }
     return;
   }

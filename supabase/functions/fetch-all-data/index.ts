@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20261029-winter-home-v38";
+const BUILD_ID = "20261029-winter-home-v39";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -63,6 +63,18 @@ const isWinterReducedCampaign = (c: any): boolean => {
   if (k === "winter_reduced") return true;
   if (k !== "") return false;
   return String(c?.track ?? "").trim().toLowerCase() === "winter_reduced";
+};
+
+/** Year-keyed aliases: sole campaign, else prefer summer_main when year is shared. */
+const shouldAliasCampaignYear = (
+  c: any,
+  yr: string,
+  campaignsPerYear: Map<string, number>,
+): boolean => {
+  if (!yr) return false;
+  const n = campaignsPerYear.get(yr) || 0;
+  if (n <= 1) return true;
+  return isSummerMainCampaign(c);
 };
 
 /** PostgREST jsonb arrays are usually arrays; normalize object-shaped JSON arrays. */
@@ -691,7 +703,7 @@ async function greenfieldFetchAll(
     }
     best14[cid] = b14;
     leagues[cid] = lg;
-    if (yr && (campaignsPerYear.get(yr) || 0) === 1) {
+    if (shouldAliasCampaignYear(c, yr, campaignsPerYear)) {
       best14[yr] = b14;
       leagues[yr] = lg;
     }
@@ -1060,7 +1072,7 @@ async function greenfieldFetchAll(
     }
 
     dashboard[cid] = dashBlock;
-    if (yr && (campaignsPerYear.get(yr) || 0) === 1) {
+    if (shouldAliasCampaignYear(c, yr, campaignsPerYear)) {
       dashboard[yr] = dashBlock;
     }
   }
@@ -1077,7 +1089,7 @@ async function greenfieldFetchAll(
         profileNameById,
       );
       winners[cid] = list;
-      if (yr && (campaignsPerYear.get(yr) || 0) === 1) {
+      if (shouldAliasCampaignYear(c, yr, campaignsPerYear)) {
         winners[yr] = list;
       }
     }
@@ -1118,7 +1130,7 @@ async function greenfieldFetchAll(
             yrRaw != null && String(yrRaw).trim() !== "" ? String(yrRaw) : "";
           const list = byCampaign.get(cid) ?? [];
           awards[cid] = list;
-          if (yr && (campaignsPerYear.get(yr) || 0) === 1) {
+          if (shouldAliasCampaignYear(c, yr, campaignsPerYear)) {
             awards[yr] = list;
           }
         }

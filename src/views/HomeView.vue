@@ -51,9 +51,18 @@ const closedSummer = computed(() => {
   );
 });
 
-/** Permanent season landing on Home unless user chose Winter via CTA. */
+/** Winter is the live home — no season-splash gate while winter is open/current. */
 const showSeasonLanding = computed(() => {
   if (props.metadata?.loading) return false;
+  const seasons = Array.isArray(props.metadata?.seasons)
+    ? props.metadata.seasons
+    : [];
+  const winterLive = seasons.some((s) => {
+    if (String(s?.kind || "") !== "winter_reduced") return false;
+    if (s?.is_current || s?.is_active) return true;
+    return String(s?.status || "").toLowerCase() === "open";
+  });
+  if (winterLive) return false;
   if (!closedSummer.value) return false;
   return String(route.query.mode || "").toLowerCase() !== "winter";
 });

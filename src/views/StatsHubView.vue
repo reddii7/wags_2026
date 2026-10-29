@@ -18,9 +18,30 @@ const props = defineProps({
   metadata: { type: Object, required: true },
 });
 
-const seasons = ref(
-  Array.isArray(props.metadata?.seasons) ? props.metadata.seasons : [],
-);
+function sortSeasonsForPicker(list) {
+  return [...list].sort((a, b) => {
+    const ya = Number(a?.start_year) || 0;
+    const yb = Number(b?.start_year) || 0;
+    if (ya !== yb) return yb - ya;
+    const ka = String(a?.kind || "");
+    const kb = String(b?.kind || "");
+    if (ka !== kb) {
+      if (ka === "summer_main") return -1;
+      if (kb === "summer_main") return 1;
+    }
+    return String(a?.name || "").localeCompare(String(b?.name || ""));
+  });
+}
+
+function seasonsForPicker(metaSeasons) {
+  const all = Array.isArray(metaSeasons) ? metaSeasons : [];
+  const usable = all.filter(
+    (s) => String(s?.status || "").toLowerCase() !== "draft",
+  );
+  return sortSeasonsForPicker(usable.length ? usable : all);
+}
+
+const seasons = ref(seasonsForPicker(props.metadata?.seasons));
 const selectedSeasonId = ref(null);
 const seasonPickerOpen = ref(false);
 
@@ -67,8 +88,8 @@ watch(
   [() => props.metadata, () => route.query.season],
   ([meta]) => {
     if (meta && Array.isArray(meta.seasons)) {
-      seasons.value = meta.seasons;
-      const fromQuery = resolveSeasonFromQuery(meta.seasons);
+      seasons.value = seasonsForPicker(meta.seasons);
+      const fromQuery = resolveSeasonFromQuery(seasons.value);
       if (fromQuery) {
         selectedSeasonId.value = fromQuery.id;
         return;
@@ -78,16 +99,16 @@ watch(
         meta?.defaults?.results_season_id || "",
       );
       const preferred = preferredResultsSeasonId
-        ? meta.seasons.find((s) => String(s?.id) === preferredResultsSeasonId)
+        ? seasons.value.find((s) => String(s?.id) === preferredResultsSeasonId)
         : null;
       const current =
-        meta.seasons.find((s) => s.is_current) ||
-        meta.seasons.find((s) => s.is_active) ||
+        seasons.value.find((s) => s.is_current) ||
+        seasons.value.find((s) => s.is_active) ||
         preferred ||
-        meta.seasons[0];
+        seasons.value[0];
       if (
         !selectedSeasonId.value ||
-        !meta.seasons.some((s) => s.id === selectedSeasonId.value)
+        !seasons.value.some((s) => s.id === selectedSeasonId.value)
       ) {
         selectedSeasonId.value = current?.id;
       }
@@ -241,7 +262,10 @@ function pickSeason(seasonId) {
             @click="pickSeason(s.id)"
           >
             <span class="stats-season-list__label">{{
-              s.name || s.start_year
+              s.name ||
+              (String(s.kind || "") === "winter_reduced"
+                ? `Winter ${s.start_year}`
+                : `Summer ${s.start_year}`)
             }}</span>
             <span
               v-if="s.id === selectedSeasonId"
