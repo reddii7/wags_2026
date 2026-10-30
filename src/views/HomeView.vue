@@ -153,16 +153,6 @@ const selectedWeekRows = computed(() => {
   }));
 });
 
-const selectedWeekTitle = computed(() => {
-  const summary = selectedWeekSummary.value;
-  const weekNo = Number(summary?.week_number);
-  const dateLabel = formatDayMonth(summary?.week_date);
-  if (Number.isFinite(weekNo) && weekNo > 0 && dateLabel) {
-    return `WEEK ${weekNo}, ${dateLabel}`;
-  }
-  return homePayload.value.week_label;
-});
-
 const selectedWeekHero = computed(() => {
   const raw = String(selectedWeekSummary.value?.hero_message || "").trim();
   if (!raw) return homePayload.value.hero_message;
@@ -216,6 +206,34 @@ function formatPounds(pence) {
   const n = Number(pence) || 0;
   return `£${(n / 100).toFixed(n % 100 === 0 ? 0 : 2)}`;
 }
+
+function splitWeekLabel(label) {
+  const text = String(label || "").trim();
+  const match = text.match(/^WEEK\s+(\d+)\s*,\s*(.+)$/i);
+  if (match) return { week: `Week ${match[1]}`, date: match[2].trim() };
+  if (!text || text.startsWith("WEEK —")) return { week: "", date: "" };
+  return { week: text.replace(/^WEEK\s+/i, "Week "), date: "" };
+}
+
+const winterWeekParts = computed(() =>
+  splitWeekLabel(homePayload.value.week_label),
+);
+
+const winterHeadline = computed(() => {
+  if (winterTab.value === "best10") return { title: "Best 10", date: "" };
+  const summary = selectedWeekSummary.value;
+  const weekNo = Number(summary?.week_number);
+  const dateLabel = formatDayMonth(summary?.week_date);
+  if (Number.isFinite(weekNo) && weekNo > 0) {
+    return { title: `Week ${weekNo}`, date: dateLabel };
+  }
+  const parts = winterWeekParts.value;
+  return { title: parts.week || "Winter", date: parts.date };
+});
+
+const winterReady = computed(
+  () => !homePayload.value.no_results && !!winterWeekParts.value.week,
+);
 
 function openPlayerBest10(userId) {
   selectedPlayerId.value =
@@ -374,88 +392,105 @@ watch(
 </script>
 
 <template>
-  <!-- Home: two doors. Summer is the full app. Winter is its own screen. -->
+  <!-- Home: winter is the current board. Summer opens the full app. -->
   <section v-if="!isWinter" class="page-stack home-page">
-    <section class="hero-block home-hero">
-      <div class="home-hero__intro">
-        <div class="wags-headline">
-          <span class="home-hero-sublabel2 wags-body">SUTTON WAGS</span>
-          <span>Home</span>
-        </div>
+    <header class="home-hub">
+      <p class="home-hub__mark">Sutton WAGS</p>
+
+      <section
+        v-if="loading || metadata.loading"
+        class="content-panel content-panel--minimal home-status"
+      >
+        <p class="empty-state">Loading…</p>
+      </section>
+      <section
+        v-else-if="error || metadata.loadError"
+        class="content-panel content-panel--minimal home-status"
+      >
+        <p class="empty-state">{{ error || metadata.loadError }}</p>
+      </section>
+
+      <div v-else class="home-hub__doors">
+        <button
+          type="button"
+          class="home-hub__winter"
+          :disabled="!winterSeason"
+          @click="openWinter"
+        >
+          <span class="home-hub__kicker">
+            <span>Winter{{ winterSeason?.start_year ? ` ${winterSeason.start_year}` : "" }}</span>
+            <span>{{ winterWeekParts.date }}</span>
+          </span>
+          <strong class="home-hub__name">
+            {{
+              winterReady && homePayload.winner_name
+                ? homePayload.winner_name
+                : winterReady
+                  ? winterWeekParts.week
+                  : "No scores yet"
+            }}
+          </strong>
+          <p class="home-hub__note">
+            {{
+              winterReady
+                ? `${winterWeekParts.week}${
+                    Number(homePayload.paid_out_pence) > 0
+                      ? ` · ${formatPounds(homePayload.paid_out_pence)} paid on the night`
+                      : " · paid on the night"
+                  }`
+                : "Week scores and Best 10"
+            }}
+          </p>
+          <dl v-if="winterReady" class="home-hub__facts">
+            <div>
+              <dt>Rolling pot</dt>
+              <dd>{{ formatPounds(homePayload.rolling_pot_pence) }}</dd>
+            </div>
+            <div>
+              <dt>Players</dt>
+              <dd>{{ homePayload.stats.players || "—" }}</dd>
+            </div>
+          </dl>
+        </button>
+
+        <button
+          type="button"
+          class="home-hub__summer"
+          :disabled="!summerSeason"
+          @click="openSummer"
+        >
+          <span>
+            <small>
+              Summer{{ summerSeason?.start_year ? ` ${summerSeason.start_year}` : "" }}
+            </small>
+            <strong>Results, leagues and the cup</strong>
+          </span>
+          <span class="home-hub__go" aria-hidden="true">›</span>
+        </button>
       </div>
-    </section>
-
-    <section
-      v-if="loading || metadata.loading"
-      class="content-panel content-panel--minimal home-status"
-    >
-      <p class="empty-state">Loading…</p>
-    </section>
-    <section
-      v-else-if="error || metadata.loadError"
-      class="content-panel content-panel--minimal home-status"
-    >
-      <p class="empty-state">{{ error || metadata.loadError }}</p>
-    </section>
-
-    <section v-else class="home-doors" aria-label="Seasons">
-      <button
-        type="button"
-        class="home-card row-button home-door"
-        :disabled="!winterSeason"
-        @click="openWinter"
-      >
-        <span class="home-hero-sublabel">Winter</span>
-        <strong>Week scores &amp; Best 10</strong>
-        <p class="home-door__line">
-          {{
-            homePayload.no_results
-              ? "No winter results yet."
-              : homePayload.hero_message
-          }}
-        </p>
-      </button>
-
-      <button
-        type="button"
-        class="home-card row-button home-door"
-        :disabled="!summerSeason"
-        @click="openSummer"
-      >
-        <span class="home-hero-sublabel">
-          Summer{{ summerSeason?.start_year ? ` ${summerSeason.start_year}` : "" }}
-        </span>
-        <strong>Results, leagues &amp; the cup</strong>
-        <p class="home-door__line">
-          Older seasons are in the year list.
-        </p>
-      </button>
-    </section>
+    </header>
   </section>
 
   <!-- Winter, standalone: no summer nav. Home is the way back. -->
   <section v-else class="page-stack home-page winter-screen">
-    <section class="hero-block home-hero">
-      <div class="home-hero__intro">
-        <div class="wags-headline">
-          <span class="home-hero-sublabel2 wags-body">Winter</span>
-          <span>{{ winterTab === "week" ? selectedWeekTitle : "Best 10" }}</span>
-          <template v-if="winterTab === 'week' && selectedWeekHero">
-            <p class="home-hero-sublabel home-hero-subtext">
-              {{ selectedWeekHero }}
-            </p>
-          </template>
-          <template v-else-if="winterTab === 'best10' && !homePayload.no_results">
-            <p class="home-hero-sublabel home-hero-subtext">
-              {{ formatPounds(homePayload.rolling_pot_pence) }} rolling pot
-            </p>
-          </template>
-          <template v-else-if="!loading && !metadata.loading">
-            No results yet.
-          </template>
-        </div>
+    <header class="winter-mast">
+      <p class="winter-mast__kicker">Winter</p>
+      <div class="winter-mast__row">
+        <h1 class="winter-mast__title">{{ winterHeadline.title }}</h1>
+        <p v-if="winterHeadline.date" class="winter-mast__date">
+          {{ winterHeadline.date }}
+        </p>
       </div>
-    </section>
+      <p v-if="winterTab === 'week' && selectedWeekHero" class="winter-mast__note">
+        {{ selectedWeekHero }}
+      </p>
+      <p
+        v-else-if="!loading && !metadata.loading && homePayload.no_results"
+        class="winter-mast__note"
+      >
+        No results yet.
+      </p>
+    </header>
 
     <section
       v-if="loading"
@@ -634,33 +669,195 @@ watch(
 </template>
 
 <style scoped>
-.home-doors {
-  display: grid;
-  gap: 0.75rem;
+.home-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+  padding: 0.45rem 0.15rem 0.2rem;
 }
 
-.home-door {
+.home-hub__mark {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted, #8e8e93);
+}
+
+.home-hub__doors {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.home-hub__winter,
+.home-hub__summer {
   width: 100%;
+  margin: 0;
   text-align: left;
+  color: inherit;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.home-hub__winter {
+  display: block;
+  padding: 1.15rem 1.15rem 1.05rem;
+  border-radius: 22px;
   border: 1px solid var(--line);
   background: var(--surface-2);
 }
 
-.home-door:disabled {
+.home-hub__kicker {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.home-hub__kicker span:last-child {
+  color: var(--muted, #8e8e93);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.home-hub__name {
+  display: block;
+  margin-top: 0.85rem;
+  font-family: var(--font-serif);
+  font-size: 1.85rem;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.home-hub__note {
+  margin: 0.4rem 0 0;
+  color: var(--muted, #8e8e93);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.home-hub__facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 1.05rem 0 0;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.home-hub__facts dt {
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted, #8e8e93);
+}
+
+.home-hub__facts dd {
+  margin: 0.18rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-hub__summer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0.25rem;
+  border: 0;
+  background: transparent;
+}
+
+.home-hub__summer small {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted, #8e8e93);
+}
+
+.home-hub__summer strong {
+  display: block;
+  margin-top: 0.22rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.home-hub__go {
+  color: var(--muted, #8e8e93);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.home-hub__winter:active,
+.home-hub__summer:active {
+  opacity: 0.72;
+}
+
+.home-hub__winter:disabled,
+.home-hub__summer:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.home-door strong {
-  display: block;
-  margin-top: 0.15rem;
+.winter-mast {
+  padding: 0.15rem 0.1rem 0.35rem;
 }
 
-.home-door__line {
-  margin: 0.45rem 0 0;
+.winter-mast__kicker {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.winter-mast__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.28rem;
+}
+
+.winter-mast__title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.85rem;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.winter-mast__date,
+.winter-mast__note {
+  margin: 0;
   color: var(--muted, #8e8e93);
-  font-size: 0.92rem;
+}
+
+.winter-mast__date {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.winter-mast__note {
+  margin-top: 0.45rem;
+  font-size: 0.98rem;
   line-height: 1.35;
 }
 
