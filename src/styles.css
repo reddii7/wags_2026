@@ -23,8 +23,7 @@
     color: #222;
 }
 
-:root[data-theme='dark'] .wags-headline,
-.wags-headline {
+:root[data-theme='dark'] .wags-headline {
     color: #E5E5E7;
 }
 
@@ -428,6 +427,16 @@ select {
     opacity: 0;
     transform: translateY(120%);
     pointer-events: none;
+}
+
+.app-shell.winter-open .app-main {
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+.app-shell.home-landing .app-main {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+    background: var(--bg);
 }
 
 @media (max-width: 900px) {

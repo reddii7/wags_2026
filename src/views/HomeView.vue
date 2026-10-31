@@ -2,7 +2,8 @@
 import { computed, ref, watch, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import { resolveHomeDashboardBlock } from "../composables/resolveHomeDashboard.js";
-import SeasonSplash from "../components/SeasonSplash.vue";
+import { triggerHapticFeedback } from "../utils/haptics";
+import NavIcon from "../components/NavIcon.vue";
 
 const emit = defineEmits(["navigate"]);
 const props = defineProps({
@@ -12,9 +13,15 @@ const route = useRoute();
 
 const loading = ref(true);
 const error = ref("");
+const weekScores = ref([]);
+const best10Leaders = ref([]);
+const best10ByMember = ref({});
 const best14Leaders = ref([]);
 const leagueLeaders = ref([]);
 const handicapMovements = ref([]);
+const winterTab = ref("week"); // week | best10
+const selectedWeekId = ref("");
+const selectedPlayerId = ref("");
 const homePayload = ref({
   week_label: "WEEK — , —",
   hero_message: "No results yet.",
@@ -24,114 +31,278 @@ const homePayload = ref({
     snakes: 0,
     camels: 0,
   },
-  handicap_changes: [],
+  paid_out_pence: 0,
+  rolling_pot_pence: 0,
+  winner_name: null,
+});
+const summerPayload = ref({
+  week_label: "WEEK — , —",
+  hero_message: "No results yet.",
+  no_results: true,
+  stats: { players: 0, snakes: 0, camels: 0 },
 });
 
-const closedSummer = computed(() => {
-  const seasons = Array.isArray(props.metadata?.seasons)
+const seasons = computed(() => {
+  const list = Array.isArray(props.metadata?.seasons)
     ? props.metadata.seasons
     : [];
+  return list.filter(
+    (s) => String(s?.status || "").toLowerCase() !== "draft",
+  );
+});
+
+const winterSeason = computed(
+  () =>
+    seasons.value.find(
+      (s) =>
+        String(s?.kind || "") === "winter_reduced" &&
+        (s?.is_current ||
+          s?.is_active ||
+          String(s?.status || "").toLowerCase() === "open"),
+    ) ||
+    seasons.value.find((s) => String(s?.kind || "") === "winter_reduced") ||
+    null,
+);
+
+/** Current summer only — older years live in Stats season picker. */
+const summerSeason = computed(() => {
+  const summers = seasons.value
+    .filter((s) => String(s?.kind || "") === "summer_main")
+    .sort((a, b) => Number(b.start_year || 0) - Number(a.start_year || 0));
   return (
-    seasons
-      .filter(
-        (s) =>
-          String(s?.kind || "") === "summer_main" &&
-          String(s?.status || "").toLowerCase() === "closed",
-      )
-      .sort((a, b) => Number(b.start_year || 0) - Number(a.start_year || 0))[0] ||
+    summers.find((s) => String(s?.status || "").toLowerCase() === "open") ||
+    summers[0] ||
     null
   );
 });
 
-/** Permanent season landing on Home unless user chose Winter via CTA. */
-const showSeasonLanding = computed(() => {
-  if (props.metadata?.loading) return false;
-  if (!closedSummer.value) return false;
-  return String(route.query.mode || "").toLowerCase() !== "winter";
-});
-
-const homeContract = computed(() =>
-  resolveHomeDashboardBlock(props.metadata),
+/** Winter is its own screen. Home stays the door back. */
+const isWinter = computed(
+  () => String(route.query.mode || "").toLowerCase() === "winter",
 );
 
-function onWinter() {
-  emit("navigate", { section: "home", mode: "winter" });
+const winterDockIndex = computed(() =>
+  winterTab.value === "best10" ? 2 : 1,
+);
+
+function dashForSeason(season) {
+  if (!season?.id) return null;
+  const dash = props.metadata?.dashboard || {};
+  const byId = dash[String(season.id)];
+  if (byId && typeof byId === "object") return byId;
+  const yr =
+    season.start_year != null && String(season.start_year).trim() !== ""
+      ? String(season.start_year)
+      : "";
+  if (yr && dash[yr] && typeof dash[yr] === "object") return dash[yr];
+  return null;
 }
 
-function onSeasonStats(season) {
-  emit("navigate", {
-    section: "stats",
-    seasonId: season?.id || closedSummer.value?.id,
-  });
-}
+const winterContract = computed(() => {
+  const fromSeason = dashForSeason(winterSeason.value);
+  if (fromSeason) return fromSeason;
+  const resolved = resolveHomeDashboardBlock(props.metadata);
+  if (resolved && String(resolved.mode || "").toLowerCase() === "winter") {
+    return resolved;
+  }
+  return null;
+});
 
-function normRoundId(id) {
-  return String(id ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/-/g, "");
-}
+const summerContract = computed(() => dashForSeason(summerSeason.value));
 
-function parseWeekNumFromLabel(wl) {
-  const m = String(wl || "").match(/WEEK\s+(\d+)/i);
-  const n = Number(m?.[1]);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
+const winterResults = computed(() => {
+  const rv = winterContract.value?.results_view;
+  return rv && typeof rv === "object" ? rv : null;
+});
 
-function formatDayMonthYear(isoLike) {
-  const dStr =
-    typeof isoLike === "string" ? isoLike.trim().slice(0, 10) : "";
+const winterWeeks = computed(() => {
+  const comps = winterResults.value?.competitions;
+  if (!Array.isArray(comps)) return [];
+  const rows = winterResults.value?.rows_by_competition || {};
+  return comps
+    .filter((comp) => Array.isArray(rows?.[comp.id]) && rows[comp.id].length)
+    .slice()
+    .sort((a, b) => Number(a.week_number) - Number(b.week_number));
+});
+
+const selectedWeekSummary = computed(() => {
+  const id = selectedWeekId.value;
+  const summary = winterResults.value?.summary_by_competition?.[id];
+  return summary && typeof summary === "object" ? summary : null;
+});
+
+const selectedWeekRows = computed(() => {
+  const id = selectedWeekId.value;
+  const rows = winterResults.value?.rows_by_competition?.[id];
+  if (!Array.isArray(rows) || !rows.length) return weekScores.value;
+  const winners = new Set(
+    (Array.isArray(selectedWeekSummary.value?.winner_names)
+      ? selectedWeekSummary.value.winner_names
+      : []
+    ).map((name) => String(name)),
+  );
+  return rows.map((row) => ({
+    position: row.position,
+    user_id: row.user_id,
+    full_name: row.player || row.full_name,
+    score: row.score,
+    is_winner:
+      winners.size > 0
+        ? winners.has(String(row.player || row.full_name || ""))
+        : false,
+  }));
+});
+
+const selectedWeekHero = computed(() => {
+  const raw = String(selectedWeekSummary.value?.hero_message || "").trim();
+  if (!raw) return homePayload.value.hero_message;
+  return raw.replace(
+    "added to his season winnings.",
+    "paid on the night.",
+  );
+});
+
+const selectedBest10Card = computed(() => {
+  if (!selectedPlayerId.value) return null;
+  const card = best10ByMember.value?.[String(selectedPlayerId.value)];
+  return card && typeof card === "object" ? card : null;
+});
+
+const activeHero = computed(() =>
+  isWinter.value ? homePayload.value : summerPayload.value,
+);
+
+function formatDayMonth(isoLike) {
+  const dStr = typeof isoLike === "string" ? isoLike.trim().slice(0, 10) : "";
   if (!dStr || !/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return "";
   const d = new Date(`${dStr}T12:00:00`);
   if (Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "short",
-    year: "numeric",
   }).format(d);
 }
 
-const inferredSeasonYear = computed(() => {
-  const seasons = Array.isArray(props.metadata?.seasons)
-    ? props.metadata.seasons
-    : [];
-  const cur =
-    seasons.find((s) => s?.is_current) ||
-    seasons.find((s) => s?.is_active) ||
-    seasons[0];
-  return cur?.start_year != null && String(cur.start_year).trim() !== ""
-    ? String(cur.start_year).trim()
-    : "";
+function syncSelectedWeek() {
+  const weeks = winterWeeks.value;
+  if (!weeks.length) {
+    selectedWeekId.value = "";
+    return;
+  }
+  if (weeks.some((week) => week.id === selectedWeekId.value)) return;
+  const fallback = String(winterResults.value?.default_competition_id || "");
+  selectedWeekId.value = weeks.some((week) => week.id === fallback)
+    ? fallback
+    : weeks[weeks.length - 1].id;
+}
+
+function selectWeek(weekId) {
+  triggerHapticFeedback();
+  selectedWeekId.value = String(weekId);
+  winterTab.value = "week";
+}
+
+function formatPounds(pence) {
+  const n = Number(pence) || 0;
+  return `£${(n / 100).toFixed(n % 100 === 0 ? 0 : 2)}`;
+}
+
+function splitWeekLabel(label) {
+  const text = String(label || "").trim();
+  const match = text.match(/^WEEK\s+(\d+)\s*,\s*(.+)$/i);
+  if (match) return { week: `Week ${match[1]}`, date: match[2].trim() };
+  if (!text || text.startsWith("WEEK —")) return { week: "", date: "" };
+  return { week: text.replace(/^WEEK\s+/i, "Week "), date: "" };
+}
+
+const winterWeekParts = computed(() =>
+  splitWeekLabel(homePayload.value.week_label),
+);
+
+const winterHeadline = computed(() => {
+  if (winterTab.value === "best10") return { title: "Best 10", date: "" };
+  const summary = selectedWeekSummary.value;
+  const weekNo = Number(summary?.week_number);
+  const dateLabel = formatDayMonth(summary?.week_date);
+  if (Number.isFinite(weekNo) && weekNo > 0) {
+    return { title: `Week ${weekNo}`, date: dateLabel };
+  }
+  const parts = winterWeekParts.value;
+  return { title: parts.week || "Winter", date: parts.date };
 });
 
-/** Week line with calendar year when we can derive a competition date */
-const homeWeekDisplayLine = computed(() => {
-  const wl = (homePayload.value.week_label || "").trim();
-  const dash = homeContract.value;
+watch(
+  () => route.query.tab,
+  (tab) => {
+    const value = String(tab || "").toLowerCase();
+    if (value === "best10" || value === "week") winterTab.value = value;
+  },
+  { immediate: true },
+);
+
+function openPlayerBest10(userId) {
+  selectedPlayerId.value =
+    String(selectedPlayerId.value) === String(userId) ? "" : String(userId);
+}
+
+function openWinter(tab) {
+  triggerHapticFeedback();
+  emit("navigate", {
+    section: "home",
+    mode: "winter",
+    tab: tab === "best10" ? "best10" : "week",
+  });
+}
+
+function openSummer() {
+  triggerHapticFeedback();
+  emit("navigate", {
+    section: "stats",
+    seasonId: summerSeason.value?.id,
+  });
+}
+
+function backHome() {
+  triggerHapticFeedback();
+  emit("navigate", { section: "home" });
+}
+
+function setWinterTab(tab) {
+  triggerHapticFeedback();
+  winterTab.value = tab;
+  if (tab !== "best10") selectedPlayerId.value = "";
+}
+
+function mapHomeBlock(dash) {
   const dashHome =
-    dash?.home && typeof dash.home === "object" ? dash.home : {};
-  const focusRaw = dashHome.focus_round_id;
-  const focusId =
-    focusRaw != null && String(focusRaw).trim() !== ""
-      ? String(focusRaw).trim()
-      : "";
-  const comps = Array.isArray(props.metadata?.competitions)
-    ? props.metadata.competitions
-    : [];
-  const round =
-    focusId && comps.length
-      ? comps.find((c) => normRoundId(c.id) === normRoundId(focusId))
+    dash &&
+    typeof dash === "object" &&
+    dash.home &&
+    typeof dash.home === "object"
+      ? dash.home
       : null;
-
-  const datePretty = round ? formatDayMonthYear(round.competition_date) : "";
-  const wn = parseWeekNumFromLabel(wl);
-  if (wn != null && datePretty) return `WEEK ${wn}, ${datePretty}`;
-
-  if (wl && inferredSeasonYear.value && !/\b(19|20)\d{2}\b/.test(wl))
-    return `${wl} ${inferredSeasonYear.value}`;
-
-  return wl || "WEEK — , —";
-});
+  if (!dashHome) return null;
+  return {
+    week_label:
+      typeof dashHome.week_label === "string" && dashHome.week_label.trim()
+        ? dashHome.week_label
+        : "WEEK — , —",
+    hero_message:
+      typeof dashHome.hero_message === "string" && dashHome.hero_message.trim()
+        ? dashHome.hero_message
+        : "No results yet.",
+    no_results:
+      typeof dashHome?.no_results === "boolean" ? dashHome.no_results : false,
+    stats: {
+      players: Number(dashHome?.stats?.players) || 0,
+      snakes: Number(dashHome?.stats?.snakes) || 0,
+      camels: Number(dashHome?.stats?.camels) || 0,
+    },
+    paid_out_pence: Number(dashHome?.paid_out_pence) || 0,
+    rolling_pot_pence: Number(dashHome?.rolling_pot_pence) || 0,
+    winner_name: dashHome?.winner_name ? String(dashHome.winner_name) : null,
+  };
+}
 
 const loadHomeData = async () => {
   if (props.metadata.loading) {
@@ -149,60 +320,44 @@ const loadHomeData = async () => {
       throw new Error("Unsupported API contract version.");
     }
 
-    const dash = homeContract.value;
-    if (!dash) {
-      throw new Error("Missing dashboard contract data.");
-    }
-
-    const dashHome =
-      dash &&
-      typeof dash === "object" &&
-      dash.home &&
-      typeof dash.home === "object"
-        ? dash.home
-        : null;
-    if (!dashHome) {
-      throw new Error("Missing dashboard.home contract payload.");
-    }
-
-    const weekLabel =
-      typeof dashHome.week_label === "string" && dashHome.week_label.trim()
-        ? dashHome.week_label
-        : "WEEK — , —";
-    const heroMessage =
-      typeof dashHome.hero_message === "string" && dashHome.hero_message.trim()
-        ? dashHome.hero_message
-        : "No results yet.";
-
-    homePayload.value = {
-      week_label: weekLabel,
-      hero_message: heroMessage,
-      no_results:
-        typeof dashHome?.no_results === "boolean" ? dashHome.no_results : false,
-      stats: {
-        players: Number(dashHome?.stats?.players) || 0,
-        snakes: Number(dashHome?.stats?.snakes) || 0,
-        camels: Number(dashHome?.stats?.camels) || 0,
-      },
-      handicap_changes: Array.isArray(dashHome?.handicap_changes)
-        ? dashHome.handicap_changes
-        : [],
+    const empty = {
+      week_label: "WEEK — , —",
+      hero_message: "No results yet.",
+      no_results: true,
+      stats: { players: 0, snakes: 0, camels: 0 },
+      paid_out_pence: 0,
+      rolling_pot_pence: 0,
+      winner_name: null,
     };
 
-    // Backend-prepared home card leaders.
-    const dashboardBest14 = Array.isArray(dash?.best14_leaders)
-      ? dash.best14_leaders
+    const winterDash = winterContract.value;
+    const winterMapped = mapHomeBlock(winterDash);
+    homePayload.value = winterMapped || empty;
+    weekScores.value = Array.isArray(winterDash?.week_scores)
+      ? winterDash.week_scores
       : [];
-    const dashboardLeagues = Array.isArray(dash?.league_leaders)
-      ? dash.league_leaders
+    best10Leaders.value = Array.isArray(winterDash?.best10_leaders)
+      ? winterDash.best10_leaders
       : [];
+    best10ByMember.value =
+      winterDash?.best10_by_member &&
+      typeof winterDash.best10_by_member === "object"
+        ? winterDash.best10_by_member
+        : {};
 
-    best14Leaders.value = dashboardBest14;
-
-    leagueLeaders.value = dashboardLeagues;
-
-    handicapMovements.value = Array.isArray(homePayload.value.handicap_changes)
-      ? homePayload.value.handicap_changes
+    const summerDash = summerContract.value;
+    const summerMapped = mapHomeBlock(summerDash);
+    summerPayload.value = summerMapped || empty;
+    best14Leaders.value = Array.isArray(summerDash?.best14_leaders)
+      ? summerDash.best14_leaders
+      : [];
+    leagueLeaders.value = Array.isArray(summerDash?.league_leaders)
+      ? summerDash.league_leaders
+      : [];
+    handicapMovements.value = Array.isArray(
+      summerDash?.home?.handicap_changes,
+    )
+      ? summerDash.home.handicap_changes
       : [];
   } catch (err) {
     console.error("Dashboard mapping error:", err);
@@ -220,8 +375,8 @@ watch(
     () => props.metadata.dashboard,
     () => props.metadata.defaults,
     () => props.metadata.seasons,
-    () => props.metadata.competitions,
     () => props.metadata.api_version,
+    () => route.query.mode,
   ],
   () => {
     if (props.metadata.loading) {
@@ -234,47 +389,78 @@ watch(
       return;
     }
     error.value = "";
+    if (!isWinter.value) {
+      selectedPlayerId.value = "";
+      winterTab.value = "week";
+    }
     loadHomeData();
+    syncSelectedWeek();
   },
   { immediate: true },
 );
 </script>
 
 <template>
-  <SeasonSplash
-    v-if="showSeasonLanding"
-    :metadata="metadata"
-    @winter="onWinter"
-    @season-stats="onSeasonStats"
-  />
-  <section v-else class="page-stack home-page">
-    <section class="hero-block home-hero">
-      <div class="home-hero__intro">
-        <div class="wags-headline">
-          <span class="home-hero-sublabel2 wags-body">
-            LATEST -
-            <span>{{ homeWeekDisplayLine }}</span>
-          </span>
-          <template v-if="!homePayload.no_results">
-            <span>{{ homePayload.hero_message }}</span>
-            <p class="home-hero-sublabel home-hero-subtext">
-              {{ homePayload.stats.players }} played,
-              {{ homePayload.stats.snakes }} snakes,
-              {{ homePayload.stats.camels }} camels.
-            </p>
-          </template>
-          <template v-else-if="!loading && !metadata.loading">
-            No results yet.
-          </template>
-        </div>
-      </div>
+  <!-- Landing: an intro to the society. Winter and Summer are the two pills. -->
+  <section v-if="!isWinter" class="page-stack home-page">
+    <section
+      v-if="error || metadata.loadError"
+      class="content-panel content-panel--minimal home-status"
+    >
+      <p class="empty-state">{{ error || metadata.loadError }}</p>
     </section>
+
+    <div v-else class="home-hub">
+      <h1 class="home-hub__display">
+        <img src="/wags-crest.png" alt="Sutton WAGS" />
+      </h1>
+      <div class="home-hub__actions">
+        <button
+          type="button"
+          class="home-hub__primary"
+          :disabled="!winterSeason"
+          @click="openWinter()"
+        >
+          Winter
+        </button>
+        <button
+          type="button"
+          class="home-hub__secondary"
+          :disabled="!summerSeason"
+          @click="openSummer"
+        >
+          Summer
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Winter, standalone: no summer nav. Home is the way back. -->
+  <section v-else class="page-stack home-page winter-screen">
+    <header class="winter-mast">
+      <p class="winter-mast__kicker">Winter</p>
+      <div class="winter-mast__row">
+        <h1 class="winter-mast__title">{{ winterHeadline.title }}</h1>
+        <p v-if="winterHeadline.date" class="winter-mast__date">
+          {{ winterHeadline.date }}
+        </p>
+      </div>
+      <p v-if="winterTab === 'week' && selectedWeekHero" class="winter-mast__note">
+        {{ selectedWeekHero }}
+      </p>
+      <p
+        v-else-if="!loading && !metadata.loading && homePayload.no_results"
+        class="winter-mast__note"
+      >
+        No results yet.
+      </p>
+    </header>
 
     <section
       v-if="loading"
       class="content-panel content-panel--minimal home-status"
     >
-      <p class="empty-state">Loading dashboard…</p>
+      <p class="empty-state">Loading…</p>
     </section>
     <section
       v-else-if="error"
@@ -283,118 +469,555 @@ watch(
       <p class="empty-state">{{ error }}</p>
     </section>
 
+    <nav
+      v-else-if="winterWeeks.length"
+      class="f1-round-nav"
+      aria-label="Weeks"
+    >
+      <div class="f1-round-scroll">
+        <button
+          v-for="week in winterWeeks"
+          :key="week.id"
+          type="button"
+          class="f1-round-item"
+          :class="{ active: selectedWeekId === week.id }"
+          @click="selectWeek(week.id)"
+        >
+          {{ week.week_label || `WK${week.week_number}` }}
+          <span v-if="selectedWeekId === week.id" class="f1-round-line"></span>
+        </button>
+      </div>
+    </nav>
+
     <section
       v-if="!loading && !error"
-      class="home-dashboard"
-      aria-label="Main sections"
+      class="home-dashboard home-dashboard--single"
+      aria-label="Winter standings"
     >
-      <!-- Results summary moved to hero above -->
+      <section class="home-card">
+        <div v-if="winterTab === 'week'" class="home-compact-list">
+          <div
+            v-for="row in selectedWeekRows"
+            :key="`${row.user_id}-${row.position}`"
+            class="home-compact-row"
+            :class="{ 'home-compact-row--winner': row.is_winner }"
+          >
+            <span class="home-rank">{{ row.position }}</span>
+            <span class="home-name">{{ row.full_name }}</span>
+            <span class="home-value">{{ row.score }}</span>
+          </div>
+          <p v-if="!selectedWeekRows.length" class="empty-state">No scores this week.</p>
+        </div>
 
-      <button
-        class="home-card row-button"
-        type="button"
-        @click="$emit('navigate', { section: 'handicaps' })"
-      >
+        <div v-else class="rolling-pot" aria-label="Rolling pot">
+          <span class="home-hero-sublabel">Rolling pot</span>
+          <strong>{{ formatPounds(homePayload.rolling_pot_pence) }}</strong>
+          <p class="rolling-pot__note">Best 10 · builds each week</p>
+        </div>
+        <div v-if="winterTab === 'best10'" class="home-compact-list">
+          <div
+            v-for="row in best10Leaders"
+            :key="row.user_id || row.id"
+            class="home-compact-row"
+            :class="{
+              'home-compact-row--winner':
+                String(selectedPlayerId) === String(row.user_id || row.id),
+            }"
+            role="button"
+            tabindex="0"
+            @click="openPlayerBest10(row.user_id || row.id)"
+            @keydown.enter.prevent="openPlayerBest10(row.user_id || row.id)"
+            @keydown.space.prevent="openPlayerBest10(row.user_id || row.id)"
+          >
+            <span class="home-rank">{{ row.position }}</span>
+            <span class="home-name">{{ row.full_name }}</span>
+            <span class="home-value">{{ row.total_score }}</span>
+          </div>
+          <p v-if="!best10Leaders.length" class="empty-state">No Best 10 yet.</p>
+        </div>
+      </section>
+
+      <section v-if="selectedBest10Card" class="home-card">
         <div class="home-card__header">
-          <span class="home-hero-sublabel">Handicap changes</span>
+          <span class="home-hero-sublabel">
+            {{ selectedBest10Card.full_name }}
+          </span>
         </div>
         <div class="home-compact-list">
-          <template v-if="handicapMovements.length">
-            <div
-              v-for="(item, idx) in handicapMovements"
-              :key="`${item.user_id}-${idx}`"
-              class="home-compact-row"
-            >
-              <span class="home-rank">{{ idx + 1 }}</span>
-              <span class="home-name">{{ item.full_name }}</span>
-              <span class="home-value">
-                <span
-                  class="mini-pill mini-pill--delta home-pill-compact"
-                  :class="
-                    item.newRounded < item.oldRounded
-                      ? 'mini-pill--positive'
-                      : 'mini-pill--negative'
-                  "
-                >
-                  {{ item.oldRounded }}→{{ item.newRounded }}
-                </span>
+          <div
+            v-for="score in selectedBest10Card.scores || []"
+            :key="score.round_id"
+            class="home-compact-row"
+            :class="{
+              'home-compact-row--drop': !score.counts_in_best10,
+            }"
+          >
+            <span class="home-rank">
+              {{ score.counts_in_best10 ? score.best10_rank : "—" }}
+            </span>
+            <span class="home-name">
+              WK{{ score.week_number || "?" }}
+              <span class="best10-card__meta">
+                {{ score.counts_in_best10 ? "counts" : "spare" }}
               </span>
-            </div>
-          </template>
-          <template v-else>
-            <div
-              style="
-                font-size: 0.95em;
-                opacity: 0.7;
-                padding: 0.35em 0 0.15em 0;
-              "
-            >
-              No Playing Handicap changes
-            </div>
-          </template>
-        </div>
-      </button>
-
-      <button
-        class="home-card row-button"
-        type="button"
-        @click="$emit('navigate', { section: 'stats', tab: 'best14' })"
-      >
-        <div class="home-card__header">
-          <span class="home-hero-sublabel">Best 14 LEADERS</span>
-        </div>
-        <div class="home-compact-list">
-          <div
-            v-for="player in best14Leaders"
-            :key="player.id"
-            class="home-compact-row"
-          >
-            <span class="home-rank">{{ player.position }}</span>
-            <span class="home-name">{{ player.full_name }}</span>
-            <span class="home-value">{{ player.total_score }}</span>
+            </span>
+            <span class="home-value">{{ score.score }}</span>
           </div>
         </div>
-      </button>
-
-      <button
-        class="home-card row-button"
-        type="button"
-        @click="$emit('navigate', { section: 'stats', tab: 'leagues' })"
-      >
-        <div class="home-card__header">
-          <span class="home-hero-sublabel">Division leaders</span>
-        </div>
-        <div class="home-compact-list">
-          <div
-            v-for="(leader, idx) in leagueLeaders.slice(0, 4)"
-            :key="leader.league_name || idx"
-            class="home-compact-row"
-          >
-            <span class="home-rank home-rank--league">{{
-              leader.position ?? idx + 1
-            }}</span>
-            <span class="home-name">{{ leader.full_name }}</span>
-            <span class="home-value">{{ leader.total_score }}</span>
-          </div>
-        </div>
-      </button>
+      </section>
     </section>
+
+    <Teleport to="body">
+      <nav
+        class="winter-dock"
+        aria-label="Winter"
+        :style="{ '--dock-i': winterDockIndex }"
+      >
+        <svg class="winter-dock__defs" width="0" height="0" aria-hidden="true">
+          <filter
+            id="wags-winter-lens"
+            x="-8%"
+            y="-20%"
+            width="116%"
+            height="140%"
+            color-interpolation-filters="sRGB"
+          >
+            <feImage
+              preserveAspectRatio="none"
+              result="map"
+              href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='74'%3E%3ClinearGradient id='x'%3E%3Cstop stop-color='red'/%3E%3Cstop offset='1'/%3E%3C/linearGradient%3E%3ClinearGradient id='y' x2='0' y2='1'%3E%3Cstop stop-color='lime'/%3E%3Cstop offset='1'/%3E%3C/linearGradient%3E%3Crect width='400' height='74' fill='url(%23x)'/%3E%3Crect width='400' height='74' fill='url(%23y)' style='mix-blend-mode:screen'/%3E%3Crect x='16' y='14' width='368' height='46' rx='23' fill='gray' style='filter:blur(6px)'/%3E%3C/svg%3E"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="map"
+              scale="28"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        </svg>
+        <span class="winter-dock__body" aria-hidden="true"></span>
+        <span class="winter-dock__lens" aria-hidden="true"></span>
+        <span class="winter-dock__pill" aria-hidden="true"></span>
+        <button type="button" @click="backHome">
+          <span class="winter-dock__hit">
+            <NavIcon name="home" />
+            <span>Home</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          :class="{ active: winterTab === 'week' }"
+          :aria-current="winterTab === 'week' ? 'page' : undefined"
+          @click="setWinterTab('week')"
+        >
+          <span class="winter-dock__hit">
+            <NavIcon name="scores" />
+            <span>This wk</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          :class="{ active: winterTab === 'best10' }"
+          :aria-current="winterTab === 'best10' ? 'page' : undefined"
+          @click="setWinterTab('best10')"
+        >
+          <span class="winter-dock__hit">
+            <NavIcon name="best14" />
+            <span>Best 10</span>
+          </span>
+        </button>
+      </nav>
+    </Teleport>
   </section>
 </template>
 
 <style scoped>
-.home-label {
-  color: #888;
-  font-size: 0.85em;
-  margin-right: 0.25em;
-}
-.home-num {
-  font-weight: bold;
-  font-size: 1.1em;
+.home-hub {
+  --hub-ink: var(--text, #1a241c);
+  --hub-chip: #1c2b22;
+  --hub-chip-ink: #f4f7f2;
+  --hub-line: rgba(28, 43, 34, 0.28);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  min-height: calc(
+    100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) -
+      2rem
+  );
+  padding: 0.2rem 0.15rem;
+  color: var(--hub-ink);
+  background: transparent;
 }
 
-/* Use the same color for the headline as the player names */
-.home-news-headline.home-name {
-  color: #e2e2e2;
+:global([data-theme="dark"]) .home-hub {
+  --hub-chip: #e7efe4;
+  --hub-chip-ink: #1a241c;
+  --hub-line: rgba(243, 245, 241, 0.35);
+}
+
+.home-hub__display {
+  margin: 0;
+  text-align: center;
+  /* Local backdrop so the crest blends with the page even if an ancestor
+     isolates mix-blend-mode (view-frame uses perspective). */
+  background: var(--bg);
+  isolation: isolate;
+}
+
+.home-hub__display img {
+  display: block;
+  width: min(78vw, 20rem);
+  height: auto;
+  margin: 0 auto;
+  /* Light page: white fills drop out, black linework stays. */
+  mix-blend-mode: multiply;
+}
+
+/* The whole selector must sit inside :global(). A :global() prefix makes
+   Vue drop the rest and apply the declarations to [data-theme="dark"]. */
+:global([data-theme="dark"] .home-hub__display img) {
+  /* Dark page: flip to light linework, then screen the black disc into --bg. */
+  filter: invert(1);
+  mix-blend-mode: screen;
+}
+
+.home-hub__actions {
+  display: flex;
+  width: 100%;
+  gap: 0.7rem;
+  margin-top: 1.75rem;
+}
+
+.home-hub__primary,
+.home-hub__secondary {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: 999px;
+  padding: 0.9rem 0.75rem;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.home-hub__primary {
+  border: 0;
+  background: var(--hub-chip);
+  color: var(--hub-chip-ink);
+}
+
+.home-hub__secondary {
+  border: 1.5px solid var(--hub-line);
+  background: transparent;
+  color: var(--hub-ink);
+}
+
+.home-hub__primary:disabled,
+.home-hub__secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.winter-mast {
+  padding: 0.15rem 0.1rem 0.35rem;
+}
+
+.winter-mast__kicker {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.winter-mast__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.28rem;
+}
+
+.winter-mast__title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.85rem;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.winter-mast__date,
+.winter-mast__note {
+  margin: 0;
+  color: var(--muted, #8e8e93);
+}
+
+.winter-mast__date {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.winter-mast__note {
+  margin-top: 0.45rem;
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.winter-screen {
+  padding-bottom: calc(6.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.winter-dock {
+  position: fixed;
+  z-index: 80;
+  left: 50%;
+  bottom: calc(0.55rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  width: min(92vw, 26.5rem);
+  height: 4.65rem;
+  padding: 5px;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
+}
+
+.winter-dock__defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.winter-dock__body,
+.winter-dock__lens {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.winter-dock__body {
+  z-index: 0;
+  background: rgba(14, 14, 18, 0.42);
+  -webkit-backdrop-filter: blur(4px) saturate(1.85);
+  backdrop-filter: blur(4px) saturate(1.85);
+}
+
+.winter-dock__lens {
+  z-index: 1;
+  background: linear-gradient(rgba(255, 255, 255, 0.2), transparent 48%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.38),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: url("#wags-winter-lens");
+  backdrop-filter: url("#wags-winter-lens");
+}
+
+.winter-dock__pill {
+  position: absolute;
+  z-index: 2;
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc((100% - 10px) / 3);
+  border-radius: 999px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.05) 42%,
+    rgba(0, 0, 0, 0.18)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  transform: translateX(calc(var(--dock-i) * 100%));
+  transition: transform 0.55s cubic-bezier(0.22, 1.35, 0.36, 1);
+}
+
+.winter-dock button {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.winter-dock__hit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.22rem;
+  transition: transform 0.18s ease;
+}
+
+.winter-dock button:active .winter-dock__hit {
+  transform: scale(0.92);
+}
+
+.winter-dock button span span {
+  font-family: "Avenir Next Condensed", "Arial Narrow", "SF Compact Text",
+    "SF Pro Text", -apple-system, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  font-stretch: condensed;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.winter-dock button.active {
+  color: #e10600;
+}
+
+.winter-dock :deep(.nav-icon) {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.winter-dock :deep(.nav-icon path) {
+  stroke-width: 1.65;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .winter-dock__body {
+    background: rgba(18, 18, 22, 0.94);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .winter-dock__lens {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .winter-dock__pill,
+  .winter-dock__hit {
+    transition: none;
+  }
+}
+
+.home-dashboard--single {
+  grid-template-columns: 1fr;
+}
+
+.f1-round-nav {
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+  padding: 0.15rem 0 0;
+}
+
+.f1-round-scroll {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.15rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.f1-round-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.f1-round-item {
+  position: relative;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.65rem 0.8rem 0.75rem;
+  min-width: 3.2rem;
+  cursor: pointer;
+}
+
+.f1-round-item.active {
+  color: var(--text);
+}
+
+.f1-round-line {
+  display: block;
+  height: 0.16rem;
+  width: calc(100% - 1.2rem);
+  margin: 0.35rem auto 0;
+  background: var(--accent);
+  border-radius: 0.1rem;
+}
+
+.rolling-pot {
+  padding: 0.35rem 0 0.85rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.35rem;
+}
+
+.rolling-pot strong {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 2.6rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--text);
+}
+
+.rolling-pot__note {
+  margin: 0.45rem 0 0;
+  color: var(--muted, #8e8e93);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.home-empty-inline {
+  font-size: 0.95em;
+  opacity: 0.7;
+  padding: 0.35em 0 0.15em;
+}
+
+.home-compact-row--winner .home-name,
+.home-compact-row--winner .home-value {
+  font-weight: 750;
+}
+
+.home-compact-row[role="button"] {
+  cursor: pointer;
+}
+
+.home-compact-row--drop {
+  opacity: 0.55;
+}
+
+.best10-card__meta {
+  margin-left: 0.4rem;
+  color: var(--muted, #8e8e93);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 </style>
