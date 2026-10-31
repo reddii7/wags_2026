@@ -231,38 +231,6 @@ const winterHeadline = computed(() => {
   return { title: parts.week || "Winter", date: parts.date };
 });
 
-const winterReady = computed(
-  () => !homePayload.value.no_results && !!winterWeekParts.value.week,
-);
-
-const homeHeadlineLines = computed(() => {
-  if (!winterReady.value) return ["No", "scores", "yet."];
-  const name = String(
-    homePayload.value.winner_name || winterWeekParts.value.week || "Winter",
-  ).trim();
-  const words = name.split(/\s+/).filter(Boolean).slice(0, 4);
-  if (!words.length) return ["Winter."];
-  return words.map((word, index) =>
-    index === words.length - 1 ? `${word}.` : word,
-  );
-});
-
-const homeBlurb = computed(() => {
-  if (!winterReady.value) {
-    return "Week scores and Best 10 show here once the first round is in.";
-  }
-  const parts = winterWeekParts.value;
-  const when = [parts.week, parts.date].filter(Boolean).join(", ");
-  const paid = Number(homePayload.value.paid_out_pence) || 0;
-  const players = Number(homePayload.value.stats?.players) || 0;
-  const money =
-    paid > 0
-      ? `${formatPounds(paid)} paid on the night`
-      : "Winnings paid on the night";
-  const field = players > 0 ? ` from a field of ${players}` : "";
-  return `${when}. ${money}${field}.`;
-});
-
 watch(
   () => route.query.tab,
   (tab) => {
@@ -433,32 +401,25 @@ watch(
 </script>
 
 <template>
-  <!-- Home: editorial front. Winter opens the board, summer the full app. -->
+  <!-- Landing: an intro to the society. Winter and Summer are the two pills. -->
   <section v-if="!isWinter" class="page-stack home-page">
     <section
-      v-if="loading || metadata.loading"
-      class="content-panel content-panel--minimal home-status"
-    >
-      <p class="empty-state">Loading…</p>
-    </section>
-    <section
-      v-else-if="error || metadata.loadError"
+      v-if="error || metadata.loadError"
       class="content-panel content-panel--minimal home-status"
     >
       <p class="empty-state">{{ error || metadata.loadError }}</p>
     </section>
 
     <div v-else class="home-hub">
-      <p class="home-hub__chip">
-        Winter{{ winterSeason?.start_year ? ` ${winterSeason.start_year}` : "" }}
-      </p>
+      <p class="home-hub__chip">Golf society</p>
       <h1 class="home-hub__display">
-        <span
-          v-for="(line, index) in homeHeadlineLines"
-          :key="`${index}-${line}`"
-        >{{ line }}</span>
+        <span>Sutton</span>
+        <span>Wags.</span>
       </h1>
-      <p class="home-hub__blurb">{{ homeBlurb }}</p>
+      <p class="home-hub__blurb">
+        Two seasons. Winter is the weekly board, paid on the night. Summer is
+        the full season.
+      </p>
       <div class="home-hub__actions">
         <button
           type="button"
@@ -466,7 +427,7 @@ watch(
           :disabled="!winterSeason"
           @click="openWinter()"
         >
-          Open winter →
+          Winter
         </button>
         <button
           type="button"
@@ -474,26 +435,13 @@ watch(
           :disabled="!summerSeason"
           @click="openSummer"
         >
-          Summer{{ summerSeason?.start_year ? ` ${summerSeason.start_year}` : "" }}
+          Summer
         </button>
       </div>
-      <button
-        v-if="winterReady"
-        type="button"
-        class="home-hub__link"
-        @click="openWinter('best10')"
-      >
-        The rolling pot
-      </button>
-      <div v-if="winterReady" class="home-hub__panel">
-        <span class="home-hub__badge">
-          {{ winterWeekParts.date || winterWeekParts.week }}
-          <template v-if="homePayload.stats.players">
-            · {{ homePayload.stats.players }} played
-          </template>
-        </span>
-        <strong>{{ formatPounds(homePayload.rolling_pot_pence) }}</strong>
-        <span class="home-hub__panel-label">Rolling pot</span>
+      <div class="home-hub__panel">
+        <span class="home-hub__badge">Two seasons</span>
+        <p><b>Winter</b> Week scores and Best 10, paid on the night.</p>
+        <p><b>Summer</b> Results, leagues and the cup.</p>
       </div>
     </div>
   </section>
@@ -743,7 +691,7 @@ watch(
   color: var(--hub-ink);
   font-family: "Arial Narrow", "SF Pro Display", var(--font-serif), sans-serif;
   width: 100%;
-  font-size: min(3.55rem, 11.5cqi);
+  font-size: min(5.4rem, 20cqi);
   font-weight: 700;
   letter-spacing: -0.05em;
   line-height: 0.84;
@@ -771,8 +719,7 @@ watch(
 }
 
 .home-hub__primary,
-.home-hub__secondary,
-.home-hub__link {
+.home-hub__secondary {
   font: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -799,17 +746,6 @@ watch(
   color: var(--hub-ink);
 }
 
-.home-hub__link {
-  margin-top: 0.95rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--hub-ink);
-  font-size: 1rem;
-  text-decoration: underline;
-  text-underline-offset: 0.22em;
-}
-
 .home-hub__primary:disabled,
 .home-hub__secondary:disabled {
   opacity: 0.4;
@@ -830,17 +766,24 @@ watch(
   color: var(--hub-ink);
 }
 
-.home-hub__panel strong {
-  font-family: "Arial Narrow", "SF Pro Display", var(--font-serif), sans-serif;
-  font-size: 4.4rem;
-  font-weight: 700;
-  letter-spacing: -0.05em;
-  line-height: 0.85;
+.home-hub__panel p {
+  max-width: 16rem;
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.35;
 }
 
-.home-hub__panel-label {
-  margin-top: 0.35rem;
-  font-size: 0.95rem;
+.home-hub__panel p + p {
+  margin-top: 0.85rem;
+}
+
+.home-hub__panel b {
+  display: block;
+  margin-bottom: 0.12rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .home-hub__badge {
