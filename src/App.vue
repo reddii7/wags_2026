@@ -31,7 +31,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261029-home-hub-v55";
+const CLIENT_BUILD_ID = "20261029-home-hub-v56";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -428,6 +428,11 @@ const winterOpen = computed(
     String(route.query.mode || "").toLowerCase() === "winter",
 );
 
+/** The landing page is only the title and the two season pills. */
+const homeLanding = computed(
+  () => String(route.name || "") === "home" && !winterOpen.value,
+);
+
 const currentViewProps = computed(() => {
   const routeName = String(route.name || "home");
   const props = {
@@ -725,7 +730,11 @@ onBeforeUnmount(() => {
   <div
     class="app-shell"
     :data-theme="theme"
-    :class="{ 'chrome-hidden': chromeHidden, 'winter-open': winterOpen }"
+    :class="{
+      'chrome-hidden': chromeHidden,
+      'winter-open': winterOpen,
+      'home-landing': homeLanding,
+    }"
   >
     <div
       v-if="globalMetadata.loadError && !globalMetadata.loading"
@@ -775,7 +784,7 @@ onBeforeUnmount(() => {
       </div>
     </main>
 
-    <nav v-if="!winterOpen" class="bottom-nav" aria-label="Primary">
+    <nav v-if="!winterOpen && !homeLanding" class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
         :key="section.name"

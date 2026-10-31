@@ -411,15 +411,7 @@ watch(
     </section>
 
     <div v-else class="home-hub">
-      <p class="home-hub__chip">Golf society</p>
-      <h1 class="home-hub__display">
-        <span>Sutton</span>
-        <span>Wags.</span>
-      </h1>
-      <p class="home-hub__blurb">
-        Two seasons. Winter is the weekly board, paid on the night. Summer is
-        the full season.
-      </p>
+      <h1 class="home-hub__display">Sutton WAGS</h1>
       <div class="home-hub__actions">
         <button
           type="button"
@@ -437,11 +429,6 @@ watch(
         >
           Summer
         </button>
-      </div>
-      <div class="home-hub__panel">
-        <span class="home-hub__badge">Two seasons</span>
-        <p><b>Winter</b> Week scores and Best 10, paid on the night.</p>
-        <p><b>Summer</b> Results, leagues and the cup.</p>
       </div>
     </div>
   </section>
@@ -645,93 +632,60 @@ watch(
 
 <style scoped>
 .home-hub {
-  --hub-ink: #1a241c;
+  --hub-ink: var(--text, #1a241c);
   --hub-chip: #1c2b22;
   --hub-chip-ink: #f4f7f2;
   --hub-line: rgba(28, 43, 34, 0.28);
-  --hub-panel: #d5e0d4;
-  --hub-badge: rgba(244, 247, 242, 0.88);
-  --hub-badge-ink: #1a241c;
-  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  min-height: calc(100dvh - 9.6rem);
-  padding: 0.2rem 0.15rem 0.3rem;
+  justify-content: center;
+  align-items: stretch;
+  min-height: calc(
+    100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) -
+      2rem
+  );
+  padding: 0.2rem 0.15rem;
   color: var(--hub-ink);
-  background: #e7eee4;
-}
-
-:global([data-theme="dark"]) .home-hub {
-  --hub-ink: #f3f5f1;
-  --hub-chip: #e7efe4;
-  --hub-chip-ink: #1a241c;
-  --hub-line: rgba(243, 245, 241, 0.35);
-  --hub-panel: #2a312c;
-  --hub-badge: rgba(26, 36, 28, 0.72);
-  --hub-badge-ink: #f3f5f1;
   background: transparent;
 }
 
-.home-hub__chip {
-  margin: 0;
-  padding: 0.42rem 0.85rem;
-  border-radius: 999px;
-  background: var(--hub-chip);
-  color: var(--hub-chip-ink);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-transform: uppercase;
+:global([data-theme="dark"]) .home-hub {
+  --hub-chip: #e7efe4;
+  --hub-chip-ink: #1a241c;
+  --hub-line: rgba(243, 245, 241, 0.35);
 }
 
 .home-hub__display {
-  margin: 0.95rem 0 0;
+  margin: 0;
   color: var(--hub-ink);
   font-family: "Arial Narrow", "SF Pro Display", var(--font-serif), sans-serif;
-  width: 100%;
-  font-size: min(5.4rem, 20cqi);
+  font-size: clamp(2.6rem, 11vw, 3.6rem);
   font-weight: 700;
-  letter-spacing: -0.05em;
-  line-height: 0.84;
-  text-transform: uppercase;
-}
-
-.home-hub__display span {
-  display: block;
-}
-
-.home-hub__blurb {
-  max-width: 34rem;
-  margin: 1.15rem 0 0;
-  color: var(--hub-ink);
-  font-size: 1.05rem;
-  font-weight: 450;
-  line-height: 1.45;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+  text-align: center;
 }
 
 .home-hub__actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-  margin-top: 1.15rem;
+  width: 100%;
+  gap: 0.7rem;
+  margin-top: 1.75rem;
 }
 
 .home-hub__primary,
 .home-hub__secondary {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: 999px;
+  padding: 0.9rem 0.75rem;
   font: inherit;
+  font-size: 1.05rem;
+  font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-}
-
-.home-hub__primary,
-.home-hub__secondary {
-  border-radius: 999px;
-  padding: 0.82rem 1.15rem;
-  font-size: 1rem;
-  font-weight: 650;
-  white-space: nowrap;
 }
 
 .home-hub__primary {
@@ -750,64 +704,6 @@ watch(
 .home-hub__secondary:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-
-.home-hub__panel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  width: 100%;
-  min-height: 11.5rem;
-  margin-top: auto;
-  padding: 1.15rem 1.15rem 1.2rem;
-  border-radius: 28px;
-  background: var(--hub-panel);
-  color: var(--hub-ink);
-}
-
-.home-hub__panel p {
-  max-width: 16rem;
-  margin: 0;
-  font-size: 1.05rem;
-  line-height: 1.35;
-}
-
-.home-hub__panel p + p {
-  margin-top: 0.85rem;
-}
-
-.home-hub__panel b {
-  display: block;
-  margin-bottom: 0.12rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.home-hub__badge {
-  position: absolute;
-  top: 0.85rem;
-  right: 0.85rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: 999px;
-  background: var(--hub-badge);
-  color: var(--hub-badge-ink);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-@media (max-width: 640px) {
-  .home-hub {
-    min-height: calc(
-      100dvh - 4.05rem - 5.8rem - env(safe-area-inset-bottom, 0px) + 1.55rem
-    );
-    margin: -1.55rem -0.74rem 0;
-    padding: 0.35rem 1.15rem 0.45rem;
-  }
 }
 
 .winter-mast {

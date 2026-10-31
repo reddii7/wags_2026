@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20261029-home-hub-v55";
+const BUILD_ID = "20261029-home-hub-v56";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
