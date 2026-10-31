@@ -23,8 +23,7 @@
     color: #222;
 }
 
-:root[data-theme='dark'] .wags-headline,
-.wags-headline {
+:root[data-theme='dark'] .wags-headline {
     color: #E5E5E7;
 }
 

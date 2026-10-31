@@ -31,9 +31,9 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261029-home-hub-v59";
+const CLIENT_BUILD_ID = "20261029-home-hub-v61";
 
-const { theme } = useTheme();
+const { theme, toggleTheme } = useTheme();
 const chromeHidden = ref(false);
 
 const globalMetadata = ref({
@@ -453,6 +453,11 @@ const currentViewProps = computed(() => {
   return props;
 });
 
+function onToggleTheme() {
+  triggerHapticFeedback();
+  toggleTheme();
+}
+
 function switchSection(section) {
   triggerHapticFeedback();
   const targetPath = section?.path || "/";
@@ -784,6 +789,15 @@ onBeforeUnmount(() => {
       </div>
     </main>
 
+    <button
+      type="button"
+      class="theme-switch"
+      :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+      @click="onToggleTheme"
+    >
+      {{ theme === 'dark' ? 'Light' : 'Dark' }}
+    </button>
+
     <nav v-if="!winterOpen && !homeLanding" class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
@@ -802,6 +816,24 @@ onBeforeUnmount(() => {
 <style>
 .bottom-nav {
   background: var(--bg) !important;
+}
+
+.theme-switch {
+  position: fixed;
+  z-index: 40;
+  top: calc(env(safe-area-inset-top, 0px) + 0.55rem);
+  right: 0.85rem;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.38rem 0.85rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 
