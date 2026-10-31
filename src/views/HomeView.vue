@@ -411,7 +411,9 @@ watch(
     </section>
 
     <div v-else class="home-hub">
-      <h1 class="home-hub__display">Sutton WAGS</h1>
+      <h1 class="home-hub__display">
+        <img src="/wags-crest.png" alt="Sutton WAGS" />
+      </h1>
       <div class="home-hub__actions">
         <button
           type="button"
@@ -657,13 +659,14 @@ watch(
 
 .home-hub__display {
   margin: 0;
-  color: var(--hub-ink);
-  font-family: "Arial Narrow", "SF Pro Display", var(--font-serif), sans-serif;
-  font-size: clamp(2.6rem, 11vw, 3.6rem);
-  font-weight: 700;
-  letter-spacing: -0.045em;
-  line-height: 0.95;
   text-align: center;
+}
+
+.home-hub__display img {
+  display: block;
+  width: min(78vw, 20rem);
+  height: auto;
+  margin: 0 auto;
 }
 
 .home-hub__actions {
