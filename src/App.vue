@@ -31,7 +31,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261029-home-hub-v53";
+const CLIENT_BUILD_ID = "20261029-home-hub-v54";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -505,7 +505,11 @@ function handleNavigate(target) {
 
     if (section === "home") {
       if (mode === "winter" || mode === "summer") {
-        router.push({ path: "/", query: { mode } });
+        const query = { mode };
+        if (mode === "winter" && (tab === "week" || tab === "best10")) {
+          query.tab = tab;
+        }
+        router.push({ path: "/", query });
       } else if (route.path !== "/" || route.query.mode) {
         router.push({ path: "/" });
       }

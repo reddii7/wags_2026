@@ -235,14 +235,55 @@ const winterReady = computed(
   () => !homePayload.value.no_results && !!winterWeekParts.value.week,
 );
 
+const homeHeadlineLines = computed(() => {
+  if (!winterReady.value) return ["No", "scores", "yet."];
+  const name = String(
+    homePayload.value.winner_name || winterWeekParts.value.week || "Winter",
+  ).trim();
+  const words = name.split(/\s+/).filter(Boolean).slice(0, 4);
+  if (!words.length) return ["Winter."];
+  return words.map((word, index) =>
+    index === words.length - 1 ? `${word}.` : word,
+  );
+});
+
+const homeBlurb = computed(() => {
+  if (!winterReady.value) {
+    return "Week scores and Best 10 show here once the first round is in.";
+  }
+  const parts = winterWeekParts.value;
+  const when = [parts.week, parts.date].filter(Boolean).join(", ");
+  const paid = Number(homePayload.value.paid_out_pence) || 0;
+  const players = Number(homePayload.value.stats?.players) || 0;
+  const money =
+    paid > 0
+      ? `${formatPounds(paid)} paid on the night`
+      : "Winnings paid on the night";
+  const field = players > 0 ? ` from a field of ${players}` : "";
+  return `${when}. ${money}${field}.`;
+});
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    const value = String(tab || "").toLowerCase();
+    if (value === "best10" || value === "week") winterTab.value = value;
+  },
+  { immediate: true },
+);
+
 function openPlayerBest10(userId) {
   selectedPlayerId.value =
     String(selectedPlayerId.value) === String(userId) ? "" : String(userId);
 }
 
-function openWinter() {
+function openWinter(tab) {
   triggerHapticFeedback();
-  emit("navigate", { section: "home", mode: "winter" });
+  emit("navigate", {
+    section: "home",
+    mode: "winter",
+    tab: tab === "best10" ? "best10" : "week",
+  });
 }
 
 function openSummer() {
@@ -392,83 +433,69 @@ watch(
 </script>
 
 <template>
-  <!-- Home: winter is the current board. Summer opens the full app. -->
+  <!-- Home: editorial front. Winter opens the board, summer the full app. -->
   <section v-if="!isWinter" class="page-stack home-page">
-    <header class="home-hub">
-      <p class="home-hub__mark">Sutton WAGS</p>
+    <section
+      v-if="loading || metadata.loading"
+      class="content-panel content-panel--minimal home-status"
+    >
+      <p class="empty-state">Loading…</p>
+    </section>
+    <section
+      v-else-if="error || metadata.loadError"
+      class="content-panel content-panel--minimal home-status"
+    >
+      <p class="empty-state">{{ error || metadata.loadError }}</p>
+    </section>
 
-      <section
-        v-if="loading || metadata.loading"
-        class="content-panel content-panel--minimal home-status"
-      >
-        <p class="empty-state">Loading…</p>
-      </section>
-      <section
-        v-else-if="error || metadata.loadError"
-        class="content-panel content-panel--minimal home-status"
-      >
-        <p class="empty-state">{{ error || metadata.loadError }}</p>
-      </section>
-
-      <div v-else class="home-hub__doors">
+    <div v-else class="home-hub">
+      <p class="home-hub__chip">
+        Winter{{ winterSeason?.start_year ? ` ${winterSeason.start_year}` : "" }}
+      </p>
+      <h1 class="home-hub__display">
+        <span
+          v-for="(line, index) in homeHeadlineLines"
+          :key="`${index}-${line}`"
+        >{{ line }}</span>
+      </h1>
+      <p class="home-hub__blurb">{{ homeBlurb }}</p>
+      <div class="home-hub__actions">
         <button
           type="button"
-          class="home-hub__winter"
+          class="home-hub__primary"
           :disabled="!winterSeason"
-          @click="openWinter"
+          @click="openWinter()"
         >
-          <span class="home-hub__kicker">
-            <span>Winter{{ winterSeason?.start_year ? ` ${winterSeason.start_year}` : "" }}</span>
-            <span>{{ winterWeekParts.date }}</span>
-          </span>
-          <strong class="home-hub__name">
-            {{
-              winterReady && homePayload.winner_name
-                ? homePayload.winner_name
-                : winterReady
-                  ? winterWeekParts.week
-                  : "No scores yet"
-            }}
-          </strong>
-          <p class="home-hub__note">
-            {{
-              winterReady
-                ? `${winterWeekParts.week}${
-                    Number(homePayload.paid_out_pence) > 0
-                      ? ` · ${formatPounds(homePayload.paid_out_pence)} paid on the night`
-                      : " · paid on the night"
-                  }`
-                : "Week scores and Best 10"
-            }}
-          </p>
-          <dl v-if="winterReady" class="home-hub__facts">
-            <div>
-              <dt>Rolling pot</dt>
-              <dd>{{ formatPounds(homePayload.rolling_pot_pence) }}</dd>
-            </div>
-            <div>
-              <dt>Players</dt>
-              <dd>{{ homePayload.stats.players || "—" }}</dd>
-            </div>
-          </dl>
+          Open winter →
         </button>
-
         <button
           type="button"
-          class="home-hub__summer"
+          class="home-hub__secondary"
           :disabled="!summerSeason"
           @click="openSummer"
         >
-          <span>
-            <small>
-              Summer{{ summerSeason?.start_year ? ` ${summerSeason.start_year}` : "" }}
-            </small>
-            <strong>Results, leagues and the cup</strong>
-          </span>
-          <span class="home-hub__go" aria-hidden="true">›</span>
+          Summer{{ summerSeason?.start_year ? ` ${summerSeason.start_year}` : "" }}
         </button>
       </div>
-    </header>
+      <button
+        v-if="winterReady"
+        type="button"
+        class="home-hub__link"
+        @click="openWinter('best10')"
+      >
+        The rolling pot
+      </button>
+      <div v-if="winterReady" class="home-hub__panel">
+        <span class="home-hub__badge">
+          {{ winterWeekParts.date || winterWeekParts.week }}
+          <template v-if="homePayload.stats.players">
+            · {{ homePayload.stats.players }} played
+          </template>
+        </span>
+        <strong>{{ formatPounds(homePayload.rolling_pot_pence) }}</strong>
+        <span class="home-hub__panel-label">Rolling pot</span>
+      </div>
+    </div>
   </section>
 
   <!-- Winter, standalone: no summer nav. Home is the way back. -->
@@ -670,148 +697,174 @@ watch(
 
 <style scoped>
 .home-hub {
+  --hub-ink: #1a241c;
+  --hub-chip: #1c2b22;
+  --hub-chip-ink: #f4f7f2;
+  --hub-line: rgba(28, 43, 34, 0.28);
+  --hub-panel: #d5e0d4;
+  --hub-badge: rgba(244, 247, 242, 0.88);
+  --hub-badge-ink: #1a241c;
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 1.35rem;
-  padding: 0.45rem 0.15rem 0.2rem;
+  align-items: flex-start;
+  min-height: calc(100dvh - 9.6rem);
+  padding: 0.2rem 0.15rem 0.3rem;
+  color: var(--hub-ink);
+  background: #e7eee4;
 }
 
-.home-hub__mark {
+:global([data-theme="dark"]) .home-hub {
+  --hub-ink: #f3f5f1;
+  --hub-chip: #e7efe4;
+  --hub-chip-ink: #1a241c;
+  --hub-line: rgba(243, 245, 241, 0.35);
+  --hub-panel: #2a312c;
+  --hub-badge: rgba(26, 36, 28, 0.72);
+  --hub-badge-ink: #f3f5f1;
+  background: transparent;
+}
+
+.home-hub__chip {
   margin: 0;
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.18em;
+  padding: 0.42rem 0.85rem;
+  border-radius: 999px;
+  background: var(--hub-chip);
+  color: var(--hub-chip-ink);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
   text-transform: uppercase;
-  color: var(--muted, #8e8e93);
 }
 
-.home-hub__doors {
-  display: flex;
-  flex-direction: column;
-  gap: 1.15rem;
-}
-
-.home-hub__winter,
-.home-hub__summer {
+.home-hub__display {
+  margin: 0.95rem 0 0;
+  color: var(--hub-ink);
+  font-family: "Arial Narrow", "SF Pro Display", var(--font-serif), sans-serif;
   width: 100%;
-  margin: 0;
-  text-align: left;
-  color: inherit;
+  font-size: min(3.55rem, 11.5cqi);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 0.84;
+  text-transform: uppercase;
+}
+
+.home-hub__display span {
+  display: block;
+}
+
+.home-hub__blurb {
+  max-width: 34rem;
+  margin: 1.15rem 0 0;
+  color: var(--hub-ink);
+  font-size: 1.05rem;
+  font-weight: 450;
+  line-height: 1.45;
+}
+
+.home-hub__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.15rem;
+}
+
+.home-hub__primary,
+.home-hub__secondary,
+.home-hub__link {
+  font: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
-.home-hub__winter {
-  display: block;
-  padding: 1.15rem 1.15rem 1.05rem;
-  border-radius: 22px;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-}
-
-.home-hub__kicker {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  font-size: 0.68rem;
+.home-hub__primary,
+.home-hub__secondary {
+  border-radius: 999px;
+  padding: 0.82rem 1.15rem;
+  font-size: 1rem;
   font-weight: 650;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
+  white-space: nowrap;
 }
 
-.home-hub__kicker span:last-child {
-  color: var(--muted, #8e8e93);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: none;
-}
-
-.home-hub__name {
-  display: block;
-  margin-top: 0.85rem;
-  font-family: var(--font-serif);
-  font-size: 1.85rem;
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.05;
-}
-
-.home-hub__note {
-  margin: 0.4rem 0 0;
-  color: var(--muted, #8e8e93);
-  font-size: 0.95rem;
-  line-height: 1.35;
-}
-
-.home-hub__facts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-  margin: 1.05rem 0 0;
-  padding-top: 0.9rem;
-  border-top: 1px solid var(--line);
-}
-
-.home-hub__facts dt {
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted, #8e8e93);
-}
-
-.home-hub__facts dd {
-  margin: 0.18rem 0 0;
-  font-size: 1.35rem;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-
-.home-hub__summer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.15rem 0.25rem;
+.home-hub__primary {
   border: 0;
+  background: var(--hub-chip);
+  color: var(--hub-chip-ink);
+}
+
+.home-hub__secondary {
+  border: 1.5px solid var(--hub-line);
   background: transparent;
+  color: var(--hub-ink);
 }
 
-.home-hub__summer small {
-  display: block;
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted, #8e8e93);
+.home-hub__link {
+  margin-top: 0.95rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hub-ink);
+  font-size: 1rem;
+  text-decoration: underline;
+  text-underline-offset: 0.22em;
 }
 
-.home-hub__summer strong {
-  display: block;
-  margin-top: 0.22rem;
-  font-size: 1.05rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.home-hub__go {
-  color: var(--muted, #8e8e93);
-  font-size: 1.45rem;
-  line-height: 1;
-}
-
-.home-hub__winter:active,
-.home-hub__summer:active {
-  opacity: 0.72;
-}
-
-.home-hub__winter:disabled,
-.home-hub__summer:disabled {
+.home-hub__primary:disabled,
+.home-hub__secondary:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.home-hub__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  min-height: 11.5rem;
+  margin-top: auto;
+  padding: 1.15rem 1.15rem 1.2rem;
+  border-radius: 28px;
+  background: var(--hub-panel);
+  color: var(--hub-ink);
+}
+
+.home-hub__panel strong {
+  font-family: "Arial Narrow", "SF Pro Display", var(--font-serif), sans-serif;
+  font-size: 4.4rem;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 0.85;
+}
+
+.home-hub__panel-label {
+  margin-top: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.home-hub__badge {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: var(--hub-badge);
+  color: var(--hub-badge-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .home-hub {
+    min-height: calc(
+      100dvh - 4.05rem - 5.8rem - env(safe-area-inset-bottom, 0px) + 1.55rem
+    );
+    margin: -1.55rem -0.74rem 0;
+    padding: 0.35rem 1.15rem 0.45rem;
+  }
 }
 
 .winter-mast {
