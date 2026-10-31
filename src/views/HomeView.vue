@@ -660,6 +660,10 @@ watch(
 .home-hub__display {
   margin: 0;
   text-align: center;
+  /* Local backdrop so the crest blends with the page even if an ancestor
+     isolates mix-blend-mode (view-frame uses perspective). */
+  background: var(--bg);
+  isolation: isolate;
 }
 
 .home-hub__display img {
@@ -667,6 +671,16 @@ watch(
   width: min(78vw, 20rem);
   height: auto;
   margin: 0 auto;
+  /* Light page: white fills drop out, black linework stays. */
+  mix-blend-mode: multiply;
+}
+
+/* The whole selector must sit inside :global(). A :global() prefix makes
+   Vue drop the rest and apply the declarations to [data-theme="dark"]. */
+:global([data-theme="dark"] .home-hub__display img) {
+  /* Dark page: flip to light linework, then screen the black disc into --bg. */
+  filter: invert(1);
+  mix-blend-mode: screen;
 }
 
 .home-hub__actions {
