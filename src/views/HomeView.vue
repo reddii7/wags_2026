@@ -81,10 +81,6 @@ const isWinter = computed(
   () => String(route.query.mode || "").toLowerCase() === "winter",
 );
 
-const winterDockIndex = computed(() =>
-  winterTab.value === "best10" ? 2 : 1,
-);
-
 function dashForSeason(season) {
   if (!season?.id) return null;
   const dash = props.metadata?.dashboard || {};
@@ -436,7 +432,7 @@ watch(
   </section>
 
   <!-- Winter, standalone: no summer nav. Home is the way back. -->
-  <section v-else class="page-stack home-page winter-screen">
+  <section v-else class="page-stack home-page">
     <header class="winter-mast">
       <p class="winter-mast__kicker">Winter</p>
       <div class="winter-mast__row">
@@ -567,65 +563,31 @@ watch(
       </section>
     </section>
 
-    <Teleport to="body">
-      <nav
-        class="winter-dock"
-        aria-label="Winter"
-        :style="{ '--dock-i': winterDockIndex }"
-      >
-        <svg class="winter-dock__defs" width="0" height="0" aria-hidden="true">
-          <filter
-            id="wags-winter-lens"
-            x="-8%"
-            y="-20%"
-            width="116%"
-            height="140%"
-            color-interpolation-filters="sRGB"
-          >
-            <feImage
-              preserveAspectRatio="none"
-              result="map"
-              href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='74'%3E%3ClinearGradient id='x'%3E%3Cstop stop-color='red'/%3E%3Cstop offset='1'/%3E%3C/linearGradient%3E%3ClinearGradient id='y' x2='0' y2='1'%3E%3Cstop stop-color='lime'/%3E%3Cstop offset='1'/%3E%3C/linearGradient%3E%3Crect width='400' height='74' fill='url(%23x)'/%3E%3Crect width='400' height='74' fill='url(%23y)' style='mix-blend-mode:screen'/%3E%3Crect x='16' y='14' width='368' height='46' rx='23' fill='gray' style='filter:blur(6px)'/%3E%3C/svg%3E"
-            />
-            <feDisplacementMap
-              in="SourceGraphic"
-              in2="map"
-              scale="28"
-              xChannelSelector="R"
-              yChannelSelector="G"
-            />
-          </filter>
-        </svg>
-        <span class="winter-dock__body" aria-hidden="true"></span>
-        <span class="winter-dock__lens" aria-hidden="true"></span>
-        <span class="winter-dock__pill" aria-hidden="true"></span>
-        <button type="button" @click="backHome">
-          <span class="winter-dock__hit">
-            <NavIcon name="home" />
-            <span>Home</span>
-          </span>
+    <Teleport to=".app-shell">
+      <nav class="bottom-nav" aria-label="Winter">
+        <button type="button" class="bottom-nav-link" @click="backHome">
+          <NavIcon name="home" />
+          <span class="bottom-nav-label">Home</span>
         </button>
         <button
           type="button"
+          class="bottom-nav-link"
           :class="{ active: winterTab === 'week' }"
           :aria-current="winterTab === 'week' ? 'page' : undefined"
           @click="setWinterTab('week')"
         >
-          <span class="winter-dock__hit">
-            <NavIcon name="scores" />
-            <span>This wk</span>
-          </span>
+          <NavIcon name="scores" />
+          <span class="bottom-nav-label">This wk</span>
         </button>
         <button
           type="button"
+          class="bottom-nav-link"
           :class="{ active: winterTab === 'best10' }"
           :aria-current="winterTab === 'best10' ? 'page' : undefined"
           @click="setWinterTab('best10')"
         >
-          <span class="winter-dock__hit">
-            <NavIcon name="best14" />
-            <span>Best 10</span>
-          </span>
+          <NavIcon name="best14" />
+          <span class="bottom-nav-label">Best 10</span>
         </button>
       </nav>
     </Teleport>
@@ -768,156 +730,6 @@ watch(
   margin-top: 0.45rem;
   font-size: 0.98rem;
   line-height: 1.35;
-}
-
-.winter-screen {
-  padding-bottom: calc(6.75rem + env(safe-area-inset-bottom, 0px));
-}
-
-.winter-dock {
-  position: fixed;
-  z-index: 80;
-  left: 50%;
-  bottom: calc(0.55rem + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: stretch;
-  width: min(92vw, 26.5rem);
-  height: 4.65rem;
-  padding: 5px;
-  border-radius: 999px;
-  background: transparent;
-  color: #fff;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
-}
-
-.winter-dock__defs {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-}
-
-.winter-dock__body,
-.winter-dock__lens {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-.winter-dock__body {
-  z-index: 0;
-  background: rgba(14, 14, 18, 0.42);
-  -webkit-backdrop-filter: blur(4px) saturate(1.85);
-  backdrop-filter: blur(4px) saturate(1.85);
-}
-
-.winter-dock__lens {
-  z-index: 1;
-  background: linear-gradient(rgba(255, 255, 255, 0.2), transparent 48%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.75),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.38),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.16);
-  -webkit-backdrop-filter: url("#wags-winter-lens");
-  backdrop-filter: url("#wags-winter-lens");
-}
-
-.winter-dock__pill {
-  position: absolute;
-  z-index: 2;
-  top: 5px;
-  bottom: 5px;
-  left: 5px;
-  width: calc((100% - 10px) / 3);
-  border-radius: 999px;
-  pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.2),
-    rgba(255, 255, 255, 0.05) 42%,
-    rgba(0, 0, 0, 0.18)
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.32),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-  transform: translateX(calc(var(--dock-i) * 100%));
-  transition: transform 0.55s cubic-bezier(0.22, 1.35, 0.36, 1);
-}
-
-.winter-dock button {
-  position: relative;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #fff;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.winter-dock__hit {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.22rem;
-  transition: transform 0.18s ease;
-}
-
-.winter-dock button:active .winter-dock__hit {
-  transform: scale(0.92);
-}
-
-.winter-dock button span span {
-  font-family: "Avenir Next Condensed", "Arial Narrow", "SF Compact Text",
-    "SF Pro Text", -apple-system, sans-serif;
-  font-size: 0.62rem;
-  font-weight: 700;
-  font-stretch: condensed;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.winter-dock button.active {
-  color: #e10600;
-}
-
-.winter-dock :deep(.nav-icon) {
-  width: 1.35rem;
-  height: 1.35rem;
-}
-
-.winter-dock :deep(.nav-icon path) {
-  stroke-width: 1.65;
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  .winter-dock__body {
-    background: rgba(18, 18, 22, 0.94);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-
-  .winter-dock__lens {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .winter-dock__pill,
-  .winter-dock__hit {
-    transition: none;
-  }
 }
 
 .home-dashboard--single {
