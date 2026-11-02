@@ -158,11 +158,24 @@ const selectedWeekHero = computed(() => {
   );
 });
 
-const selectedBest10Card = computed(() => {
-  if (!selectedPlayerId.value) return null;
-  const card = best10ByMember.value?.[String(selectedPlayerId.value)];
+function best10CardFor(row) {
+  const id = String(row?.user_id || row?.id || "");
+  if (!id) return null;
+  const card = best10ByMember.value?.[id];
   return card && typeof card === "object" ? card : null;
-});
+}
+
+function best10Scores(row, counting) {
+  const scores = best10CardFor(row)?.scores;
+  if (!Array.isArray(scores)) return [];
+  return scores.filter((score) => Boolean(score?.counts_in_best10) === counting);
+}
+
+function countingLabel(row) {
+  const n = Number(row?.rounds_counting) || 0;
+  if (!n) return "";
+  return n === 1 ? "1 round" : `${n} rounds`;
+}
 
 const activeHero = computed(() =>
   isWinter.value ? homePayload.value : summerPayload.value,
@@ -440,9 +453,18 @@ watch(
         <p v-if="winterHeadline.date" class="winter-mast__date">
           {{ winterHeadline.date }}
         </p>
+        <p
+          v-else-if="winterTab === 'best10'"
+          class="winter-mast__date winter-mast__pot"
+        >
+          {{ formatPounds(homePayload.rolling_pot_pence) }}
+        </p>
       </div>
       <p v-if="winterTab === 'week' && selectedWeekHero" class="winter-mast__note">
         {{ selectedWeekHero }}
+      </p>
+      <p v-else-if="winterTab === 'best10'" class="winter-mast__note">
+        Rolling pot. Tap a name to see what to throw away.
       </p>
       <p
         v-else-if="!loading && !metadata.loading && homePayload.no_results"
@@ -466,7 +488,7 @@ watch(
     </section>
 
     <nav
-      v-else-if="winterWeeks.length"
+      v-else-if="winterTab === 'week' && winterWeeks.length"
       class="f1-round-nav"
       aria-label="Weeks"
     >
@@ -505,60 +527,72 @@ watch(
           <p v-if="!selectedWeekRows.length" class="empty-state">No scores this week.</p>
         </div>
 
-        <div v-else class="rolling-pot" aria-label="Rolling pot">
-          <span class="home-hero-sublabel">Rolling pot</span>
-          <strong>{{ formatPounds(homePayload.rolling_pot_pence) }}</strong>
-          <p class="rolling-pot__note">Best 10 · builds each week</p>
-        </div>
-        <div v-if="winterTab === 'best10'" class="home-compact-list">
+        <div v-else class="home-compact-list">
           <div
             v-for="row in best10Leaders"
             :key="row.user_id || row.id"
-            class="home-compact-row"
+            class="best10-player"
             :class="{
-              'home-compact-row--winner':
+              'best10-player--open':
                 String(selectedPlayerId) === String(row.user_id || row.id),
             }"
-            role="button"
-            tabindex="0"
-            @click="openPlayerBest10(row.user_id || row.id)"
-            @keydown.enter.prevent="openPlayerBest10(row.user_id || row.id)"
-            @keydown.space.prevent="openPlayerBest10(row.user_id || row.id)"
           >
-            <span class="home-rank">{{ row.position }}</span>
-            <span class="home-name">{{ row.full_name }}</span>
-            <span class="home-value">{{ row.total_score }}</span>
+            <div
+              class="home-compact-row"
+              :class="{
+                'home-compact-row--winner':
+                  String(selectedPlayerId) === String(row.user_id || row.id),
+              }"
+              role="button"
+              tabindex="0"
+              :aria-expanded="
+                String(selectedPlayerId) === String(row.user_id || row.id)
+              "
+              @click="openPlayerBest10(row.user_id || row.id)"
+              @keydown.enter.prevent="openPlayerBest10(row.user_id || row.id)"
+              @keydown.space.prevent="openPlayerBest10(row.user_id || row.id)"
+            >
+              <span class="home-rank">{{ row.position }}</span>
+              <span class="home-name">
+                {{ row.full_name }}
+                <span v-if="countingLabel(row)" class="best10-row__meta">
+                  {{ countingLabel(row) }}
+                </span>
+              </span>
+              <span class="home-value">{{ row.total_score }}</span>
+            </div>
+            <div
+              v-if="String(selectedPlayerId) === String(row.user_id || row.id)"
+              class="best10-sheet"
+            >
+              <p v-if="!best10Scores(row, false).length" class="best10-sheet__hint">
+                Nothing to throw away yet.
+              </p>
+              <p class="best10-sheet__label">Counting</p>
+              <div
+                v-for="score in best10Scores(row, true)"
+                :key="score.round_id"
+                class="best10-line"
+              >
+                <span>WK{{ score.week_number || "?" }}</span>
+                <span>{{ formatDayMonth(score.round_date) }}</span>
+                <span>{{ score.score }}</span>
+              </div>
+              <template v-if="best10Scores(row, false).length">
+                <p class="best10-sheet__label">Throw away</p>
+                <div
+                  v-for="score in best10Scores(row, false)"
+                  :key="`drop-${score.round_id}`"
+                  class="best10-line best10-line--drop"
+                >
+                  <span>WK{{ score.week_number || "?" }}</span>
+                  <span>{{ formatDayMonth(score.round_date) }}</span>
+                  <span>{{ score.score }}</span>
+                </div>
+              </template>
+            </div>
           </div>
           <p v-if="!best10Leaders.length" class="empty-state">No Best 10 yet.</p>
-        </div>
-      </section>
-
-      <section v-if="selectedBest10Card" class="home-card">
-        <div class="home-card__header">
-          <span class="home-hero-sublabel">
-            {{ selectedBest10Card.full_name }}
-          </span>
-        </div>
-        <div class="home-compact-list">
-          <div
-            v-for="score in selectedBest10Card.scores || []"
-            :key="score.round_id"
-            class="home-compact-row"
-            :class="{
-              'home-compact-row--drop': !score.counts_in_best10,
-            }"
-          >
-            <span class="home-rank">
-              {{ score.counts_in_best10 ? score.best10_rank : "—" }}
-            </span>
-            <span class="home-name">
-              WK{{ score.week_number || "?" }}
-              <span class="best10-card__meta">
-                {{ score.counts_in_best10 ? "counts" : "spare" }}
-              </span>
-            </span>
-            <span class="home-value">{{ score.score }}</span>
-          </div>
         </div>
       </section>
     </section>
@@ -726,6 +760,14 @@ watch(
   font-weight: 600;
 }
 
+.winter-mast__pot {
+  font-family: var(--font-serif);
+  font-size: 1.7rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
 .winter-mast__note {
   margin-top: 0.45rem;
   font-size: 0.98rem;
@@ -780,29 +822,61 @@ watch(
   border-radius: 0.1rem;
 }
 
-.rolling-pot {
-  padding: 0.35rem 0 0.85rem;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 0.35rem;
-}
-
-.rolling-pot strong {
+.best10-row__meta {
   display: block;
-  margin-top: 0.1rem;
-  font-size: 2.6rem;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1;
-  color: var(--text);
+  margin-top: 0.12rem;
+  color: var(--muted, #8e8e93);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.rolling-pot__note {
-  margin: 0.45rem 0 0;
+.best10-player + .best10-player .home-compact-row {
+  border-top: 0.5px solid var(--line);
+}
+
+.best10-player--open {
+  margin: 0.2rem 0;
+  padding: 0 0.7rem 0.55rem;
+  border-radius: 18px;
+  background: var(--surface-2);
+}
+
+.best10-player--open .home-compact-row {
+  border-top: 0;
+}
+
+.best10-sheet__hint,
+.best10-sheet__label {
+  margin: 0.15rem 0 0;
   color: var(--muted, #8e8e93);
-  font-size: 0.78rem;
+}
+
+.best10-sheet__hint {
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.best10-sheet__label {
+  margin-top: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.best10-line {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: baseline;
+  padding: 0.32rem 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.best10-line--drop {
+  opacity: 0.45;
 }
 
 .home-empty-inline {
@@ -822,14 +896,5 @@ watch(
 
 .home-compact-row--drop {
   opacity: 0.55;
-}
-
-.best10-card__meta {
-  margin-left: 0.4rem;
-  color: var(--muted, #8e8e93);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 </style>
