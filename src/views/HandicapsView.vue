@@ -267,11 +267,14 @@ const loadHistory = async () => {
 };
 
 watch(
-  () => [props.metadata, props.season?.id],
-  ([meta]) => {
-    if (meta && !meta.loading) {
-      loadPlayers();
-    }
+  () => [
+    props.metadata?.loading,
+    props.metadata?.summerLoading,
+    props.season?.id,
+    preparedBoard()?.length ?? -1,
+  ],
+  () => {
+    if (props.metadata && !props.metadata.loading) loadPlayers();
   },
   { immediate: true },
 );
