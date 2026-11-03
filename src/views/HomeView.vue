@@ -421,12 +421,7 @@ watch(
   <section class="winter-screen">
     <header class="season-mast">
       <div class="season-mast__top">
-        <div class="season-mast__brand">
-          <span class="season-mast__mark">
-            <img src="/wags-crest.png" alt="" />
-          </span>
-          <p class="season-mast__kicker">Winter</p>
-        </div>
+        <h1 class="season-mast__title">Winter</h1>
         <button
           type="button"
           class="theme-switch"
@@ -436,9 +431,7 @@ watch(
           {{ theme === "dark" ? "Light" : "Dark" }}
         </button>
       </div>
-      <div class="season-mast__row">
-        <h1 class="season-mast__title">{{ winterYear || "Winter" }}</h1>
-      </div>
+      <p v-if="winterYear" class="season-mast__year">{{ winterYear }}</p>
     </header>
 
     <section

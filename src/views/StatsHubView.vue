@@ -231,7 +231,7 @@ function pickSeason(seasonId) {
   <div class="stats-hub">
     <header class="season-mast">
       <div class="season-mast__top">
-        <p class="season-mast__kicker">Summer</p>
+        <h1 class="season-mast__title">Summer</h1>
         <button
           type="button"
           class="theme-switch"
@@ -241,16 +241,14 @@ function pickSeason(seasonId) {
           {{ theme === "dark" ? "Light" : "Dark" }}
         </button>
       </div>
-      <div class="season-mast__row">
-        <button
-          type="button"
-          class="season-mast__title-btn"
-          @click="openSeasonPicker"
-        >
-          {{ selectedSeason?.start_year || "Season" }}
-          <span class="season-mast__chev" aria-hidden="true">▾</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        class="season-mast__year"
+        @click="openSeasonPicker"
+      >
+        {{ selectedSeason?.start_year || "Season" }}
+        <span class="season-mast__chev" aria-hidden="true">▾</span>
+      </button>
       <p v-if="seasonNote" class="season-mast__note">
         {{ seasonNote }}
       </p>
