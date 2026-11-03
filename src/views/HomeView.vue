@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch, nextTick } from "vue";
 import { useRoute } from "vue-router";
+import QuietList from "../components/QuietList.vue";
 import { resolveHomeDashboardBlock } from "../composables/resolveHomeDashboard.js";
 import { useTheme } from "../composables/useTheme.js";
 import { triggerHapticFeedback } from "../utils/haptics";
@@ -224,17 +225,60 @@ const winterWeekParts = computed(() =>
   splitWeekLabel(homePayload.value.week_label),
 );
 
-const winterHeadline = computed(() => {
-  if (winterTab.value === "best10") return { title: "Best 10", date: "" };
+const winterYear = computed(() => {
+  const year = winterSeason.value?.start_year;
+  return year != null && String(year).trim() !== "" ? String(year) : "";
+});
+
+const weekKicker = computed(() => {
   const summary = selectedWeekSummary.value;
   const weekNo = Number(summary?.week_number);
   const dateLabel = formatDayMonth(summary?.week_date);
   if (Number.isFinite(weekNo) && weekNo > 0) {
-    return { title: `Week ${weekNo}`, date: dateLabel };
+    return dateLabel ? `Week ${weekNo}, ${dateLabel}` : `Week ${weekNo}`;
   }
   const parts = winterWeekParts.value;
-  return { title: parts.week || "Winter", date: parts.date };
+  if (parts.week && parts.date) return `${parts.week}, ${parts.date}`;
+  return parts.week || "";
 });
+
+const weekPlayed = computed(() => {
+  const summary = selectedWeekSummary.value;
+  return (
+    Number(summary?.stats?.players) ||
+    Number(summary?.num_players) ||
+    selectedWeekRows.value.length ||
+    0
+  );
+});
+
+const weekListRows = computed(() =>
+  selectedWeekRows.value.map((row) => ({
+    id: `${row.user_id || row.full_name}-${row.position}`,
+    position: row.position,
+    player: row.full_name,
+    score: row.score,
+  })),
+);
+
+const weekColumns = [
+  {
+    key: "position",
+    label: "POS",
+    className: "numeric narrow",
+    width: "3.5rem",
+  },
+  {
+    key: "player",
+    label: "PLAYER",
+    className: "player",
+    width: "minmax(0, 1fr)",
+  },
+  { key: "score", label: "PTS", className: "numeric", width: "4.75rem" },
+];
+
+const best10Columns =
+  "3.5rem minmax(0, 1fr) 4.75rem";
 
 watch(
   () => route.query.tab,
@@ -374,7 +418,7 @@ watch(
 </script>
 
 <template>
-  <section class="page-stack home-page">
+  <section class="winter-screen">
     <header class="season-mast">
       <div class="season-mast__top">
         <div class="season-mast__brand">
@@ -393,29 +437,8 @@ watch(
         </button>
       </div>
       <div class="season-mast__row">
-        <h1 class="season-mast__title">{{ winterHeadline.title }}</h1>
-        <p v-if="winterHeadline.date" class="season-mast__aside">
-          {{ winterHeadline.date }}
-        </p>
-        <p
-          v-else-if="winterTab === 'best10'"
-          class="season-mast__aside season-mast__pot"
-        >
-          {{ formatPounds(homePayload.rolling_pot_pence) }}
-        </p>
+        <h1 class="season-mast__title">{{ winterYear || "Winter" }}</h1>
       </div>
-      <p v-if="winterTab === 'week' && selectedWeekHero" class="season-mast__note">
-        {{ selectedWeekHero }}
-      </p>
-      <p v-else-if="winterTab === 'best10'" class="season-mast__note">
-        Rolling pot
-      </p>
-      <p
-        v-else-if="!loading && !metadata.loading && homePayload.no_results"
-        class="season-mast__note"
-      >
-        No results yet.
-      </p>
     </header>
 
     <section
@@ -431,109 +454,148 @@ watch(
       <p class="empty-state">{{ error }}</p>
     </section>
 
-    <nav
-      v-else-if="winterTab === 'week' && winterWeeks.length"
-      class="f1-round-nav"
-      aria-label="Weeks"
-    >
-      <div class="f1-round-scroll">
-        <button
-          v-for="week in winterWeeks"
-          :key="week.id"
-          type="button"
-          class="f1-round-item"
-          :class="{ active: selectedWeekId === week.id }"
-          @click="selectWeek(week.id)"
-        >
-          {{ week.week_label || `WK${week.week_number}` }}
-          <span v-if="selectedWeekId === week.id" class="f1-round-line"></span>
-        </button>
-      </div>
-    </nav>
-
-    <section
-      v-if="!loading && !error"
-      class="home-dashboard home-dashboard--single"
-      aria-label="Winter standings"
-    >
-      <section class="home-card">
-        <div v-if="winterTab === 'week'" class="home-compact-list">
-          <div
-            v-for="row in selectedWeekRows"
-            :key="`${row.user_id}-${row.position}`"
-            class="home-compact-row"
-            :class="{ 'home-compact-row--winner': row.is_winner }"
-          >
-            <span class="home-rank">{{ row.position }}</span>
-            <span class="home-name">{{ row.full_name }}</span>
-            <span class="home-value">{{ row.score }}</span>
+    <section v-else-if="winterTab === 'week'" class="page-stack">
+      <section class="hero-block home-hero">
+        <div class="home-hero__intro">
+          <div class="wags-headline">
+            <span v-if="weekKicker" class="home-hero-sublabel wags-body">
+              {{ weekKicker }}
+            </span>
+            <template v-if="weekListRows.length">
+              <span>{{ selectedWeekHero }}</span>
+              <p class="home-hero-sublabel home-hero-subtext">
+                {{ weekPlayed }} played.
+              </p>
+            </template>
+            <template v-else-if="!loading && !metadata.loading">
+              No results yet.
+            </template>
           </div>
-          <p v-if="!selectedWeekRows.length" class="empty-state">No scores this week.</p>
         </div>
+      </section>
 
-        <div v-else class="home-compact-list">
-          <div
-            v-for="row in best10Leaders"
-            :key="row.user_id || row.id"
-            class="best10-player"
-            :class="{
-              'best10-player--open':
-                String(selectedPlayerId) === String(row.user_id || row.id),
-            }"
+      <nav
+        v-if="winterWeeks.length > 1"
+        class="f1-round-nav"
+        aria-label="Weeks"
+      >
+        <div class="f1-round-scroll">
+          <button
+            v-for="week in winterWeeks"
+            :key="week.id"
+            type="button"
+            class="f1-round-item"
+            :class="{ active: selectedWeekId === week.id }"
+            @click="selectWeek(week.id)"
           >
-            <div
-              class="home-compact-row"
-              :class="{
-                'home-compact-row--winner':
-                  String(selectedPlayerId) === String(row.user_id || row.id),
-              }"
-              role="button"
-              tabindex="0"
-              :aria-expanded="
-                String(selectedPlayerId) === String(row.user_id || row.id)
-              "
-              @click="openPlayerBest10(row.user_id || row.id)"
-              @keydown.enter.prevent="openPlayerBest10(row.user_id || row.id)"
-              @keydown.space.prevent="openPlayerBest10(row.user_id || row.id)"
-            >
-              <span class="home-rank">{{ row.position }}</span>
-              <span class="home-name">
-                {{ row.full_name }}
-                <span v-if="countingLabel(row)" class="best10-row__meta">
-                  {{ countingLabel(row) }}
-                </span>
-              </span>
-              <span class="home-value">{{ row.total_score }}</span>
-            </div>
-            <div
-              v-if="String(selectedPlayerId) === String(row.user_id || row.id)"
-              class="best10-sheet"
-            >
-              <p class="best10-sheet__label">Counting</p>
-              <div
-                v-for="score in best10Scores(row, true)"
-                :key="score.round_id"
-                class="best10-line"
-              >
-                <span>WK{{ score.week_number || "?" }}</span>
-                <span>{{ formatDayMonth(score.round_date) }}</span>
-                <span>{{ score.score }}</span>
-              </div>
-              <template v-if="best10Scores(row, false).length">
-                <p class="best10-sheet__label">Throw away</p>
-                <div
-                  v-for="score in best10Scores(row, false)"
-                  :key="`drop-${score.round_id}`"
-                  class="best10-line best10-line--drop"
-                >
-                  <span>WK{{ score.week_number || "?" }}</span>
-                  <span>{{ formatDayMonth(score.round_date) }}</span>
-                  <span>{{ score.score }}</span>
-                </div>
-              </template>
-            </div>
+            {{ week.week_label || `WK${week.week_number}` }}
+            <span v-if="selectedWeekId === week.id" class="f1-round-line"></span>
+          </button>
+        </div>
+      </nav>
+
+      <section class="results-shell">
+        <div class="results-shell__body">
+          <QuietList
+            :columns="weekColumns"
+            :hide-head="false"
+            :rows="weekListRows"
+            empty-text="No scores this week."
+          />
+        </div>
+      </section>
+    </section>
+
+    <section v-else class="page-stack">
+      <section class="hero-block home-hero">
+        <div class="home-hero__intro">
+          <div class="wags-headline">
+            <span class="home-hero-sublabel wags-body">Rolling pot</span>
+            <span>{{ formatPounds(homePayload.rolling_pot_pence) }}</span>
           </div>
-          <p v-if="!best10Leaders.length" class="empty-state">No Best 10 yet.</p>
+        </div>
+      </section>
+
+      <section class="results-shell">
+        <div class="results-shell__body">
+          <div class="quiet-list" role="table">
+            <div class="quiet-list-head" role="rowgroup">
+              <div
+                class="quiet-list-row quiet-list-row--head"
+                role="row"
+                :style="{ gridTemplateColumns: best10Columns }"
+              >
+                <div class="quiet-list-cell numeric narrow" role="columnheader">
+                  POS
+                </div>
+                <div class="quiet-list-cell" role="columnheader">PLAYER</div>
+                <div class="quiet-list-cell numeric" role="columnheader">PTS</div>
+              </div>
+            </div>
+            <div v-if="best10Leaders.length" class="quiet-list-body" role="rowgroup">
+              <div
+                v-for="row in best10Leaders"
+                :key="row.user_id || row.id"
+                class="best10-player"
+              >
+                <div
+                  class="quiet-list-row"
+                  role="row"
+                  tabindex="0"
+                  :aria-expanded="
+                    String(selectedPlayerId) === String(row.user_id || row.id)
+                  "
+                  :style="{ gridTemplateColumns: best10Columns }"
+                  @click="openPlayerBest10(row.user_id || row.id)"
+                  @keydown.enter.prevent="openPlayerBest10(row.user_id || row.id)"
+                  @keydown.space.prevent="openPlayerBest10(row.user_id || row.id)"
+                >
+                  <div class="quiet-list-cell numeric narrow" role="cell">
+                    {{ row.position }}
+                  </div>
+                  <div class="quiet-list-cell" role="cell">
+                    <div class="player-cell player-cell--stacked">
+                      <span>{{ row.full_name }}</span>
+                      <div v-if="countingLabel(row)" class="row-meta">
+                        {{ countingLabel(row) }}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="quiet-list-cell numeric" role="cell">
+                    {{ row.total_score }}
+                  </div>
+                </div>
+                <div
+                  v-if="String(selectedPlayerId) === String(row.user_id || row.id)"
+                  class="best10-sheet"
+                >
+                  <p class="best10-sheet__label">Counting</p>
+                  <div
+                    v-for="score in best10Scores(row, true)"
+                    :key="score.round_id"
+                    class="best10-line"
+                  >
+                    <span>WK{{ score.week_number || "?" }}</span>
+                    <span>{{ formatDayMonth(score.round_date) }}</span>
+                    <span>{{ score.score }}</span>
+                  </div>
+                  <template v-if="best10Scores(row, false).length">
+                    <p class="best10-sheet__label">Throw away</p>
+                    <div
+                      v-for="score in best10Scores(row, false)"
+                      :key="`drop-${score.round_id}`"
+                      class="best10-line best10-line--drop"
+                    >
+                      <span>WK{{ score.week_number || "?" }}</span>
+                      <span>{{ formatDayMonth(score.round_date) }}</span>
+                      <span>{{ score.score }}</span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+            <p v-else class="empty-state">No Best 10 yet.</p>
+          </div>
         </div>
       </section>
     </section>
@@ -541,127 +603,43 @@ watch(
 </template>
 
 <style scoped>
-.home-dashboard--single {
-  grid-template-columns: 1fr;
-}
-
-.f1-round-nav {
-  background: transparent;
-  border-bottom: 1px solid var(--line);
-  padding: 0.15rem 0 0;
-}
-
-.f1-round-scroll {
+.winter-screen {
   display: flex;
-  overflow-x: auto;
-  gap: 0.15rem;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  flex-direction: column;
 }
 
-.f1-round-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.f1-round-item {
-  position: relative;
-  background: transparent;
-  border: 0;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 700;
-  padding: 0.65rem 0.8rem 0.75rem;
-  min-width: 3.2rem;
+.quiet-list-row[role="row"][tabindex] {
   cursor: pointer;
 }
 
-.f1-round-item.active {
-  color: var(--text);
-}
-
-.f1-round-line {
-  display: block;
-  height: 0.16rem;
-  width: calc(100% - 1.2rem);
-  margin: 0.35rem auto 0;
-  background: var(--accent);
-  border-radius: 0.1rem;
-}
-
-.best10-row__meta {
-  display: block;
-  margin-top: 0.12rem;
-  color: var(--muted, #8e8e93);
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.best10-player + .best10-player .home-compact-row {
-  border-top: 0.5px solid var(--line);
-}
-
-.best10-player--open {
-  margin: 0.2rem 0;
-  padding: 0 0.7rem 0.55rem;
-  border-radius: 18px;
-  background: var(--surface-2);
-}
-
-.best10-player--open .home-compact-row {
-  border-top: 0;
-}
-
-.best10-sheet__hint,
-.best10-sheet__label {
-  margin: 0.15rem 0 0;
-  color: var(--muted, #8e8e93);
-}
-
-.best10-sheet__hint {
-  font-size: 0.88rem;
-  line-height: 1.35;
+.best10-sheet {
+  padding: 0.15rem 0.05rem 0.35rem;
 }
 
 .best10-sheet__label {
-  margin-top: 0.7rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
 .best10-line {
   display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr) auto;
-  gap: 0.45rem;
-  align-items: baseline;
-  padding: 0.32rem 0;
+  grid-template-columns: 3.5rem minmax(0, 1fr) 4.75rem;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.55rem 0.05rem;
+  border-top: 0.5px solid var(--line);
   font-variant-numeric: tabular-nums;
+}
+
+.best10-line span:last-child {
+  text-align: right;
 }
 
 .best10-line--drop {
   opacity: 0.45;
-}
-
-.home-empty-inline {
-  font-size: 0.95em;
-  opacity: 0.7;
-  padding: 0.35em 0 0.15em;
-}
-
-.home-compact-row--winner .home-name,
-.home-compact-row--winner .home-value {
-  font-weight: 750;
-}
-
-.home-compact-row[role="button"] {
-  cursor: pointer;
-}
-
-.home-compact-row--drop {
-  opacity: 0.55;
 }
 </style>
