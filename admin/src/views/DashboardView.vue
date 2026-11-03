@@ -39,9 +39,14 @@ async function loadWeeklyStatus() {
     .limit(200);
   if (rErr) throw rErr;
 
-  const summer = (rounds ?? []).filter((r) => r.campaigns?.kind === "summer_main");
-  const pool = summer.length ? summer : rounds ?? [];
-  const roundId = pickDefaultRoundId(pool);
+  const series = (rounds ?? []).filter((r) => {
+    const kind = r.campaigns?.kind;
+    return kind === "summer_main" || kind === "winter_reduced";
+  });
+  const pool = series.length ? series : rounds ?? [];
+  const roundId = pickDefaultRoundId(pool, {
+    preferTypes: ["winter_weekly", "summer_weekly"],
+  });
   const round = pool.find((r) => r.id === roundId);
   if (!round) return;
 

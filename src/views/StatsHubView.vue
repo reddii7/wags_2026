@@ -7,20 +7,40 @@ import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
 import ResultsView from "./ResultsView.vue";
 import WinnersTable from "./WinnersTable.vue";
-import SeasonHistoryView from "./SeasonHistoryView.vue";
 
 const route = useRoute();
 const router = useRouter();
 
-const STATS_TAB_IDS = ["results", "leagues", "best14", "winners", "history"];
+const STATS_TAB_IDS = ["results", "leagues", "best14", "winners"];
 
 const props = defineProps({
   metadata: { type: Object, required: true },
 });
 
-const seasons = ref(
-  Array.isArray(props.metadata?.seasons) ? props.metadata.seasons : [],
-);
+function sortSeasonsForPicker(list) {
+  return [...list].sort((a, b) => {
+    const ya = Number(a?.start_year) || 0;
+    const yb = Number(b?.start_year) || 0;
+    if (ya !== yb) return yb - ya;
+    const ka = String(a?.kind || "");
+    const kb = String(b?.kind || "");
+    if (ka !== kb) {
+      if (ka === "summer_main") return -1;
+      if (kb === "summer_main") return 1;
+    }
+    return String(a?.name || "").localeCompare(String(b?.name || ""));
+  });
+}
+
+function seasonsForPicker(metaSeasons) {
+  const all = Array.isArray(metaSeasons) ? metaSeasons : [];
+  const usable = all.filter(
+    (s) => String(s?.status || "").toLowerCase() !== "draft",
+  );
+  return sortSeasonsForPicker(usable.length ? usable : all);
+}
+
+const seasons = ref(seasonsForPicker(props.metadata?.seasons));
 const selectedSeasonId = ref(null);
 const seasonPickerOpen = ref(false);
 
@@ -29,7 +49,6 @@ const tabs = [
   { id: "leagues", label: "LEAGUES", component: markRaw(LeaguesView) },
   { id: "best14", label: "BEST 14", component: markRaw(Best14View) },
   { id: "winners", label: "CHAMPS", component: markRaw(WinnersTable) },
-  { id: "history", label: "HISTORY", component: markRaw(SeasonHistoryView) },
 ];
 
 const activeTabId = ref(tabs[0].id);
@@ -67,27 +86,43 @@ watch(
   [() => props.metadata, () => route.query.season],
   ([meta]) => {
     if (meta && Array.isArray(meta.seasons)) {
-      seasons.value = meta.seasons;
-      const fromQuery = resolveSeasonFromQuery(meta.seasons);
+      seasons.value = seasonsForPicker(meta.seasons);
+      const fromQuery = resolveSeasonFromQuery(seasons.value);
       if (fromQuery) {
         selectedSeasonId.value = fromQuery.id;
         return;
       }
-      // Prefer latest active/current season on initial load.
+      // Stats hub defaults to summer (winter standings live on Home → Winter).
+      const openSummer = seasons.value.find(
+        (s) =>
+          String(s?.kind || "") === "summer_main" &&
+          String(s?.status || "").toLowerCase() === "open",
+      );
+      const anySummer = seasons.value.find(
+        (s) => String(s?.kind || "") === "summer_main",
+      );
       const preferredResultsSeasonId = String(
         meta?.defaults?.results_season_id || "",
       );
-      const preferred = preferredResultsSeasonId
-        ? meta.seasons.find((s) => String(s?.id) === preferredResultsSeasonId)
+      const preferredDefault = preferredResultsSeasonId
+        ? seasons.value.find((s) => String(s?.id) === preferredResultsSeasonId)
         : null;
+      const preferredSummer =
+        preferredDefault &&
+        String(preferredDefault?.kind || "") === "summer_main"
+          ? preferredDefault
+          : null;
       const current =
-        meta.seasons.find((s) => s.is_current) ||
-        meta.seasons.find((s) => s.is_active) ||
-        preferred ||
-        meta.seasons[0];
+        openSummer ||
+        preferredSummer ||
+        anySummer ||
+        seasons.value.find((s) => s.is_current) ||
+        seasons.value.find((s) => s.is_active) ||
+        preferredDefault ||
+        seasons.value[0];
       if (
         !selectedSeasonId.value ||
-        !meta.seasons.some((s) => s.id === selectedSeasonId.value)
+        !seasons.value.some((s) => s.id === selectedSeasonId.value)
       ) {
         selectedSeasonId.value = current?.id;
       }
@@ -95,6 +130,14 @@ watch(
   },
   { immediate: true },
 );
+
+const seasonReady = computed(() => {
+  const season = selectedSeason.value;
+  if (!season?.id) return false;
+  const dash = props.metadata?.dashboard || {};
+  const block = dash[season.id] || dash[String(season.start_year || "")];
+  return Boolean(block?.results_view);
+});
 
 const selectedSeason = computed(() => {
   // Always find by id, fallback to first season
@@ -165,7 +208,6 @@ function pickSeason(seasonId) {
 <template>
   <div class="stats-hub">
     <header class="hub-header">
-      <!-- Row 1: Season (in-app sheet — matches Handicaps / Best 14 dialogs) -->
       <button
         type="button"
         class="f1-season-row f1-season-row-trigger"
@@ -192,7 +234,6 @@ function pickSeason(seasonId) {
         <span class="f1-season-label">Season</span>
       </button>
 
-      <!-- Row 2: Tabs -->
       <nav class="f1-section-nav">
         <button
           v-for="tab in tabs"
@@ -210,9 +251,15 @@ function pickSeason(seasonId) {
     </header>
 
     <main class="hub-content">
+      <p v-if="metadata.summerError && !seasonReady" class="empty-state">
+        {{ metadata.summerError }}
+      </p>
+      <p v-else-if="selectedSeason && !seasonReady" class="empty-state">
+        Loading…
+      </p>
       <component
         :is="activeComponent"
-        v-if="selectedSeason"
+        v-else-if="selectedSeason"
         :season="selectedSeason"
         :metadata="metadata"
       />
@@ -241,7 +288,10 @@ function pickSeason(seasonId) {
             @click="pickSeason(s.id)"
           >
             <span class="stats-season-list__label">{{
-              s.name || s.start_year
+              s.name ||
+              (String(s.kind || "") === "winter_reduced"
+                ? `Winter ${s.start_year}`
+                : `Summer ${s.start_year}`)
             }}</span>
             <span
               v-if="s.id === selectedSeasonId"
