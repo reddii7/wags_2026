@@ -2,14 +2,14 @@
 import { computed, ref, watch, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import { resolveHomeDashboardBlock } from "../composables/resolveHomeDashboard.js";
+import { useTheme } from "../composables/useTheme.js";
 import { triggerHapticFeedback } from "../utils/haptics";
-import NavIcon from "../components/NavIcon.vue";
 
-const emit = defineEmits(["navigate"]);
 const props = defineProps({
   metadata: { type: Object, required: true },
 });
 const route = useRoute();
+const { theme, toggleTheme } = useTheme();
 
 const loading = ref(true);
 const error = ref("");
@@ -75,11 +75,6 @@ const summerSeason = computed(() => {
     null
   );
 });
-
-/** Winter is its own screen. Home stays the door back. */
-const isWinter = computed(
-  () => String(route.query.mode || "").toLowerCase() === "winter",
-);
 
 function dashForSeason(season) {
   if (!season?.id) return null;
@@ -173,13 +168,14 @@ function best10Scores(row, counting) {
 
 function countingLabel(row) {
   const n = Number(row?.rounds_counting) || 0;
-  if (!n) return "";
-  return n === 1 ? "1 round" : `${n} rounds`;
+  if (n <= 1) return "";
+  return `${n} rounds`;
 }
 
-const activeHero = computed(() =>
-  isWinter.value ? homePayload.value : summerPayload.value,
-);
+function onToggleTheme() {
+  triggerHapticFeedback();
+  toggleTheme();
+}
 
 function formatDayMonth(isoLike) {
   const dStr = typeof isoLike === "string" ? isoLike.trim().slice(0, 10) : "";
@@ -252,34 +248,6 @@ watch(
 function openPlayerBest10(userId) {
   selectedPlayerId.value =
     String(selectedPlayerId.value) === String(userId) ? "" : String(userId);
-}
-
-function openWinter(tab) {
-  triggerHapticFeedback();
-  emit("navigate", {
-    section: "home",
-    mode: "winter",
-    tab: tab === "best10" ? "best10" : "week",
-  });
-}
-
-function openSummer() {
-  triggerHapticFeedback();
-  emit("navigate", {
-    section: "stats",
-    seasonId: summerSeason.value?.id,
-  });
-}
-
-function backHome() {
-  triggerHapticFeedback();
-  emit("navigate", { section: "home" });
-}
-
-function setWinterTab(tab) {
-  triggerHapticFeedback();
-  winterTab.value = tab;
-  if (tab !== "best10") selectedPlayerId.value = "";
 }
 
 function mapHomeBlock(dash) {
@@ -398,10 +366,6 @@ watch(
       return;
     }
     error.value = "";
-    if (!isWinter.value) {
-      selectedPlayerId.value = "";
-      winterTab.value = "week";
-    }
     loadHomeData();
     syncSelectedWeek();
   },
@@ -410,65 +374,45 @@ watch(
 </script>
 
 <template>
-  <!-- Landing: an intro to the society. Winter and Summer are the two pills. -->
-  <section v-if="!isWinter" class="page-stack home-page">
-    <section
-      v-if="error || metadata.loadError"
-      class="content-panel content-panel--minimal home-status"
-    >
-      <p class="empty-state">{{ error || metadata.loadError }}</p>
-    </section>
-
-    <div v-else class="home-hub">
-      <h1 class="home-hub__display">
-        <img src="/wags-crest.png" alt="Sutton WAGS" />
-      </h1>
-      <div class="home-hub__actions">
+  <section class="page-stack home-page">
+    <header class="season-mast">
+      <div class="season-mast__top">
+        <div class="season-mast__brand">
+          <span class="season-mast__mark">
+            <img src="/wags-crest.png" alt="" />
+          </span>
+          <p class="season-mast__kicker">Winter</p>
+        </div>
         <button
           type="button"
-          class="home-hub__primary"
-          :disabled="!winterSeason"
-          @click="openWinter()"
+          class="theme-switch"
+          :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+          @click="onToggleTheme"
         >
-          Winter
-        </button>
-        <button
-          type="button"
-          class="home-hub__secondary"
-          :disabled="!summerSeason"
-          @click="openSummer"
-        >
-          Summer
+          {{ theme === "dark" ? "Light" : "Dark" }}
         </button>
       </div>
-    </div>
-  </section>
-
-  <!-- Winter, standalone: no summer nav. Home is the way back. -->
-  <section v-else class="page-stack home-page">
-    <header class="winter-mast">
-      <p class="winter-mast__kicker">Winter</p>
-      <div class="winter-mast__row">
-        <h1 class="winter-mast__title">{{ winterHeadline.title }}</h1>
-        <p v-if="winterHeadline.date" class="winter-mast__date">
+      <div class="season-mast__row">
+        <h1 class="season-mast__title">{{ winterHeadline.title }}</h1>
+        <p v-if="winterHeadline.date" class="season-mast__aside">
           {{ winterHeadline.date }}
         </p>
         <p
           v-else-if="winterTab === 'best10'"
-          class="winter-mast__date winter-mast__pot"
+          class="season-mast__aside season-mast__pot"
         >
           {{ formatPounds(homePayload.rolling_pot_pence) }}
         </p>
       </div>
-      <p v-if="winterTab === 'week' && selectedWeekHero" class="winter-mast__note">
+      <p v-if="winterTab === 'week' && selectedWeekHero" class="season-mast__note">
         {{ selectedWeekHero }}
       </p>
-      <p v-else-if="winterTab === 'best10'" class="winter-mast__note">
-        Rolling pot. Tap a name to see what to throw away.
+      <p v-else-if="winterTab === 'best10'" class="season-mast__note">
+        Rolling pot
       </p>
       <p
         v-else-if="!loading && !metadata.loading && homePayload.no_results"
-        class="winter-mast__note"
+        class="season-mast__note"
       >
         No results yet.
       </p>
@@ -565,9 +509,6 @@ watch(
               v-if="String(selectedPlayerId) === String(row.user_id || row.id)"
               class="best10-sheet"
             >
-              <p v-if="!best10Scores(row, false).length" class="best10-sheet__hint">
-                Nothing to throw away yet.
-              </p>
               <p class="best10-sheet__label">Counting</p>
               <div
                 v-for="score in best10Scores(row, true)"
@@ -596,184 +537,10 @@ watch(
         </div>
       </section>
     </section>
-
-    <Teleport to=".app-shell">
-      <nav class="bottom-nav" aria-label="Winter">
-        <button type="button" class="bottom-nav-link" @click="backHome">
-          <NavIcon name="home" />
-          <span class="bottom-nav-label">Home</span>
-        </button>
-        <button
-          type="button"
-          class="bottom-nav-link"
-          :class="{ active: winterTab === 'week' }"
-          :aria-current="winterTab === 'week' ? 'page' : undefined"
-          @click="setWinterTab('week')"
-        >
-          <NavIcon name="scores" />
-          <span class="bottom-nav-label">This wk</span>
-        </button>
-        <button
-          type="button"
-          class="bottom-nav-link"
-          :class="{ active: winterTab === 'best10' }"
-          :aria-current="winterTab === 'best10' ? 'page' : undefined"
-          @click="setWinterTab('best10')"
-        >
-          <NavIcon name="best14" />
-          <span class="bottom-nav-label">Best 10</span>
-        </button>
-      </nav>
-    </Teleport>
   </section>
 </template>
 
 <style scoped>
-.home-hub {
-  --hub-ink: var(--text, #1a241c);
-  --hub-chip: #1c2b22;
-  --hub-chip-ink: #f4f7f2;
-  --hub-line: rgba(28, 43, 34, 0.28);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: stretch;
-  min-height: calc(
-    100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) -
-      2rem
-  );
-  padding: 0.2rem 0.15rem;
-  color: var(--hub-ink);
-  background: transparent;
-}
-
-:global([data-theme="dark"]) .home-hub {
-  --hub-chip: #e7efe4;
-  --hub-chip-ink: #1a241c;
-  --hub-line: rgba(243, 245, 241, 0.35);
-}
-
-.home-hub__display {
-  margin: 0;
-  text-align: center;
-  /* Local backdrop so the crest blends with the page even if an ancestor
-     isolates mix-blend-mode (view-frame uses perspective). */
-  background: var(--bg);
-  isolation: isolate;
-}
-
-.home-hub__display img {
-  display: block;
-  width: min(78vw, 20rem);
-  height: auto;
-  margin: 0 auto;
-  /* Light page: white fills drop out, black linework stays. */
-  mix-blend-mode: multiply;
-}
-
-/* The whole selector must sit inside :global(). A :global() prefix makes
-   Vue drop the rest and apply the declarations to [data-theme="dark"]. */
-:global([data-theme="dark"] .home-hub__display img) {
-  /* Dark page: flip to light linework, then screen the black disc into --bg. */
-  filter: invert(1);
-  mix-blend-mode: screen;
-}
-
-.home-hub__actions {
-  display: flex;
-  width: 100%;
-  gap: 0.7rem;
-  margin-top: 1.75rem;
-}
-
-.home-hub__primary,
-.home-hub__secondary {
-  flex: 1 1 0;
-  min-width: 0;
-  border-radius: 999px;
-  padding: 0.9rem 0.75rem;
-  font: inherit;
-  font-size: 1.05rem;
-  font-weight: 650;
-  text-align: center;
-  white-space: nowrap;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.home-hub__primary {
-  border: 0;
-  background: var(--hub-chip);
-  color: var(--hub-chip-ink);
-}
-
-.home-hub__secondary {
-  border: 1.5px solid var(--hub-line);
-  background: transparent;
-  color: var(--hub-ink);
-}
-
-.home-hub__primary:disabled,
-.home-hub__secondary:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.winter-mast {
-  padding: 0.15rem 0.1rem 0.35rem;
-}
-
-.winter-mast__kicker {
-  margin: 0;
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.winter-mast__row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 0.28rem;
-}
-
-.winter-mast__title {
-  margin: 0;
-  font-family: var(--font-serif);
-  font-size: 1.85rem;
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.05;
-}
-
-.winter-mast__date,
-.winter-mast__note {
-  margin: 0;
-  color: var(--muted, #8e8e93);
-}
-
-.winter-mast__date {
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.winter-mast__pot {
-  font-family: var(--font-serif);
-  font-size: 1.7rem;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  color: var(--text);
-}
-
-.winter-mast__note {
-  margin-top: 0.45rem;
-  font-size: 0.98rem;
-  line-height: 1.35;
-}
-
 .home-dashboard--single {
   grid-template-columns: 1fr;
 }

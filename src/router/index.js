@@ -3,8 +3,6 @@ import HomeView from '../views/HomeView.vue';
 import Best14View from '../views/Best14View.vue';
 import LeaguesView from '../views/LeaguesView.vue';
 import ResultsView from '../views/ResultsView.vue';
-import HandicapsView from '../views/HandicapsView.vue';
-import RSCupView from '../views/RSCupView.vue';
 import LoginView from '../views/LoginView.vue';
 import StatsHubView from '../views/StatsHubView.vue';
 import { useSession } from '../composables/useSession';
@@ -16,8 +14,8 @@ const router = createRouter({
         { path: '/best14', name: 'best14', component: Best14View },
         { path: '/leagues', name: 'leagues', component: LeaguesView },
         { path: '/results', name: 'results', component: ResultsView },
-        { path: '/handicaps', name: 'handicaps', component: HandicapsView },
-        { path: '/rscup', name: 'rscup', component: RSCupView },
+        { path: '/handicaps', redirect: { path: '/stats', query: { tab: 'handicaps' } } },
+        { path: '/rscup', redirect: { path: '/stats', query: { tab: 'cup' } } },
         { path: '/stats', name: 'stats', component: StatsHubView },
         {
             path: '/login',

@@ -16,6 +16,10 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  season: {
+    type: Object,
+    default: null,
+  },
 });
 
 const players = ref([]);

@@ -2,6 +2,7 @@
 import {
   ref,
   computed,
+  watch,
   onBeforeUnmount,
   onMounted,
   onBeforeMount,
@@ -31,9 +32,9 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261029-home-hub-v63";
+const CLIENT_BUILD_ID = "20261029-home-hub-v65";
 
-const { theme, toggleTheme } = useTheme();
+const { theme } = useTheme();
 const chromeHidden = ref(false);
 
 const globalMetadata = ref({
@@ -356,10 +357,9 @@ function loadDataFromSupabase(...args) {
 }
 
 const sections = [
-  { name: "home", label: "Home", icon: "home", path: "/" },
-  { name: "stats", label: "Stats", icon: "results", path: "/stats" },
-  { name: "handicaps", label: "Handicaps", icon: "users", path: "/handicaps" },
-  { name: "rscup", label: "RS CUP", icon: "trophy", path: "/rscup" },
+  { name: "week", label: "This week", icon: "scores", path: "/" },
+  { name: "best10", label: "Best 10", icon: "best14", path: "/" },
+  { name: "summer", label: "Summer", icon: "trophy", path: "/stats" },
 ];
 
 const statsRouteNames = new Set(["stats", "results", "leagues", "best14"]);
@@ -416,21 +416,33 @@ const selectedResultsSeason = computed(() => {
   return selectedSeason.value;
 });
 
+const summerRouteNames = new Set([
+  "stats",
+  "results",
+  "leagues",
+  "best14",
+  "handicaps",
+  "rscup",
+]);
+
 const currentNavName = computed(() => {
   const routeName = String(route.name || "home");
-  return statsRouteNames.has(routeName) ? "stats" : routeName;
+  if (summerRouteNames.has(routeName)) return "summer";
+  if (String(route.query.tab || "").toLowerCase() === "best10") return "best10";
+  return "week";
 });
 
-/** Winter has no stats, handicaps, or cup — hide the summer nav. */
-const winterOpen = computed(
-  () =>
-    String(route.name || "") === "home" &&
-    String(route.query.mode || "").toLowerCase() === "winter",
-);
-
-/** The landing page is only the title and the two season pills. */
-const homeLanding = computed(
-  () => String(route.name || "") === "home" && !winterOpen.value,
+watch(
+  () => [route.path, route.query.mode],
+  () => {
+    if (
+      route.path === "/" &&
+      String(route.query.mode || "").toLowerCase() === "summer"
+    ) {
+      router.replace("/stats");
+    }
+  },
+  { immediate: true },
 );
 
 const currentViewProps = computed(() => {
@@ -453,30 +465,29 @@ const currentViewProps = computed(() => {
   return props;
 });
 
-function onToggleTheme() {
-  triggerHapticFeedback();
-  toggleTheme();
-}
-
 function switchSection(section) {
   triggerHapticFeedback();
-  const targetPath = section?.path || "/";
-  if (section?.name === "stats" && route.path === "/stats") {
-    if (route.query.tab || route.query.season) {
-      router.replace("/stats");
-    }
-    return;
-  }
-  // Home nav returns to the season hub (defaults to Winter when live).
-  if (section?.name === "home") {
-    if (route.path !== "/" || route.query.mode) {
+  if (section?.name === "week") {
+    if (route.path !== "/" || route.query.tab || route.query.mode) {
       router.push({ path: "/" });
     }
     return;
   }
-  if (route.path !== targetPath) {
-    router.push(targetPath);
+  if (section?.name === "best10") {
+    if (
+      route.path !== "/" ||
+      String(route.query.tab || "").toLowerCase() !== "best10"
+    ) {
+      router.push({ path: "/", query: { tab: "best10" } });
+    }
+    return;
   }
+  if (section?.name === "summer") {
+    if (route.path !== "/stats") router.push("/stats");
+    return;
+  }
+  const targetPath = section?.path || "/";
+  if (route.path !== targetPath) router.push(targetPath);
 }
 
 const STATS_HUB_TAB_IDS = new Set([
@@ -484,6 +495,8 @@ const STATS_HUB_TAB_IDS = new Set([
   "leagues",
   "best14",
   "winners",
+  "handicaps",
+  "cup",
 ]);
 
 function handleNavigate(target) {
@@ -737,8 +750,6 @@ onBeforeUnmount(() => {
     :data-theme="theme"
     :class="{
       'chrome-hidden': chromeHidden,
-      'winter-open': winterOpen,
-      'home-landing': homeLanding,
     }"
   >
     <div
@@ -789,16 +800,7 @@ onBeforeUnmount(() => {
       </div>
     </main>
 
-    <button
-      type="button"
-      class="theme-switch"
-      :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-      @click="onToggleTheme"
-    >
-      {{ theme === 'dark' ? 'Light' : 'Dark' }}
-    </button>
-
-    <nav v-if="!winterOpen && !homeLanding" class="bottom-nav" aria-label="Primary">
+    <nav class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
         :key="section.name"
@@ -819,17 +821,14 @@ onBeforeUnmount(() => {
 }
 
 .theme-switch {
-  position: fixed;
-  z-index: 40;
-  top: calc(env(safe-area-inset-top, 0px) + 0.55rem);
-  right: 0.85rem;
+  flex: 0 0 auto;
   border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
   border-radius: 999px;
-  padding: 0.38rem 0.85rem;
+  padding: 0.32rem 0.72rem;
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 650;
   letter-spacing: 0.04em;
   cursor: pointer;

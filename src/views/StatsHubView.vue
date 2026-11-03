@@ -7,11 +7,22 @@ import LeaguesView from "./LeaguesView.vue";
 import Best14View from "./Best14View.vue";
 import ResultsView from "./ResultsView.vue";
 import WinnersTable from "./WinnersTable.vue";
+import HandicapsView from "./HandicapsView.vue";
+import RSCupView from "./RSCupView.vue";
+import { useTheme } from "../composables/useTheme";
 
 const route = useRoute();
 const router = useRouter();
+const { theme, toggleTheme } = useTheme();
 
-const STATS_TAB_IDS = ["results", "leagues", "best14", "winners"];
+const STATS_TAB_IDS = [
+  "results",
+  "leagues",
+  "best14",
+  "winners",
+  "handicaps",
+  "cup",
+];
 
 const props = defineProps({
   metadata: { type: Object, required: true },
@@ -45,10 +56,12 @@ const selectedSeasonId = ref(null);
 const seasonPickerOpen = ref(false);
 
 const tabs = [
-  { id: "results", label: "RESULTS", component: markRaw(ResultsView) },
-  { id: "leagues", label: "LEAGUES", component: markRaw(LeaguesView) },
-  { id: "best14", label: "BEST 14", component: markRaw(Best14View) },
-  { id: "winners", label: "CHAMPS", component: markRaw(WinnersTable) },
+  { id: "results", label: "Results", component: markRaw(ResultsView) },
+  { id: "leagues", label: "Leagues", component: markRaw(LeaguesView) },
+  { id: "best14", label: "Best 14", component: markRaw(Best14View) },
+  { id: "winners", label: "Champs", component: markRaw(WinnersTable) },
+  { id: "handicaps", label: "Handicaps", component: markRaw(HandicapsView) },
+  { id: "cup", label: "Cup", component: markRaw(RSCupView) },
 ];
 
 const activeTabId = ref(tabs[0].id);
@@ -140,6 +153,18 @@ const selectedSeason = computed(() => {
   );
 });
 
+const seasonNote = computed(() => {
+  const season = selectedSeason.value;
+  if (!season) return "";
+  const year = String(season.start_year || "").trim();
+  const name = String(season.name || "")
+    .replace(/^Main\s+/i, "")
+    .trim();
+  if (!name) return "";
+  if (year && name.toLowerCase() === `summer ${year}`.toLowerCase()) return "";
+  return name;
+});
+
 // Watch for season change: reset tab if needed, ensure nav works
 watch(selectedSeasonId, (newVal, oldVal) => {
   // Defensive: if new season is not found, fallback to first
@@ -179,6 +204,11 @@ function setTab(id) {
   }
 }
 
+function onToggleTheme() {
+  triggerHapticFeedback();
+  toggleTheme();
+}
+
 function openSeasonPicker() {
   triggerHapticFeedback();
   seasonPickerOpen.value = true;
@@ -199,35 +229,31 @@ function pickSeason(seasonId) {
 
 <template>
   <div class="stats-hub">
-    <header class="hub-header">
-      <!-- Row 1: Season (in-app sheet — matches Handicaps / Best 14 dialogs) -->
-      <button
-        type="button"
-        class="f1-season-row f1-season-row-trigger"
-        @click="openSeasonPicker"
-      >
-        <div class="f1-circle-trigger" aria-hidden="true">
-          <svg
-            width="10"
-            height="6"
-            viewBox="0 0 12 8"
-            fill="none"
-            class="f1-chevron"
-          >
-            <path
-              d="M1 1.5L6 6.5L11 1.5"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
-        <span class="f1-year-text">{{ selectedSeason?.start_year }}</span>
-        <span class="f1-season-label">Season</span>
-      </button>
-
-      <!-- Row 2: Tabs -->
+    <header class="season-mast">
+      <div class="season-mast__top">
+        <p class="season-mast__kicker">Summer</p>
+        <button
+          type="button"
+          class="theme-switch"
+          :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+          @click="onToggleTheme"
+        >
+          {{ theme === "dark" ? "Light" : "Dark" }}
+        </button>
+      </div>
+      <div class="season-mast__row">
+        <button
+          type="button"
+          class="season-mast__title-btn"
+          @click="openSeasonPicker"
+        >
+          {{ selectedSeason?.start_year || "Season" }}
+          <span class="season-mast__chev" aria-hidden="true">▾</span>
+        </button>
+      </div>
+      <p v-if="seasonNote" class="season-mast__note">
+        {{ seasonNote }}
+      </p>
       <nav class="f1-section-nav">
         <button
           v-for="tab in tabs"
@@ -363,11 +389,25 @@ function pickSeason(seasonId) {
 
 .f1-section-nav {
   display: flex;
-  gap: 1.1rem;
-  padding: 0 0.5rem;
-  margin-top: 0.5rem;
+  gap: 0.95rem;
+  padding: 0.85rem 0.1rem 0;
+  margin-top: 0.35rem;
   border-bottom: 1px solid var(--line);
-  justify-content: space-evenly;
+  justify-content: flex-start;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.f1-section-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.f1-section-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.78rem;
 }
 
 .stats-season-list {
