@@ -81,9 +81,24 @@ const normalizeCompetitionLabel = (label) =>
     .replace(/\s*-\s*week\s*1\s*$/i, "")
     .trim();
 
+function preparedBoard() {
+  const id = props.season?.id;
+  const year = String(props.season?.start_year || "");
+  const board = props.metadata?.handicap_board;
+  if (!board || typeof board !== "object") return null;
+  const rows = board[id] || board[year];
+  return Array.isArray(rows) ? rows : null;
+}
+
 const loadPlayers = async () => {
   loading.value = true;
   try {
+    const board = preparedBoard();
+    if (board) {
+      players.value = board.map((player) => ({ ...player }));
+      error.value = "";
+      return;
+    }
     const profiles = props.metadata?.profiles || props.metadata?.players || [];
     const history = props.metadata?.handicap_history || [];
 
@@ -179,6 +194,15 @@ const loadHistory = async () => {
   }
   detailLoading.value = true;
   try {
+    const board = preparedBoard();
+    const prepared = board?.find(
+      (player) => normId(player.id) === normId(selectedPlayerId.value),
+    );
+    if (prepared) {
+      historyRows.value = Array.isArray(prepared.history) ? prepared.history : [];
+      error.value = "";
+      return;
+    }
     const allHistory = props.metadata?.handicap_history || [];
     const competitions = props.metadata?.competitions || [];
     const rounds = props.metadata?.rounds || [];
@@ -243,8 +267,8 @@ const loadHistory = async () => {
 };
 
 watch(
-  () => props.metadata,
-  (meta) => {
+  () => [props.metadata, props.season?.id],
+  ([meta]) => {
     if (meta && !meta.loading) {
       loadPlayers();
     }

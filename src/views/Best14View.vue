@@ -139,7 +139,9 @@ const openBest14 = (player) => {
   detailLoading.value = true;
   const seasonId = props.season?.id;
   const playerId = player.user_id || player.player_id || player.id;
-  if (!seasonId || !playerId) {
+  if (Array.isArray(player?.rounds)) {
+    detailRows.value = player.rounds.slice(0, 14);
+  } else if (!seasonId || !playerId) {
     detailRows.value = [];
   } else {
     detailRows.value = buildLocalTopRounds(player, 14);

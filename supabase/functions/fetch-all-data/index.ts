@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
-const BUILD_ID = "20261029-home-hub-v67";
+const BUILD_ID = "20261029-home-hub-v68";
 
 const parseAllowedOrigins = () => {
   const value = Deno.env.get("ALLOWED_ORIGINS") ?? "";
@@ -378,6 +378,574 @@ const loadSummerBest14AndLeagues = async (
   return { best14: [], leagues: [] };
 };
 
+function jsonPayload(
+  payload: Record<string, unknown>,
+  corsHeaders: Record<string, string>,
+): Response {
+  return new Response(JSON.stringify(payload), {
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+function seasonShell(c: any, currentId: string) {
+  const id = String(c.id);
+  const status = String(c.status || "").toLowerCase();
+  return {
+    id,
+    start_year:
+      Number(c.year) ||
+      new Date(String(c.start_date || "2000-01-01")).getFullYear(),
+    name: String(c.label || ""),
+    label: String(c.label || ""),
+    kind: isWinterReducedCampaign(c)
+      ? "winter_reduced"
+      : isSummerMainCampaign(c)
+        ? "summer_main"
+        : String(c.kind || c.track || ""),
+    status,
+    is_active: status === "open",
+    is_current: id === currentId,
+  };
+}
+
+function cleanRoundName(name: unknown): string {
+  return String(name || "")
+    .replace(/\s*-\s*week\s*1\s*$/i, "")
+    .trim();
+}
+
+/**
+ * Winter boot: one campaign snapshot. No flattened history, no handicaps,
+ * no summer standings.
+ */
+async function respondScopedWinter(
+  supabase: ReturnType<typeof createClient>,
+  corsHeaders: Record<string, string>,
+): Promise<Response> {
+  const campaignsRes = await supabase
+    .from("campaigns")
+    .select("*")
+    .order("year", { ascending: false });
+  if (campaignsRes.error) {
+    return jsonPayload(
+      { error: `campaigns: ${campaignsRes.error.message}` },
+      corsHeaders,
+    );
+  }
+  const camps = campaignsRes.data ?? [];
+  const winters = camps.filter((c: any) => isWinterReducedCampaign(c));
+  const winter =
+    winters.find((c: any) => String(c.status || "").toLowerCase() === "open") ||
+    winters[0] ||
+    null;
+  const winterId = winter ? String(winter.id) : "";
+  const seasons = camps
+    .filter((c: any) => String(c.status || "").toLowerCase() !== "draft")
+    .map((c: any) => seasonShell(c, winterId));
+
+  const dashboard: Record<string, unknown> = {};
+  if (winter) {
+    const cid = String(winter.id);
+    const [winterRpc, resultsRpc] = await Promise.all([
+      supabase.rpc("get_member_winter_home_snapshot", { p_campaign_id: cid }),
+      supabase.rpc("get_member_results_contract", { p_campaign_id: cid }),
+    ]);
+    if (winterRpc.error) {
+      console.warn(
+        `[fetch-all-data] winter snapshot ${cid}:`,
+        winterRpc.error.message,
+      );
+    }
+    if (resultsRpc.error) {
+      console.warn(
+        `[fetch-all-data] winter results ${cid}:`,
+        resultsRpc.error.message,
+      );
+    }
+    const snap =
+      winterRpc.data && typeof winterRpc.data === "object"
+        ? (winterRpc.data as Record<string, unknown>)
+        : {};
+    const home =
+      snap.home && typeof snap.home === "object"
+        ? (snap.home as Record<string, unknown>)
+        : {};
+    const resultsRaw = resultsRpc.data as Record<string, unknown> | null;
+    const resultsView =
+      resultsRaw &&
+      typeof resultsRaw === "object" &&
+      !Array.isArray(resultsRaw) &&
+      Array.isArray(resultsRaw.competitions)
+        ? resultsRaw
+        : {
+            default_competition_id: "",
+            competitions: [],
+            rows_by_competition: {},
+            summary_by_competition: {},
+          };
+    dashboard[cid] = {
+      mode: "winter",
+      home: {
+        week_label: String(home.week_label || "WEEK — , —"),
+        hero_message: String(home.hero_message || "No results yet."),
+        no_results: Boolean(home.no_results),
+        stats: {
+          players: Number((home.stats as any)?.players) || 0,
+          snakes: 0,
+          camels: 0,
+        },
+        handicap_changes: [],
+        focus_round_id: home.focus_round_id
+          ? String(home.focus_round_id)
+          : null,
+        paid_out_pence: Number(home.paid_out_pence) || 0,
+        rolling_pot_pence: Number(home.rolling_pot_pence) || 0,
+        winner_member_id: home.winner_member_id
+          ? String(home.winner_member_id)
+          : null,
+        winner_name: home.winner_name ? String(home.winner_name) : null,
+      },
+      best14_leaders: [],
+      league_leaders: [],
+      week_scores: asJsonObjectArray(snap.week_scores),
+      best10_leaders: asJsonObjectArray(snap.best10_leaders),
+      best10_by_member:
+        snap.best10_by_member &&
+        typeof snap.best10_by_member === "object" &&
+        !Array.isArray(snap.best10_by_member)
+          ? snap.best10_by_member
+          : {},
+      results_view: resultsView,
+    };
+  }
+
+  return jsonPayload(
+    {
+      api_version: "contract-v1",
+      build_id: BUILD_ID,
+      scope: "winter",
+      defaults: {
+        results_season_id: winterId || null,
+        home_season_id: winterId || null,
+      },
+      seasons,
+      dashboard,
+    },
+    corsHeaders,
+  );
+}
+
+type ScoreRound = {
+  id: string;
+  competition_name: string;
+  competition_date: string | null;
+  stableford_score: number;
+};
+
+/** Counting rounds for one summer, ranked the same way as v_summer_standings. */
+async function loadSummerCountingRounds(
+  supabase: ReturnType<typeof createClient>,
+  campaignId: string,
+): Promise<Map<string, ScoreRound[]>> {
+  const { data, error } = await supabase
+    .from("round_players")
+    .select(
+      "member_id, stableford_points, rounds!inner(id, name, round_date, play_order, campaign_id, round_type, finalized)",
+    )
+    .eq("entered", true)
+    .eq("rounds.campaign_id", campaignId)
+    .eq("rounds.round_type", "summer_weekly")
+    .eq("rounds.finalized", true);
+  const byMember = new Map<string, ScoreRound[]>();
+  if (error) {
+    console.warn(
+      `[fetch-all-data] summer counting rounds ${campaignId}:`,
+      error.message,
+    );
+    return byMember;
+  }
+  const grouped = new Map<string, any[]>();
+  for (const row of data ?? []) {
+    const memberId = String((row as any).member_id || "");
+    const round = (row as any).rounds;
+    if (!memberId || !round) continue;
+    const list = grouped.get(memberId) ?? [];
+    list.push({
+      id: String(round.id),
+      competition_name: cleanRoundName(round.name) || "Round",
+      competition_date: round.round_date
+        ? String(round.round_date).slice(0, 10)
+        : null,
+      stableford_score: Number((row as any).stableford_points) || 0,
+      play_order: Number(round.play_order) || 0,
+    });
+    grouped.set(memberId, list);
+  }
+  for (const [memberId, list] of grouped) {
+    list.sort(
+      (a, b) =>
+        b.stableford_score - a.stableford_score ||
+        String(b.competition_date || "").localeCompare(
+          String(a.competition_date || ""),
+        ) ||
+        b.play_order - a.play_order,
+    );
+    byMember.set(
+      memberId,
+      list.map(({ play_order: _play, ...round }) => round),
+    );
+  }
+  return byMember;
+}
+
+async function loadHandicapBoard(
+  supabase: ReturnType<typeof createClient>,
+  campaignId: string,
+  roundsByMember: Map<string, ScoreRound[]>,
+): Promise<any[]> {
+  const [roundsRes, stateRes, membersRes] = await Promise.all([
+    supabase
+      .from("rounds")
+      .select("id, name, round_date, play_order")
+      .eq("campaign_id", campaignId),
+    supabase
+      .from("member_handicap_state")
+      .select("member_id, handicap")
+      .eq("campaign_id", campaignId),
+    supabase.from("members").select("id, full_name"),
+  ]);
+  const rounds = roundsRes.data ?? [];
+  const roundById = new Map(rounds.map((r: any) => [String(r.id), r]));
+  const names = new Map(
+    (membersRes.data ?? []).map((m: any) => [
+      String(m.id),
+      String(m.full_name || ""),
+    ]),
+  );
+  const ids = rounds.map((r: any) => String(r.id)).filter(Boolean);
+  const snaps: any[] = [];
+  const CHUNK = 40;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const part = await supabase
+      .from("handicap_snapshots")
+      .select(
+        "member_id, round_id, handicap_before, handicap_after, created_at",
+      )
+      .in("round_id", chunk)
+      .is("superseded_at", null);
+    if (part.error) {
+      console.warn(
+        `[fetch-all-data] handicap board ${campaignId}:`,
+        part.error.message,
+      );
+    } else {
+      snaps.push(...(part.data ?? []));
+    }
+  }
+
+  const scoreByMemberRound = new Map<string, number>();
+  for (const [memberId, list] of roundsByMember) {
+    for (const round of list) {
+      scoreByMemberRound.set(`${memberId}:${round.id}`, round.stableford_score);
+    }
+  }
+
+  const historyByMember = new Map<string, any[]>();
+  for (const snap of snaps) {
+    const memberId = String(snap.member_id || "");
+    const roundId = snap.round_id != null ? String(snap.round_id) : "";
+    if (!memberId) continue;
+    const round = roundById.get(roundId);
+    const oldN =
+      snap.handicap_before == null ? null : Number(snap.handicap_before);
+    const newN =
+      snap.handicap_after == null ? null : Number(snap.handicap_after);
+    const delta =
+      oldN != null && newN != null && Number.isFinite(oldN) && Number.isFinite(newN)
+        ? Math.round((newN - oldN) * 10) / 10
+        : null;
+    const score = scoreByMemberRound.get(`${memberId}:${roundId}`);
+    const hasDelta = delta != null && Math.abs(delta) > 0.01;
+    if (!hasDelta && score == null) continue;
+    const list = historyByMember.get(memberId) ?? [];
+    list.push({
+      competition: round ? cleanRoundName(round.name) || "Round" : "Manual adjustment",
+      competition_date: round?.round_date
+        ? String(round.round_date).slice(0, 10)
+        : null,
+      created_at: snap.created_at,
+      score: score ?? "—",
+      old_handicap: oldN,
+      new_handicap: newN,
+      adjustment:
+        delta == null
+          ? 0
+          : delta > 0
+            ? `+${delta.toFixed(1)}`
+            : delta.toFixed(1),
+      play_order: Number(round?.play_order) || 0,
+    });
+    historyByMember.set(memberId, list);
+  }
+
+  const current = new Map(
+    (stateRes.data ?? []).map((row: any) => [
+      String(row.member_id),
+      row.handicap,
+    ]),
+  );
+  const memberIds = new Set<string>([
+    ...current.keys(),
+    ...historyByMember.keys(),
+  ]);
+  const board = [...memberIds].map((memberId) => {
+    const history = (historyByMember.get(memberId) ?? []).sort((a, b) => {
+      const date = String(b.competition_date || "").localeCompare(
+        String(a.competition_date || ""),
+      );
+      if (date) return date;
+      return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+    });
+    const last = history.find((row) => {
+      const oldN = row.old_handicap;
+      const newN = row.new_handicap;
+      return (
+        oldN != null &&
+        newN != null &&
+        Math.abs(Number(newN) - Number(oldN)) > 0.01
+      );
+    });
+    const oldN = last ? Number(last.old_handicap) : null;
+    const newN = last ? Number(last.new_handicap) : null;
+    return {
+      id: memberId,
+      user_id: memberId,
+      full_name: names.get(memberId) || "Player",
+      current_handicap: current.get(memberId) ?? newN ?? null,
+      change:
+        last && oldN != null && newN != null
+          ? `${oldN.toFixed(1)}→${newN.toFixed(1)}`
+          : "-",
+      improved: last != null && newN != null && oldN != null && newN < oldN,
+      hasDelta: Boolean(last),
+      history: history.map((row, index) => ({
+        id: `${memberId}-${row.created_at || index}`,
+        competition: row.competition,
+        score: row.score,
+        old_handicap: row.old_handicap,
+        new_handicap: row.new_handicap,
+        adjustment: row.adjustment,
+      })),
+    };
+  });
+  board.sort((a, b) => a.full_name.localeCompare(b.full_name));
+  return board;
+}
+
+/** One summer campaign, with Best 14, league cards, and handicaps already ranked. */
+async function respondScopedSummer(
+  supabase: ReturnType<typeof createClient>,
+  corsHeaders: Record<string, string>,
+  campaignParam: string | null,
+): Promise<Response> {
+  const campaignsRes = await supabase.from("campaigns").select("*");
+  if (campaignsRes.error) {
+    return jsonPayload(
+      { error: `campaigns: ${campaignsRes.error.message}` },
+      corsHeaders,
+    );
+  }
+  const camps = campaignsRes.data ?? [];
+  const summers = camps.filter((c: any) => isSummerMainCampaign(c));
+  const wanted = String(campaignParam || "").trim();
+  const camp =
+    summers.find((c: any) => String(c.id) === wanted) ||
+    summers.find((c: any) => String(c.year) === wanted) ||
+    summers.find((c: any) => String(c.status || "").toLowerCase() === "open") ||
+    summers[0] ||
+    null;
+  if (!camp) {
+    return jsonPayload(
+      {
+        api_version: "contract-v1",
+        build_id: BUILD_ID,
+        scope: "summer",
+        campaign_id: null,
+        dashboard: {},
+        best14: {},
+        leagues: {},
+        winners: {},
+        awards: {},
+        handicap_board: {},
+        profiles: [],
+        matchplay_tournaments: [],
+        matchplay_matches: [],
+      },
+      corsHeaders,
+    );
+  }
+
+  const cid = String(camp.id);
+  const [resultsRpc, counting, standings, membersRes, awardsRes, compRes, cupRes] =
+    await Promise.all([
+      supabase.rpc("get_member_results_contract", { p_campaign_id: cid }),
+      loadSummerCountingRounds(supabase, cid),
+      loadSummerBest14AndLeagues(supabase, cid, String(camp.year || ""), cid),
+      supabase.from("members").select("id, full_name"),
+      supabase
+        .from("campaign_awards")
+        .select("campaign_id, award_type, member_id, notes, members(full_name)")
+        .eq("campaign_id", cid),
+      supabase
+        .from("competitions")
+        .select("id, name, type, campaign_id")
+        .eq("type", "rs_cup")
+        .eq("campaign_id", cid),
+      supabase
+        .from("cup_matches")
+        .select(
+          "id, competition_id, stage_code, slot_index, home_member_id, away_member_id, winner_member_id, result_text, play_by_date",
+        ),
+    ]);
+
+  const profileNameById = new Map(
+    (membersRes.data ?? []).map((m: any) => [
+      String(m.id),
+      String(m.full_name || ""),
+    ]),
+  );
+  const withRounds = (row: any, take: number) => {
+    const id = String(row.user_id || row.member_id || "");
+    const rounds = (counting.get(id) ?? []).slice(0, take);
+    return { ...row, rounds };
+  };
+  const best14Rows = (standings.best14 || []).map((row: any) =>
+    withRounds(row, 14),
+  );
+  const leagueRows = (standings.leagues || []).map((row: any) =>
+    withRounds(row, 10),
+  );
+
+  const resultsView =
+    resultsRpc.data &&
+    typeof resultsRpc.data === "object" &&
+    !Array.isArray(resultsRpc.data)
+      ? (resultsRpc.data as Record<string, unknown>)
+      : {
+          default_competition_id: "",
+          competitions: [],
+          rows_by_competition: {},
+          summary_by_competition: {},
+        };
+  const winners = buildChampsFromResultsContract(resultsView, profileNameById);
+  const handicapBoard = await loadHandicapBoard(supabase, cid, counting);
+
+  const awards = (awardsRes.data ?? []).map((row: any) => ({
+    award_type: String(row.award_type || ""),
+    member_id: row.member_id ? String(row.member_id) : null,
+    player:
+      String(row.members?.full_name || "").trim() ||
+      profileNameById.get(String(row.member_id || "")) ||
+      "Unknown",
+    notes: row.notes ?? null,
+  }));
+
+  const cupIds = new Set(
+    (compRes.data ?? []).map((c: any) => String(c.id)),
+  );
+  const stageRound = (code: string): number => {
+    const lower = code.toLowerCase().trim().replace(/\s+/g, " ");
+    if (/prelim/.test(lower)) return 0;
+    if (/quarter/.test(lower)) return 4;
+    if (/semi/.test(lower)) return 5;
+    if (/\bfinals?\b/.test(lower) && !/quarter|semi|prelim/.test(lower)) return 6;
+    const roundMatch = lower.match(/\b(?:round|r)\s*(\d+)\b/);
+    if (roundMatch) return parseInt(roundMatch[1], 10) || -1;
+    return -1;
+  };
+  const stageLabel = (code: string): string => {
+    const lower = code.toLowerCase().trim().replace(/\s+/g, " ");
+    if (/prelim/.test(lower)) return "Preliminary Round";
+    if (/quarter/.test(lower)) return "Quarter Finals";
+    if (/semi/.test(lower)) return "Semi Finals";
+    if (/\bfinals?\b/.test(lower) && !/quarter|semi|prelim/.test(lower)) {
+      return "The Final";
+    }
+    return code.replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+  const matchplay_tournaments = (compRes.error ? [] : compRes.data ?? []).map(
+    (c: any) => ({
+      id: String(c.id),
+      name: String(c.name || "RS Cup"),
+      campaign_id: String(c.campaign_id || ""),
+    }),
+  );
+  const matchplay_matches = (cupRes.error ? [] : cupRes.data ?? [])
+    .filter((m: any) => cupIds.has(String(m.competition_id || "")))
+    .map((m: any) => ({
+      id: String(m.id),
+      tournament_id: String(m.competition_id || ""),
+      round_number: stageRound(String(m.stage_code || "")),
+      stage_code: String(m.stage_code || ""),
+      stage_label: stageLabel(String(m.stage_code || "")),
+      slot_index: m.slot_index,
+      player1_id: m.home_member_id ? String(m.home_member_id) : null,
+      player2_id: m.away_member_id ? String(m.away_member_id) : null,
+      winner_id: m.winner_member_id ? String(m.winner_member_id) : null,
+      result_text: m.result_text ?? null,
+      play_by_date: m.play_by_date ?? null,
+    }));
+
+  const dashboard = {
+    [cid]: {
+      mode: "summer",
+      results_view: resultsView,
+      home: {
+        week_label: "WEEK — , —",
+        hero_message: "No results yet.",
+        no_results: false,
+        stats: { players: 0, snakes: 0, camels: 0 },
+      },
+    },
+  };
+  const best14: Record<string, any[]> = { [cid]: best14Rows };
+  const leagues: Record<string, any[]> = { [cid]: leagueRows };
+  const winnersMap: Record<string, any[]> = { [cid]: winners };
+  const awardsMap: Record<string, any[]> = { [cid]: awards };
+  const handicapMap: Record<string, any[]> = { [cid]: handicapBoard };
+
+  return jsonPayload(
+    {
+      api_version: "contract-v1",
+      build_id: BUILD_ID,
+      scope: "summer",
+      campaign_id: cid,
+      seasons: camps
+        .filter((c: any) => String(c.status || "").toLowerCase() !== "draft")
+        .map((c: any) => seasonShell(c, cid)),
+      dashboard,
+      best14,
+      leagues,
+      winners: winnersMap,
+      awards: awardsMap,
+      handicap_board: handicapMap,
+      profiles: (membersRes.data ?? []).map((m: any) => ({
+        id: String(m.id),
+        full_name: String(m.full_name || ""),
+        role: "member",
+      })),
+      matchplay_tournaments,
+      matchplay_matches,
+    },
+    corsHeaders,
+  );
+}
+
 /** Contract-v1 snapshot: maps campaigns / rounds / members into the PWA metadata shape. */
 async function greenfieldFetchAll(
   supabase: ReturnType<typeof createClient>,
@@ -386,6 +954,12 @@ async function greenfieldFetchAll(
   view: string | null,
   _seasonParam: string | null,
 ): Promise<Response> {
+  if (view === "winter") {
+    return respondScopedWinter(supabase, corsHeaders);
+  }
+  if (view === "summer") {
+    return respondScopedSummer(supabase, corsHeaders, _seasonParam);
+  }
   const shellOnly = view === "shell";
 
   const [campaignsRes, membersRes, roundsRes] = await Promise.all([

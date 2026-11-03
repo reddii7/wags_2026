@@ -144,6 +144,14 @@ watch(
   { immediate: true },
 );
 
+const seasonReady = computed(() => {
+  const season = selectedSeason.value;
+  if (!season?.id) return false;
+  const dash = props.metadata?.dashboard || {};
+  const block = dash[season.id] || dash[String(season.start_year || "")];
+  return Boolean(block?.results_view);
+});
+
 const selectedSeason = computed(() => {
   // Always find by id, fallback to first season
   return (
@@ -269,9 +277,15 @@ function pickSeason(seasonId) {
     </header>
 
     <main class="hub-content">
+      <p v-if="metadata.summerError && !seasonReady" class="empty-state">
+        {{ metadata.summerError }}
+      </p>
+      <p v-else-if="selectedSeason && !seasonReady" class="empty-state">
+        Loading…
+      </p>
       <component
         :is="activeComponent"
-        v-if="selectedSeason"
+        v-else-if="selectedSeason"
         :season="selectedSeason"
         :metadata="metadata"
       />

@@ -32,7 +32,7 @@ const routerViewComponentKey = computed(() =>
 );
 
 // Bumped together with supabase/functions/fetch-all-data BUILD_ID when you need a forced hard refresh on boot.
-const CLIENT_BUILD_ID = "20261029-home-hub-v67";
+const CLIENT_BUILD_ID = "20261029-home-hub-v68";
 
 const { theme } = useTheme();
 const chromeHidden = ref(false);
@@ -55,12 +55,180 @@ let lastScrollY = 0;
 
 let reloadDebounceTimer = null;
 
-function buildFetchAllDataUrl(baseUrl, seasonParam, bustCache = false) {
-  if (!seasonParam && !bustCache) return baseUrl;
+const loadedSummerIds = new Set();
+const summerInflight = new Map();
+
+function buildFetchAllDataUrl(baseUrl, { view, campaign, bustCache } = {}) {
   const url = new URL(baseUrl);
-  if (seasonParam) url.searchParams.set("season", seasonParam);
+  if (view) url.searchParams.set("view", view);
+  if (campaign) url.searchParams.set("season", String(campaign));
   if (bustCache) url.searchParams.set("_", String(Date.now()));
   return url.toString();
+}
+
+function mergeMetadata(data) {
+  const meta = globalMetadata.value;
+  if (Array.isArray(data.seasons) && data.seasons.length) {
+    meta.seasons = data.seasons;
+  }
+  if (data.defaults && typeof data.defaults === "object" && data.scope !== "summer") {
+    meta.defaults = { ...(meta.defaults || {}), ...data.defaults };
+  }
+  for (const key of [
+    "dashboard",
+    "best14",
+    "leagues",
+    "winners",
+    "awards",
+    "handicap_board",
+  ]) {
+    if (data[key] && typeof data[key] === "object") {
+      meta[key] = { ...(meta[key] || {}), ...data[key] };
+    }
+  }
+  if (Array.isArray(data.profiles) && data.profiles.length) {
+    const byId = new Map(
+      (meta.profiles || []).map((profile) => [String(profile.id), profile]),
+    );
+    for (const profile of data.profiles) {
+      const id = String(profile.id);
+      byId.set(id, { ...(byId.get(id) || {}), ...profile });
+    }
+    meta.profiles = [...byId.values()];
+  }
+  if (Array.isArray(data.matchplay_tournaments)) {
+    const campaignId = String(data.campaign_id || "");
+    const keep = (meta.matchplay_tournaments || []).filter(
+      (row) => String(row.campaign_id || "") !== campaignId,
+    );
+    meta.matchplay_tournaments = [...keep, ...data.matchplay_tournaments];
+  }
+  if (Array.isArray(data.matchplay_matches)) {
+    const cupIds = new Set(
+      (data.matchplay_tournaments || []).map((row) => String(row.id)),
+    );
+    const keep = (meta.matchplay_matches || []).filter(
+      (row) => !cupIds.has(String(row.tournament_id || "")),
+    );
+    meta.matchplay_matches = [...keep, ...data.matchplay_matches];
+  }
+  if (data.api_version) meta.api_version = data.api_version;
+  if (data.campaign_id) loadedSummerIds.add(String(data.campaign_id));
+}
+
+async function fetchScope(view, campaign, silent, bustCache) {
+  const requestUrl = buildFetchAllDataUrl(FETCH_ALL_DATA_URL, {
+    view,
+    campaign,
+    bustCache,
+  });
+  const response = await fetch(requestUrl, {
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+  });
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error("Server returned invalid data.");
+  }
+  if (data?.error) {
+    const msg =
+      typeof data.error === "string"
+        ? data.error
+        : data.error?.message || "Server error";
+    throw new Error(msg);
+  }
+  if (!response.ok) {
+    throw new Error(`Could not load data (${response.status}).`);
+  }
+  if (
+    !data ||
+    typeof data !== "object" ||
+    (view === "winter" && !Array.isArray(data.seasons))
+  ) {
+    throw new Error("Server contract invalid.");
+  }
+  if (!silent && data.api_version && data.api_version !== "contract-v1") {
+    console.warn("Client out of date. Forcing update...");
+    hardRefresh();
+    return;
+  }
+  if (!silent && data.build_id && data.build_id !== CLIENT_BUILD_ID) {
+    const refreshCount = parseInt(
+      sessionStorage.getItem("pwa-refresh-count") || "0",
+    );
+    if (refreshCount >= 2) {
+      console.warn(
+        "Build ID mismatch persists; loading data without another hard reload.",
+      );
+      sessionStorage.removeItem("pwa-refresh-count");
+    } else {
+      console.warn(
+        `Build mismatch: server=${data.build_id}, client=${CLIENT_BUILD_ID}. Forcing update...`,
+      );
+      sessionStorage.setItem("pwa-refresh-count", (refreshCount + 1).toString());
+      hardRefresh();
+      return;
+    }
+  } else if (!silent) {
+    sessionStorage.removeItem("pwa-refresh-count");
+  }
+  const payload =
+    data.api_version != null && String(data.api_version).trim() !== ""
+      ? data
+      : { ...data, api_version: "contract-v1" };
+  mergeMetadata(payload);
+}
+
+async function ensureSummerCampaign(campaignId, { force = false } = {}) {
+  const id = String(campaignId || "");
+  if (!id) return;
+  if (!force && loadedSummerIds.has(id)) return;
+  if (!force && summerInflight.has(id)) return summerInflight.get(id);
+  const run = (async () => {
+    globalMetadata.value.summerLoading = true;
+    globalMetadata.value.summerError = "";
+    try {
+      await fetchScope("summer", id, true, force);
+      globalMetadata.value.summerError = "";
+    } catch (err) {
+      globalMetadata.value.summerError =
+        err?.message || "Could not load summer.";
+      console.error("Failed to load summer:", err);
+    } finally {
+      globalMetadata.value.summerLoading = false;
+      summerInflight.delete(id);
+    }
+  })();
+  summerInflight.set(id, run);
+  return run;
+}
+
+function summerCampaignForRoute() {
+  const seasons = globalMetadata.value.seasons || [];
+  const raw = String(route.query.season || "").trim();
+  if (raw) {
+    const match = seasons.find(
+      (season) =>
+        String(season?.id) === raw || String(season?.start_year) === raw,
+    );
+    if (match && String(match.kind || "") === "winter_reduced") return null;
+    if (match) return String(match.id);
+  }
+  const open = seasons.find(
+    (season) =>
+      String(season?.kind || "") === "summer_main" &&
+      String(season?.status || "").toLowerCase() === "open",
+  );
+  const any = seasons.find(
+    (season) => String(season?.kind || "") === "summer_main",
+  );
+  return String((open || any)?.id || "");
 }
 
 function scheduleGlobalMetadataReload() {
@@ -200,93 +368,13 @@ async function loadGlobalMetadata(silent = false, bustCache = false) {
       globalMetadata.value.loadError = "";
     }
     try {
-      // Do not pass ?season= here: that scopes fetch-all-data competitions to one
-      // season only, which drops prior seasons from `dashboard` (e.g. no 2025 results).
-      const requestUrl = buildFetchAllDataUrl(
-        FETCH_ALL_DATA_URL,
-        "",
-        bustCache,
-      );
-
-      const response = await fetch(requestUrl, {
-        cache: "no-store",
-        headers: {
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          apikey: SUPABASE_ANON_KEY,
-        },
-      });
-      const text = await response.text();
-      let data;
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error("Server returned invalid data.");
-      }
-      if (data?.error) {
-        const msg =
-          typeof data.error === "string"
-            ? data.error
-            : data.error?.message || "Server error";
-        throw new Error(msg);
-      }
-      if (!response.ok) {
-        throw new Error(`Could not load data (${response.status}).`);
-      }
-
-      if (!data || typeof data !== "object" || !Array.isArray(data.seasons)) {
-        throw new Error("Server contract invalid.");
-      }
-
-      // Never hard-reload the page on background refresh — causes white flashes and
-      // retry UI loops when the network stack is not ready yet.
-      if (
-        !silent &&
-        data.api_version &&
-        data.api_version !== "contract-v1"
-      ) {
-        console.warn("Client out of date. Forcing update...");
-        hardRefresh();
-        return;
-      }
-
-      if (!silent && data.build_id && data.build_id !== CLIENT_BUILD_ID) {
-        const refreshCount = parseInt(
-          sessionStorage.getItem("pwa-refresh-count") || "0",
-        );
-        if (refreshCount >= 2) {
-          console.warn(
-            "Build ID mismatch persists; loading data without another hard reload.",
-          );
-          sessionStorage.removeItem("pwa-refresh-count");
-        } else {
-          console.warn(
-            `Build mismatch: server=${data.build_id}, client=${CLIENT_BUILD_ID}. Forcing update...`,
-          );
-          sessionStorage.setItem(
-            "pwa-refresh-count",
-            (refreshCount + 1).toString(),
-          );
-          hardRefresh();
-          return;
-        }
-      } else {
-        sessionStorage.removeItem("pwa-refresh-count");
-      }
-
-      if (silent && data.build_id && data.build_id !== CLIENT_BUILD_ID) {
-        console.info(
-          "[metadata] build_id differs on silent refresh; applying payload without reload.",
-          { server: data.build_id, client: CLIENT_BUILD_ID },
-        );
-      }
-
-      const payload =
-        data.api_version != null && String(data.api_version).trim() !== ""
-          ? data
-          : { ...data, api_version: "contract-v1" };
-
-      Object.assign(globalMetadata.value, payload);
+      await fetchScope("winter", null, silent, bustCache);
       globalMetadata.value.loadError = "";
+      if (silent && loadedSummerIds.size) {
+        for (const id of [...loadedSummerIds]) {
+          await ensureSummerCampaign(id, { force: true });
+        }
+      }
     } catch (err) {
       if (!silent) {
         globalMetadata.value.loadError =
@@ -441,6 +529,20 @@ watch(
     ) {
       router.replace("/stats");
     }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [
+    route.name,
+    route.query.season,
+    (globalMetadata.value.seasons || []).length,
+  ],
+  () => {
+    if (!summerRouteNames.has(String(route.name || ""))) return;
+    const id = summerCampaignForRoute();
+    if (id) void ensureSummerCampaign(id);
   },
   { immediate: true },
 );
