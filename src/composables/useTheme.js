@@ -8,7 +8,7 @@ const applyTheme = (value) => {
     document.documentElement.style.colorScheme = value;
     document.querySelector('meta[name="theme-color"]')?.setAttribute(
         'content',
-        value === 'dark' ? '#1A1B1E' : '#f8f9fa',
+        value === 'dark' ? '#12151c' : '#f9f7f2',
     );
 };
 

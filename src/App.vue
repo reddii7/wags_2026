@@ -985,15 +985,15 @@ onBeforeUnmount(() => {
 
 <style>
 .bottom-nav {
-  background: var(--bg) !important;
+  background: var(--nav-glass-bg) !important;
 }
 
 .theme-switch {
   flex: 0 0 auto;
-  border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
-  background: transparent;
+  border: 0.5px solid var(--line, rgba(255, 255, 255, 0.14));
+  background: var(--surface-2);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: 999px;
   padding: 0.32rem 0.72rem;
   font: inherit;
   font-size: 0.78rem;
