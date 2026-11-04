@@ -1034,9 +1034,9 @@ p.season-mast__year {
 }
 
 .quiet-list {
-    background: var(--surface-2);
+    background: var(--surface-1);
     border: 0.5px solid var(--line);
-    border-radius: 22px;
+    border-radius: 28px;
     padding: 0.35rem 0.95rem 0.45rem;
 }
 
