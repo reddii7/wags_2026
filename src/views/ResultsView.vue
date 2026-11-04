@@ -270,21 +270,21 @@ watch(
       </div>
     </section>
 
-    <nav v-if="competitionsForSeason.length > 1" class="f1-round-nav">
-      <div class="f1-round-scroll">
+    <nav
+      v-if="competitionsForSeason.length > 1"
+      class="hero-block home-hero journal-toolbar"
+      aria-label="Weeks"
+    >
+      <div class="journal-pills journal-pills--scroll">
         <button
           v-for="comp in competitionsForSeason"
           :key="comp.id"
           type="button"
-          class="f1-round-item"
+          class="journal-pill"
           :class="{ active: selectedCompetitionId === comp.id }"
           @click="selectedCompetitionId = comp.id"
         >
           {{ formatWeekLabel(comp) }}
-          <span
-            v-if="selectedCompetitionId === comp.id"
-            class="f1-round-line"
-          ></span>
         </button>
       </div>
     </nav>
