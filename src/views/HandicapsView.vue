@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import AppDialog from "../components/AppDialog.vue";
-import JournalToolbar from "../components/JournalToolbar.vue";
 import QuietList from "../components/QuietList.vue";
 import QuietSparkline from "../components/QuietSparkline.vue";
 import { normId } from "../composables/resolveHomeDashboard.js";
@@ -21,14 +20,6 @@ const props = defineProps({
     type: Object,
     default: null,
   },
-});
-
-const seasonLabel = computed(() => {
-  const season = props.season;
-  if (!season) return "Summer";
-  const name = String(season.name || "").trim();
-  if (name) return name;
-  return `Summer ${season.start_year || ""}`.trim();
 });
 
 const players = ref([]);
@@ -296,7 +287,6 @@ watch(selectedPlayerId, async (playerId, previous) => {
 
 <template>
   <section class="page-stack handicaps-page">
-    <JournalToolbar :season-label="seasonLabel" />
     <section class="hero-block home-hero">
       <div class="home-hero__intro">
         <div class="wags-headline" style="margin-bottom: 0.5rem">

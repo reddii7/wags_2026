@@ -1,7 +1,6 @@
 <script setup>
 import { computed, watch } from "vue";
 import { triggerHapticFeedback } from "../utils/haptics";
-import JournalToolbar from "../components/JournalToolbar.vue";
 import QuietList from "../components/QuietList.vue";
 
 const props = defineProps({
@@ -19,14 +18,6 @@ const getPlayer = (id) => {
     }
   );
 };
-
-const seasonLabel = computed(() => {
-  const season = props.season;
-  if (!season) return "Summer";
-  const name = String(season.name || "").trim();
-  if (name) return name;
-  return `Summer ${season.start_year || ""}`.trim();
-});
 
 // Find the tournament for this season
 const tournament = computed(() => {
@@ -173,7 +164,6 @@ const roundsWithMatches = computed(() => {
 
 <template>
   <section class="page-stack rscup-page">
-    <JournalToolbar :season-label="seasonLabel" />
     <section class="hero-block home-hero cup-hero knockout-hero">
       <div class="home-hero__intro">
         <div class="wags-headline">RS Cup 2026</div>

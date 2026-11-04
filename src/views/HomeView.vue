@@ -1,15 +1,16 @@
 <script setup>
 import { computed, ref, watch, nextTick } from "vue";
 import { useRoute } from "vue-router";
-import JournalToolbar from "../components/JournalToolbar.vue";
 import QuietList from "../components/QuietList.vue";
 import { resolveHomeDashboardBlock } from "../composables/resolveHomeDashboard.js";
+import { useTheme } from "../composables/useTheme.js";
 import { triggerHapticFeedback } from "../utils/haptics";
 
 const props = defineProps({
   metadata: { type: Object, required: true },
 });
 const route = useRoute();
+const { theme, toggleTheme } = useTheme();
 
 const loading = ref(true);
 const error = ref("");
@@ -172,6 +173,11 @@ function countingLabel(row) {
   return `${n} rounds`;
 }
 
+function onToggleTheme() {
+  triggerHapticFeedback();
+  toggleTheme();
+}
+
 function formatDayMonth(isoLike) {
   const dStr = typeof isoLike === "string" ? isoLike.trim().slice(0, 10) : "";
   if (!dStr || !/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return "";
@@ -223,10 +229,6 @@ const winterYear = computed(() => {
   const year = winterSeason.value?.start_year;
   return year != null && String(year).trim() !== "" ? String(year) : "";
 });
-
-const winterSeasonLabel = computed(() =>
-  winterYear.value ? `Winter ${winterYear.value}` : "Winter",
-);
 
 const weekKicker = computed(() => {
   const summary = selectedWeekSummary.value;
@@ -417,20 +419,20 @@ watch(
 
 <template>
   <section class="winter-screen">
-    <JournalToolbar :season-label="winterSeasonLabel">
-      <template v-if="winterTab === 'week' && winterWeeks.length > 1">
+    <header class="season-mast">
+      <div class="season-mast__top">
+        <h1 class="season-mast__title">Winter</h1>
         <button
-          v-for="week in winterWeeks"
-          :key="week.id"
           type="button"
-          class="journal-pill"
-          :class="{ active: selectedWeekId === week.id }"
-          @click="selectWeek(week.id)"
+          class="theme-switch"
+          :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+          @click="onToggleTheme"
         >
-          {{ week.week_label || `WK${week.week_number}` }}
+          {{ theme === "dark" ? "Light" : "Dark" }}
         </button>
-      </template>
-    </JournalToolbar>
+      </div>
+      <p v-if="winterYear" class="season-mast__year">{{ winterYear }}</p>
+    </header>
 
     <section
       v-if="loading"
@@ -464,6 +466,26 @@ watch(
           </div>
         </div>
       </section>
+
+      <nav
+        v-if="winterWeeks.length > 1"
+        class="f1-round-nav"
+        aria-label="Weeks"
+      >
+        <div class="f1-round-scroll">
+          <button
+            v-for="week in winterWeeks"
+            :key="week.id"
+            type="button"
+            class="f1-round-item"
+            :class="{ active: selectedWeekId === week.id }"
+            @click="selectWeek(week.id)"
+          >
+            {{ week.week_label || `WK${week.week_number}` }}
+            <span v-if="selectedWeekId === week.id" class="f1-round-line"></span>
+          </button>
+        </div>
+      </nav>
 
       <section class="results-shell">
         <div class="results-shell__body">
@@ -577,7 +599,6 @@ watch(
 .winter-screen {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
 }
 
 .quiet-list-row[role="row"][tabindex] {
