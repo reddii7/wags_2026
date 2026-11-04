@@ -993,7 +993,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
   background: transparent;
   color: var(--text);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.32rem 0.72rem;
   font: inherit;
   font-size: 0.78rem;
@@ -1046,7 +1046,7 @@ onBeforeUnmount(() => {
   background: var(--bg, #111);
   color: var(--text, #eee);
   padding: 0.35rem 0.75rem;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
 }

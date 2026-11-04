@@ -308,10 +308,8 @@ function pickSeason(seasonId) {
 
 <style scoped>
 .hub-header {
-  background: var(--bg-strong);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--surface-100);
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
   z-index: 10;

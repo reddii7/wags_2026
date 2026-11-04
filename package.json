@@ -20,6 +20,7 @@
     "build:all": "npm run build && npm run admin:build"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
     "@supabase/supabase-js": "^2.104.0",
     "@vueuse/core": "^14.2.1",
     "entities": "^8.0.0",
