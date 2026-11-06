@@ -27,37 +27,82 @@ function onToggleTheme() {
     </button>
 
     <div class="welcome__art" aria-hidden="true">
-      <svg class="welcome__ball" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice">
-        <defs>
-          <radialGradient id="ball-shade" cx="48%" cy="28%" r="78%">
-            <stop offset="0%" stop-color="#ffffff" />
-            <stop offset="62%" stop-color="#f4f1ea" />
-            <stop offset="100%" stop-color="#e7efe4" />
-          </radialGradient>
-          <pattern id="ball-dimples" width="52" height="46" patternUnits="userSpaceOnUse">
-            <circle cx="14" cy="14" r="9" fill="#2f5d3a" fill-opacity="0.07" stroke="#2f5d3a" stroke-opacity="0.42" stroke-width="1.15" />
-            <circle cx="40" cy="36" r="9" fill="#2f5d3a" fill-opacity="0.07" stroke="#2f5d3a" stroke-opacity="0.42" stroke-width="1.15" />
-          </pattern>
-        </defs>
-        <rect width="400" height="400" fill="url(#ball-shade)" />
-        <rect width="400" height="400" fill="url(#ball-dimples)" />
+      <svg class="welcome__ball" viewBox="0 0 390 700" preserveAspectRatio="xMidYMid slice">
+        <rect width="390" height="700" fill="#ef8986" />
+        <g fill="none" stroke="#ffffff" stroke-linecap="round">
+          <g stroke-width="1.35" stroke-opacity="0.9">
+            <ellipse cx="48" cy="52" rx="78" ry="60" transform="rotate(-12 48 52)" />
+            <ellipse cx="48" cy="52" rx="52" ry="40" transform="rotate(-12 48 52)" />
+            <ellipse cx="48" cy="52" rx="28" ry="21" transform="rotate(-12 48 52)" />
+            <ellipse cx="196" cy="24" rx="86" ry="64" transform="rotate(8 196 24)" />
+            <ellipse cx="196" cy="24" rx="58" ry="43" transform="rotate(8 196 24)" />
+            <ellipse cx="196" cy="24" rx="32" ry="23" transform="rotate(8 196 24)" />
+            <ellipse cx="348" cy="78" rx="80" ry="62" transform="rotate(-6 348 78)" />
+            <ellipse cx="348" cy="78" rx="54" ry="41" transform="rotate(-6 348 78)" />
+            <ellipse cx="348" cy="78" rx="30" ry="22" transform="rotate(-6 348 78)" />
+            <ellipse cx="18" cy="210" rx="74" ry="56" transform="rotate(10 18 210)" />
+            <ellipse cx="18" cy="210" rx="48" ry="36" transform="rotate(10 18 210)" />
+            <ellipse cx="118" cy="188" rx="82" ry="62" transform="rotate(-14 118 188)" />
+            <ellipse cx="118" cy="188" rx="56" ry="42" transform="rotate(-14 118 188)" />
+            <ellipse cx="118" cy="188" rx="30" ry="22" transform="rotate(-14 118 188)" />
+            <ellipse cx="268" cy="168" rx="76" ry="58" transform="rotate(12 268 168)" />
+            <ellipse cx="268" cy="168" rx="50" ry="38" transform="rotate(12 268 168)" />
+            <ellipse cx="268" cy="168" rx="26" ry="19" transform="rotate(12 268 168)" />
+            <ellipse cx="392" cy="214" rx="70" ry="52" transform="rotate(-8 392 214)" />
+            <ellipse cx="392" cy="214" rx="44" ry="33" transform="rotate(-8 392 214)" />
+            <ellipse cx="62" cy="348" rx="88" ry="66" transform="rotate(-8 62 348)" />
+            <ellipse cx="62" cy="348" rx="60" ry="44" transform="rotate(-8 62 348)" />
+            <ellipse cx="62" cy="348" rx="32" ry="23" transform="rotate(-8 62 348)" />
+            <ellipse cx="210" cy="332" rx="80" ry="60" transform="rotate(14 210 332)" />
+            <ellipse cx="210" cy="332" rx="54" ry="40" transform="rotate(14 210 332)" />
+            <ellipse cx="210" cy="332" rx="28" ry="20" transform="rotate(14 210 332)" />
+            <ellipse cx="352" cy="368" rx="84" ry="62" transform="rotate(-10 352 368)" />
+            <ellipse cx="352" cy="368" rx="56" ry="42" transform="rotate(-10 352 368)" />
+            <ellipse cx="352" cy="368" rx="30" ry="22" transform="rotate(-10 352 368)" />
+            <ellipse cx="24" cy="500" rx="72" ry="54" transform="rotate(8 24 500)" />
+            <ellipse cx="24" cy="500" rx="46" ry="34" transform="rotate(8 24 500)" />
+            <ellipse cx="156" cy="488" rx="90" ry="66" transform="rotate(-12 156 488)" />
+            <ellipse cx="156" cy="488" rx="62" ry="46" transform="rotate(-12 156 488)" />
+            <ellipse cx="156" cy="488" rx="34" ry="24" transform="rotate(-12 156 488)" />
+            <ellipse cx="304" cy="516" rx="78" ry="58" transform="rotate(10 304 516)" />
+            <ellipse cx="304" cy="516" rx="52" ry="38" transform="rotate(10 304 516)" />
+            <ellipse cx="304" cy="516" rx="26" ry="19" transform="rotate(10 304 516)" />
+            <ellipse cx="80" cy="640" rx="76" ry="56" transform="rotate(-6 80 640)" />
+            <ellipse cx="80" cy="640" rx="48" ry="36" transform="rotate(-6 80 640)" />
+            <ellipse cx="230" cy="628" rx="84" ry="62" transform="rotate(8 230 628)" />
+            <ellipse cx="230" cy="628" rx="56" ry="40" transform="rotate(8 230 628)" />
+            <ellipse cx="370" cy="652" rx="70" ry="52" transform="rotate(-14 370 652)" />
+            <ellipse cx="370" cy="652" rx="44" ry="32" transform="rotate(-14 370 652)" />
+          </g>
+        </g>
       </svg>
-      <svg class="welcome__curve" viewBox="0 0 400 90" preserveAspectRatio="none">
-        <path class="welcome__wave" d="M0 34c72 48 128-30 206-4 54 18 112-18 194 8v52H0Z" />
+      <svg class="welcome__curve" viewBox="0 0 400 100" preserveAspectRatio="none">
+        <path
+          class="welcome__wave"
+          d="M0 18C36 6 78 0 118 8c48 10 86 28 132 52 36 18 78 28 150 16V100H0Z"
+        />
       </svg>
     </div>
 
     <div class="welcome__sheet">
       <h1>Welcome</h1>
-      <p>Summer is the main season, with results and standings. Winter is this week and Best 10.</p>
+      <p>Summer is the main season. Winter is this week and Best 10.</p>
       <div class="welcome__actions">
         <button type="button" class="go" @click="choose('summer')">
-          <span>Continue to <strong>Summer</strong></span>
-          <span class="go__mark" aria-hidden="true">→</span>
+          <span>Summer</span>
+          <span class="go__mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path d="M4 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
         </button>
         <button type="button" class="go" @click="choose('winter')">
-          <span>Continue to <strong>Winter</strong></span>
-          <span class="go__mark" aria-hidden="true">→</span>
+          <span>Winter</span>
+          <span class="go__mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path d="M4 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
         </button>
       </div>
     </div>
@@ -68,27 +113,28 @@ function onToggleTheme() {
 .welcome {
   display: flex;
   flex-direction: column;
-  min-height: calc(
-    100dvh - env(safe-area-inset-top, 0px) - 5.6rem - env(safe-area-inset-bottom, 0px)
-  );
+  height: 100%;
+  min-height: calc(100dvh - 5.6rem - env(safe-area-inset-bottom, 0px));
   background: #ffffff;
-  color: #1a1a1a;
+  color: #3c3c3c;
 }
 
 .welcome__theme {
   position: fixed;
   z-index: 35;
-  top: calc(env(safe-area-inset-top, 0px) + 0.7rem);
+  top: calc(env(safe-area-inset-top, 0px) + 0.55rem);
   right: 0.85rem;
   background: #ffffff;
+  color: #3c3c3c;
 }
 
 .welcome__art {
   position: relative;
-  flex: 1.05 1 0;
-  min-height: 16rem;
+  flex: 0 0 auto;
+  height: calc((100dvh - 5.6rem - env(safe-area-inset-bottom, 0px)) * 0.64);
   overflow: hidden;
   line-height: 0;
+  background: #ef8986;
 }
 
 .welcome__ball {
@@ -105,7 +151,7 @@ function onToggleTheme() {
   right: 0;
   bottom: -1px;
   width: 100%;
-  height: 4.6rem;
+  height: 23%;
   display: block;
 }
 
@@ -114,27 +160,29 @@ function onToggleTheme() {
 }
 
 .welcome__sheet {
-  flex: 0.95 1 auto;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  padding: 0.15rem 1.35rem 1.15rem;
+  min-height: 0;
+  padding: 1.15rem 1.15rem 1.05rem 1.35rem;
   background: #ffffff;
 }
 
 .welcome__sheet h1 {
   margin: 0;
+  color: #3c3c3c;
   font-family: var(--font-serif);
-  font-size: clamp(2rem, 7vw, 2.4rem);
+  font-size: 2rem;
   font-weight: 700;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.03em;
   line-height: 1.05;
 }
 
 .welcome__sheet p {
   margin: 0.7rem 0 0;
-  max-width: 22rem;
-  color: #1a1a1a8f;
-  font-size: 0.98rem;
+  max-width: 17.5rem;
+  color: #a3a3a3;
+  font-size: 0.92rem;
   line-height: 1.45;
 }
 
@@ -142,41 +190,35 @@ function onToggleTheme() {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.85rem;
+  gap: 0.7rem;
   margin-top: auto;
-  padding-top: 1.4rem;
+  padding-top: 1rem;
 }
 
 .go {
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.7rem;
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
-  color: #1a1a1a;
+  color: #727272;
   font: inherit;
-  font-size: 1rem;
+  font-size: 0.95rem;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-}
-
-.go strong {
-  font-weight: 700;
-  color: #2f5d3a;
 }
 
 .go__mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.7rem;
-  height: 2.7rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 50%;
-  background: #2f5d3a;
+  background: #ef8986;
   color: #ffffff;
-  font-size: 1.15rem;
 }
 
 :global([data-theme="dark"] .welcome),
@@ -186,7 +228,7 @@ function onToggleTheme() {
   fill: #12151c;
 }
 
-:global([data-theme="dark"] .welcome__sheet) {
+:global([data-theme="dark"] .welcome__sheet h1) {
   color: #e8edf5;
 }
 
@@ -195,22 +237,6 @@ function onToggleTheme() {
 }
 
 :global([data-theme="dark"] .go) {
-  color: #e8edf5;
-}
-
-:global([data-theme="dark"] .go strong),
-:global([data-theme="dark"] .go__mark) {
-  color: #12151c;
-  background: #3dd68c;
-}
-
-:global([data-theme="dark"] .go strong) {
-  background: transparent;
-  color: #3dd68c;
-}
-
-:global([data-theme="dark"] .welcome__theme) {
-  background: #12151c;
-  color: #e8edf5;
+  color: #c8c8c8;
 }
 </style>

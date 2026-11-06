@@ -1032,8 +1032,7 @@ onBeforeUnmount(() => {
 
 .app-shell.landing .app-main {
   overflow: hidden;
-  padding: env(safe-area-inset-top, 0px) 0
-    calc(5.6rem + env(safe-area-inset-bottom, 0px));
+  padding: 0 0 calc(5.6rem + env(safe-area-inset-bottom, 0px));
 }
 
 .app-shell.landing .view-frame {
