@@ -6,7 +6,6 @@ import SeasonLanding from "../components/SeasonLanding.vue";
 import { resolveHomeDashboardBlock } from "../composables/resolveHomeDashboard.js";
 import { useTheme } from "../composables/useTheme.js";
 import { triggerHapticFeedback } from "../utils/haptics";
-import { figureParts } from "../utils/figureParts.js";
 
 const props = defineProps({
   metadata: { type: Object, required: true },
@@ -469,17 +468,11 @@ watch(
       <section class="hero-block home-hero">
         <div class="home-hero__intro">
           <div class="wags-headline">
-            <span v-if="weekKicker" class="home-hero-sublabel">
+            <span v-if="weekKicker" class="home-hero-sublabel wags-body">
               {{ weekKicker }}
             </span>
             <template v-if="weekListRows.length">
-              <span>
-                <span
-                  v-for="(part, index) in figureParts(selectedWeekHero)"
-                  :key="index"
-                  :class="{ 'figure-accent': part.accent }"
-                >{{ part.text }}</span>
-              </span>
+              <span>{{ selectedWeekHero }}</span>
               <p class="home-hero-sublabel home-hero-subtext">
                 {{ weekPlayed }} played.
               </p>
@@ -527,8 +520,8 @@ watch(
       <section class="hero-block home-hero">
         <div class="home-hero__intro">
           <div class="wags-headline">
-            <span class="home-hero-sublabel">Rolling pot</span>
-            <span class="figure-accent">{{ formatPounds(homePayload.rolling_pot_pence) }}</span>
+            <span class="home-hero-sublabel wags-body">Rolling pot</span>
+            <span>{{ formatPounds(homePayload.rolling_pot_pence) }}</span>
           </div>
         </div>
       </section>
@@ -623,7 +616,6 @@ watch(
 .winter-screen {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
 }
 
 .quiet-list-row[role="row"][tabindex] {

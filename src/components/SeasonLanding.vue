@@ -18,6 +18,11 @@ function onToggleTheme() {
 <template>
   <section class="season-landing">
     <header class="season-landing__bar">
+      <span class="season-landing__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M4 7h16M4 12h16M4 17h16" />
+        </svg>
+      </span>
       <span class="season-landing__mark" aria-hidden="true">
         <span class="season-landing__w">W</span>
         <span class="season-landing__ball"></span>
@@ -33,14 +38,14 @@ function onToggleTheme() {
     </header>
 
     <h1 class="season-landing__title">WAGS Golf<br />Society.</h1>
-    <p class="season-landing__prompt">Select a season.</p>
+    <p class="season-landing__prompt">Select a Season.</p>
 
     <div class="season-pick">
       <button type="button" class="season-card" @click="choose('summer')">
         <img src="/season-summer.jpg" alt="" class="season-card__photo" />
         <span class="season-card__caption">
           <span class="season-card__copy">
-            <span class="season-card__name"><span>Summer</span> Season</span>
+            <span class="season-card__name">Summer Season</span>
             <span class="season-card__note">
               Main Season Standings, Results, &amp; Fixtures
             </span>
@@ -53,7 +58,7 @@ function onToggleTheme() {
         <img src="/season-winter.jpg" alt="" class="season-card__photo" />
         <span class="season-card__caption">
           <span class="season-card__copy">
-            <span class="season-card__name"><span>Winter</span> Season</span>
+            <span class="season-card__name">Winter Season</span>
             <span class="season-card__note">
               Winter League Results &amp; Leaderboards
             </span>
@@ -67,70 +72,86 @@ function onToggleTheme() {
 
 <style scoped>
 .season-landing {
-  color: var(--text);
-  font-family: var(--font-sans);
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
 }
 
 .season-landing__bar {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 2.4rem;
+  justify-content: space-between;
+  min-height: 2.75rem;
   margin-bottom: 0.85rem;
-  color: var(--accent);
+  color: #2f5d3a;
+}
+
+.season-landing__icon {
+  width: 1.7rem;
+  height: 1.7rem;
+  display: inline-flex;
+  color: #2f5d3a;
 }
 
 .season-landing__theme {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  position: relative;
   z-index: 1;
 }
 
+.season-landing__icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .season-landing__mark {
-  position: relative;
-  width: 2.35rem;
-  height: 2.2rem;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2.7rem;
+  height: 2.5rem;
 }
 
 .season-landing__w {
-  font-family: var(--font-serif);
-  font-size: 2.15rem;
-  font-weight: 650;
+  font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  font-size: 2.55rem;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: -0.04em;
-  color: var(--accent);
+  color: #2f5d3a;
 }
 
 .season-landing__ball {
   position: absolute;
-  top: 0.08rem;
-  right: -0.05rem;
-  width: 0.38rem;
-  height: 0.38rem;
+  top: 0.12rem;
+  right: -0.15rem;
+  width: 0.42rem;
+  height: 0.42rem;
   border-radius: 50%;
-  background: var(--accent);
+  background: #2f5d3a;
 }
 
 .season-landing__title {
   margin: 0;
-  font-family: var(--font-serif);
-  font-size: clamp(1.7rem, 4.6vw, 2.05rem);
+  font-size: clamp(2.15rem, 9vw, 2.55rem);
   font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-  color: var(--text);
+  letter-spacing: -0.045em;
+  line-height: 0.94;
+  color: #1a1a1a;
 }
 
 .season-landing__prompt {
-  margin: 0.4rem 0 0;
-  font-size: 0.95rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  margin: 0.45rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   line-height: 1.2;
-  color: var(--accent);
+  color: #3f3f3f;
 }
 
 .season-pick {
@@ -148,7 +169,7 @@ function onToggleTheme() {
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 28px;
+  border-radius: 22px;
   overflow: hidden;
   background: #d7d4cc;
   box-shadow: 0 8px 18px rgba(16, 16, 18, 0.06);
@@ -190,15 +211,11 @@ function onToggleTheme() {
 
 .season-card__name {
   display: block;
-  font-size: 1.15rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
+  font-size: 1.22rem;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
   color: #1a1a1a;
-}
-
-.season-card__name span {
-  color: #2f5d3a;
 }
 
 .season-card__note {
@@ -219,7 +236,25 @@ function onToggleTheme() {
   padding-bottom: 0.05rem;
 }
 
-:global([data-theme="dark"] .season-card__name span) {
+:global([data-theme="dark"] .season-landing) {
+  color: #e8edf5;
+}
+
+:global([data-theme="dark"] .season-landing__bar),
+:global([data-theme="dark"] .season-landing__icon),
+:global([data-theme="dark"] .season-landing__w) {
   color: #3dd68c;
+}
+
+:global([data-theme="dark"] .season-landing__ball) {
+  background: #3dd68c;
+}
+
+:global([data-theme="dark"] .season-landing__title) {
+  color: #e8edf5;
+}
+
+:global([data-theme="dark"] .season-landing__prompt) {
+  color: #e8edf5b8;
 }
 </style>
