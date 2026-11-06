@@ -148,6 +148,17 @@ const selectedSeason = computed(() => {
   );
 });
 
+const seasonLabel = computed(() => {
+  const season = selectedSeason.value;
+  if (!season) return "Season";
+  const name = String(season.name || "").trim();
+  if (name) return name;
+  const year = season.start_year ?? "";
+  return String(season.kind || "") === "winter_reduced"
+    ? `Winter ${year}`.trim()
+    : `Summer ${year}`.trim();
+});
+
 // Watch for season change: reset tab if needed, ensure nav works
 watch(selectedSeasonId, (newVal, oldVal) => {
   // Defensive: if new season is not found, fallback to first
@@ -207,48 +218,24 @@ function pickSeason(seasonId) {
 
 <template>
   <div class="stats-hub">
-    <header class="hub-header">
-      <button
-        type="button"
-        class="f1-season-row f1-season-row-trigger"
-        @click="openSeasonPicker"
-      >
-        <div class="f1-circle-trigger" aria-hidden="true">
-          <svg
-            width="10"
-            height="6"
-            viewBox="0 0 12 8"
-            fill="none"
-            class="f1-chevron"
-          >
-            <path
-              d="M1 1.5L6 6.5L11 1.5"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
-        <span class="f1-year-text">{{ selectedSeason?.start_year }}</span>
-        <span class="f1-season-label">Season</span>
+    <section class="hero-block home-hero hub-pane">
+      <button type="button" class="hub-season" @click="openSeasonPicker">
+        <span class="home-hero-sublabel">Season</span>
+        <span class="hub-season__name">{{ seasonLabel }}</span>
       </button>
-
-      <nav class="f1-section-nav">
+      <nav class="hub-tabs" aria-label="Sections">
         <button
           v-for="tab in tabs"
           :key="tab.id"
-          :class="['f1-section-tab', { active: activeTabId === tab.id }]"
+          type="button"
+          class="hub-tab"
+          :class="{ active: activeTabId === tab.id }"
           @click="setTab(tab.id)"
         >
           {{ tab.label }}
-          <span
-            v-if="activeTabId === tab.id"
-            class="f1-section-underline"
-          ></span>
         </button>
       </nav>
-    </header>
+    </section>
 
     <main class="hub-content">
       <p v-if="metadata.summerError && !seasonReady" class="empty-state">
@@ -307,77 +294,61 @@ function pickSeason(seasonId) {
 </template>
 
 <style scoped>
-.hub-header {
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.f1-season-row {
+.stats-hub {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1.25rem 1rem 0.75rem;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
-.f1-season-row-trigger {
-  width: 100%;
+.hub-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.hub-season {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
   margin: 0;
-  border: none;
+  padding: 0;
+  border: 0;
   background: transparent;
-  cursor: pointer;
   color: inherit;
   font: inherit;
   text-align: left;
-  border-radius: 12px;
-  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 
-.f1-season-row-trigger:active .f1-circle-trigger {
-  background: var(--surface-4);
+.hub-season__name {
+  font-family: var(--font-serif);
+  font-size: clamp(1.45rem, 4vw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--accent);
 }
 
-.f1-circle-trigger {
-  position: relative;
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  background: var(--surface-3);
-  border-radius: 50%;
+.hub-tabs {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text);
-  transition: background 0.2s;
+  flex-wrap: wrap;
+  gap: 0.45rem;
 }
 
-.f1-year-text {
-  font-size: 1.4rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+.hub-tab {
+  border: 0.5px solid var(--line);
+  background: var(--surface-2);
   color: var(--text);
-  line-height: 1;
-  display: block;
+  border-radius: 999px;
+  padding: 0.4rem 0.7rem;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
 }
 
-.f1-season-label {
-  font-size: 1.4rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: var(--text);
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-
-.f1-section-nav {
-  display: flex;
-  gap: 1.1rem;
-  padding: 0 0.5rem;
-  margin-top: 0.5rem;
-  border-bottom: 1px solid var(--line);
-  justify-content: space-evenly;
+.hub-tab.active {
+  color: var(--accent);
 }
 
 .stats-season-list {

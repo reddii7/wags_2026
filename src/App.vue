@@ -531,12 +531,8 @@ const onLanding = computed(() => {
   return tab !== "week" && tab !== "best10";
 });
 
-watch([onLanding, theme], ([landing]) => {
-  const background = theme.value === "dark"
-    ? "#12151c"
-    : landing
-      ? "#ffffff"
-      : "#f9f7f2";
+watch(theme, () => {
+  const background = theme.value === "dark" ? "#12151c" : "#f9f7f2";
   document.documentElement.style.backgroundColor = background;
   document.body.style.backgroundColor = background;
   document.documentElement.style.colorScheme = theme.value;
@@ -1020,50 +1016,8 @@ onBeforeUnmount(() => {
   background: var(--nav-glass-bg) !important;
 }
 
-.app-shell.landing,
 .app-shell.landing .app-main {
-  background: #ffffff;
-}
-
-.app-shell.landing[data-theme="dark"],
-.app-shell.landing[data-theme="dark"] .app-main {
-  background: #12151c;
-}
-
-.app-shell.landing .app-main {
-  overflow: auto;
-  padding: calc(env(safe-area-inset-top, 0px) + 0.45rem) 1.05rem
-    calc(6.1rem + env(safe-area-inset-bottom, 0px));
-}
-
-.app-shell.landing .bottom-nav {
-  background: #ffffff !important;
-  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.app-shell.landing .bottom-nav-link {
-  color: #8d8d8d;
-}
-
-.app-shell.landing .bottom-nav-link.active,
-.app-shell.landing .bottom-nav-link.active .bottom-nav-label {
-  color: #2f5d3a;
-}
-
-.app-shell.landing[data-theme="dark"] .bottom-nav {
-  background: #12151ce0 !important;
-  border-top-color: rgba(255, 255, 255, 0.08);
-}
-
-.app-shell.landing[data-theme="dark"] .bottom-nav-link {
-  color: #e8edf58c;
-}
-
-.app-shell.landing[data-theme="dark"] .bottom-nav-link.active,
-.app-shell.landing[data-theme="dark"] .bottom-nav-link.active .bottom-nav-label {
-  color: #3dd68c;
+  background: var(--bg);
 }
 
 .theme-switch {

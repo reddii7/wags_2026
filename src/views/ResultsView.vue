@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import QuietList from "../components/QuietList.vue";
+import { figureParts } from "../utils/figureParts.js";
 
 const props = defineProps({
   season: { type: Object, required: true },
@@ -241,7 +242,7 @@ watch(
     <section class="hero-block home-hero">
       <div class="home-hero__intro">
         <div class="wags-headline">
-          <span class="home-hero-sublabel wags-body">
+          <span class="home-hero-sublabel">
             <template
               v-if="
                 selectedCompetition && weekNumberMap.has(selectedCompetitionId)
@@ -257,7 +258,13 @@ watch(
             >
           </span>
           <template v-if="rows.length">
-            <span>{{ heroMessage }}</span>
+            <span>
+              <span
+                v-for="(part, index) in figureParts(heroMessage)"
+                :key="index"
+                :class="{ 'figure-accent': part.accent }"
+              >{{ part.text }}</span>
+            </span>
             <p class="home-hero-sublabel home-hero-subtext">
               {{ heroStats.players }} played, {{ heroStats.snakes }} snakes,
               {{ heroStats.camels }} camels.
