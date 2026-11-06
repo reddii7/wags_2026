@@ -28,52 +28,39 @@ function onToggleTheme() {
 
     <div class="welcome__art" aria-hidden="true">
       <svg class="welcome__ball" viewBox="0 0 390 700" preserveAspectRatio="xMidYMid slice">
-        <rect width="390" height="700" fill="#ef8986" />
-        <g fill="none" stroke="#ffffff" stroke-linecap="round">
-          <g stroke-width="1.35" stroke-opacity="0.9">
-            <ellipse cx="48" cy="52" rx="78" ry="60" transform="rotate(-12 48 52)" />
-            <ellipse cx="48" cy="52" rx="52" ry="40" transform="rotate(-12 48 52)" />
-            <ellipse cx="48" cy="52" rx="28" ry="21" transform="rotate(-12 48 52)" />
-            <ellipse cx="196" cy="24" rx="86" ry="64" transform="rotate(8 196 24)" />
-            <ellipse cx="196" cy="24" rx="58" ry="43" transform="rotate(8 196 24)" />
-            <ellipse cx="196" cy="24" rx="32" ry="23" transform="rotate(8 196 24)" />
-            <ellipse cx="348" cy="78" rx="80" ry="62" transform="rotate(-6 348 78)" />
-            <ellipse cx="348" cy="78" rx="54" ry="41" transform="rotate(-6 348 78)" />
-            <ellipse cx="348" cy="78" rx="30" ry="22" transform="rotate(-6 348 78)" />
-            <ellipse cx="18" cy="210" rx="74" ry="56" transform="rotate(10 18 210)" />
-            <ellipse cx="18" cy="210" rx="48" ry="36" transform="rotate(10 18 210)" />
-            <ellipse cx="118" cy="188" rx="82" ry="62" transform="rotate(-14 118 188)" />
-            <ellipse cx="118" cy="188" rx="56" ry="42" transform="rotate(-14 118 188)" />
-            <ellipse cx="118" cy="188" rx="30" ry="22" transform="rotate(-14 118 188)" />
-            <ellipse cx="268" cy="168" rx="76" ry="58" transform="rotate(12 268 168)" />
-            <ellipse cx="268" cy="168" rx="50" ry="38" transform="rotate(12 268 168)" />
-            <ellipse cx="268" cy="168" rx="26" ry="19" transform="rotate(12 268 168)" />
-            <ellipse cx="392" cy="214" rx="70" ry="52" transform="rotate(-8 392 214)" />
-            <ellipse cx="392" cy="214" rx="44" ry="33" transform="rotate(-8 392 214)" />
-            <ellipse cx="62" cy="348" rx="88" ry="66" transform="rotate(-8 62 348)" />
-            <ellipse cx="62" cy="348" rx="60" ry="44" transform="rotate(-8 62 348)" />
-            <ellipse cx="62" cy="348" rx="32" ry="23" transform="rotate(-8 62 348)" />
-            <ellipse cx="210" cy="332" rx="80" ry="60" transform="rotate(14 210 332)" />
-            <ellipse cx="210" cy="332" rx="54" ry="40" transform="rotate(14 210 332)" />
-            <ellipse cx="210" cy="332" rx="28" ry="20" transform="rotate(14 210 332)" />
-            <ellipse cx="352" cy="368" rx="84" ry="62" transform="rotate(-10 352 368)" />
-            <ellipse cx="352" cy="368" rx="56" ry="42" transform="rotate(-10 352 368)" />
-            <ellipse cx="352" cy="368" rx="30" ry="22" transform="rotate(-10 352 368)" />
-            <ellipse cx="24" cy="500" rx="72" ry="54" transform="rotate(8 24 500)" />
-            <ellipse cx="24" cy="500" rx="46" ry="34" transform="rotate(8 24 500)" />
-            <ellipse cx="156" cy="488" rx="90" ry="66" transform="rotate(-12 156 488)" />
-            <ellipse cx="156" cy="488" rx="62" ry="46" transform="rotate(-12 156 488)" />
-            <ellipse cx="156" cy="488" rx="34" ry="24" transform="rotate(-12 156 488)" />
-            <ellipse cx="304" cy="516" rx="78" ry="58" transform="rotate(10 304 516)" />
-            <ellipse cx="304" cy="516" rx="52" ry="38" transform="rotate(10 304 516)" />
-            <ellipse cx="304" cy="516" rx="26" ry="19" transform="rotate(10 304 516)" />
-            <ellipse cx="80" cy="640" rx="76" ry="56" transform="rotate(-6 80 640)" />
-            <ellipse cx="80" cy="640" rx="48" ry="36" transform="rotate(-6 80 640)" />
-            <ellipse cx="230" cy="628" rx="84" ry="62" transform="rotate(8 230 628)" />
-            <ellipse cx="230" cy="628" rx="56" ry="40" transform="rotate(8 230 628)" />
-            <ellipse cx="370" cy="652" rx="70" ry="52" transform="rotate(-14 370 652)" />
-            <ellipse cx="370" cy="652" rx="44" ry="32" transform="rotate(-14 370 652)" />
-          </g>
+        <defs>
+          <radialGradient id="dimple" cx="34%" cy="30%" r="68%">
+            <stop offset="0%" stop-color="#f8c6be" />
+            <stop offset="46%" stop-color="#ee8b82" />
+            <stop offset="100%" stop-color="#cf5c54" />
+          </radialGradient>
+          <pattern id="dimples" width="26" height="22.5" patternUnits="userSpaceOnUse">
+            <circle cx="8" cy="8" r="8.4" fill="url(#dimple)" />
+            <circle cx="21" cy="19.2" r="8.4" fill="url(#dimple)" />
+          </pattern>
+        </defs>
+        <rect width="390" height="700" fill="#e56f66" />
+        <rect width="390" height="700" fill="url(#dimples)" />
+        <g fill="none" stroke="#fff8f6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.88">
+          <path d="M248 28c62-10 112 28 104 82-8 52-58 78-112 64-58-15-78-72-48-112 16-22 36-30 56-34z" />
+          <path d="M250 52c46-6 82 24 76 64-6 38-42 58-82 48-42-11-58-54-36-84 12-16 26-24 42-28z" />
+          <path d="M252 78c28-4 50 16 46 42-4 24-26 36-50 30-26-7-36-34-22-52 8-10 16-16 26-20z" />
+          <path d="M-16 168c48-36 96 18 154-8 52-24 96 22 150-6 28-14 62 8 96-8" />
+          <path d="M-16 196c50-34 98 22 156-4 54-24 94 26 148-2 30-16 64 10 98-6" />
+          <path d="M-16 226c52-30 100 26 158 0 56-26 92 30 146 2 32-16 66 12 100-4" />
+          <path d="M8 292c52-28 108 8 150 36 36 24 28 62-8 78-40 18-78-8-104-36-22-24-58-46-38-78z" />
+          <path d="M36 318c36-18 74 6 104 26 24 16 18 40-6 50-28 12-54-6-72-24-16-16-40-32-26-52z" />
+          <path d="M-20 390c70-18 120 36 190 8 62-24 110 8 180-6 22-4 48 10 70-2" />
+          <path d="M-20 416c74-8 124 48 196 14 64-30 108 18 176 2 24-6 46 16 72 4" />
+          <path d="M-20 446c78 6 128 58 202 22 66-34 104 28 172 12 26-6 44 20 74 10" />
+          <path d="M-20 478c80 18 130 64 206 30 68-32 100 36 168 22" />
+          <path d="M210 404c46-8 78 18 86 52 6 28-16 36-40 28" />
+          <path d="M228 422c28-4 48 14 52 34 4 16-10 22-24 16" />
+          <path d="M-16 548c64-34 120 28 188-4 62-30 108 22 168-8 36-18 62 6 90-10" />
+          <path d="M-16 578c66-30 122 32 190 0 64-30 106 26 166-4 38-18 64 8 92-8" />
+          <path d="M-16 610c68-26 124 36 192 4 66-30 104 30 164 0 40-20 66 10 94-6" />
+          <path d="M286 624c36-16 70 6 64 36-6 28-40 36-58 16-14-16-20-36-6-52z" />
+          <path d="M300 644c22-8 42 6 38 22-4 16-24 20-34 8-8-8-12-22-4-30z" />
         </g>
       </svg>
       <svg class="welcome__curve" viewBox="0 0 400 100" preserveAspectRatio="none">
@@ -134,7 +121,7 @@ function onToggleTheme() {
   height: calc((100dvh - 5.6rem - env(safe-area-inset-bottom, 0px)) * 0.64);
   overflow: hidden;
   line-height: 0;
-  background: #ef8986;
+  background: #e56f66;
 }
 
 .welcome__ball {
@@ -217,7 +204,7 @@ function onToggleTheme() {
   width: 2.25rem;
   height: 2.25rem;
   border-radius: 50%;
-  background: #ef8986;
+  background: #e56f66;
   color: #ffffff;
 }
 
