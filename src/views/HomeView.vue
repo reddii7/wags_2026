@@ -1,7 +1,8 @@
 <script setup>
 import { computed, ref, watch, nextTick } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import QuietList from "../components/QuietList.vue";
+import SeasonLanding from "../components/SeasonLanding.vue";
 import { resolveHomeDashboardBlock } from "../composables/resolveHomeDashboard.js";
 import { useTheme } from "../composables/useTheme.js";
 import { triggerHapticFeedback } from "../utils/haptics";
@@ -10,6 +11,7 @@ const props = defineProps({
   metadata: { type: Object, required: true },
 });
 const route = useRoute();
+const router = useRouter();
 const { theme, toggleTheme } = useTheme();
 
 const loading = ref(true);
@@ -280,6 +282,25 @@ const weekColumns = [
 const best10Columns =
   "3.5rem minmax(0, 1fr) 4.75rem";
 
+const showLanding = computed(() => {
+  const tab = String(route.query.tab || "").toLowerCase();
+  return tab !== "week" && tab !== "best10";
+});
+
+function chooseSeason(season) {
+  triggerHapticFeedback();
+  if (season === "summer") {
+    router.push("/stats");
+    return;
+  }
+  router.push({ path: "/", query: { tab: "week" } });
+}
+
+function backToSeasons() {
+  triggerHapticFeedback();
+  router.push({ path: "/" });
+}
+
 watch(
   () => route.query.tab,
   (tab) => {
@@ -418,8 +439,12 @@ watch(
 </script>
 
 <template>
-  <section class="winter-screen">
+  <SeasonLanding v-if="showLanding" @choose="chooseSeason" />
+  <section v-else class="winter-screen">
     <header class="season-mast">
+      <button type="button" class="season-back" @click="backToSeasons">
+        Seasons
+      </button>
       <div class="season-mast__top">
         <h1 class="season-mast__title">Winter</h1>
         <button
@@ -599,6 +624,20 @@ watch(
 .winter-screen {
   display: flex;
   flex-direction: column;
+}
+
+.season-back {
+  margin: 0 0 0.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  text-align: left;
 }
 
 .quiet-list-row[role="row"][tabindex] {

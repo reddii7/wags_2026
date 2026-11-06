@@ -524,6 +524,26 @@ const onSummerRoute = computed(() =>
   summerRouteNames.has(String(route.name || "")),
 );
 
+const onLanding = computed(() => {
+  if (String(route.name || "") !== "home") return false;
+  const tab = String(route.query.tab || "").toLowerCase();
+  return tab !== "week" && tab !== "best10";
+});
+
+watch([onLanding, theme], ([landing]) => {
+  const background = landing
+    ? "#f4f3ef"
+    : theme.value === "dark"
+      ? "#12151c"
+      : "#f9f7f2";
+  document.documentElement.style.backgroundColor = background;
+  document.body.style.backgroundColor = background;
+  document.documentElement.style.colorScheme = landing ? "light" : theme.value;
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", background);
+}, { immediate: true });
+
 const sections = computed(() =>
   onSummerRoute.value ? summerSections : winterSections,
 );
@@ -625,9 +645,18 @@ function findSection(name) {
 
 function switchSection(section) {
   triggerHapticFeedback();
-  if (section?.name === "week" || section?.name === "home") {
-    if (route.path !== "/" || route.query.tab || route.query.mode) {
+  if (section?.name === "home") {
+    if (route.path !== "/" || route.query.tab || route.query.mode || route.query.season) {
       router.push({ path: "/" });
+    }
+    return;
+  }
+  if (section?.name === "week") {
+    if (
+      route.path !== "/" ||
+      String(route.query.tab || "").toLowerCase() !== "week"
+    ) {
+      router.push({ path: "/", query: { tab: "week" } });
     }
     return;
   }
@@ -908,6 +937,7 @@ onBeforeUnmount(() => {
     :data-theme="theme"
     :class="{
       'chrome-hidden': chromeHidden,
+      landing: onLanding,
     }"
   >
     <div
@@ -968,7 +998,7 @@ onBeforeUnmount(() => {
       {{ theme === "dark" ? "Light" : "Dark" }}
     </button>
 
-    <nav class="bottom-nav" aria-label="Primary">
+    <nav v-if="!onLanding" class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
         :key="section.name"
@@ -986,6 +1016,17 @@ onBeforeUnmount(() => {
 <style>
 .bottom-nav {
   background: var(--nav-glass-bg) !important;
+}
+
+.app-shell.landing,
+.app-shell.landing .app-main {
+  background: #f4f3ef;
+}
+
+.app-shell.landing .app-main {
+  overflow: auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.7rem) 1.05rem
+    calc(0.85rem + env(safe-area-inset-bottom, 0px));
 }
 
 .theme-switch {
