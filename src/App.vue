@@ -1031,9 +1031,14 @@ onBeforeUnmount(() => {
 }
 
 .app-shell.landing .app-main {
-  overflow: auto;
-  padding: calc(env(safe-area-inset-top, 0px) + 0.45rem) 1.05rem
-    calc(6.1rem + env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+  padding: env(safe-area-inset-top, 0px) 0
+    calc(5.6rem + env(safe-area-inset-bottom, 0px));
+}
+
+.app-shell.landing .view-frame {
+  min-height: 0;
+  height: 100%;
 }
 
 .app-shell.landing .bottom-nav {
