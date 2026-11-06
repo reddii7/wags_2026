@@ -532,11 +532,9 @@ const onLanding = computed(() => {
 });
 
 watch([onLanding, theme], ([landing]) => {
-  const background = theme.value === "dark"
-    ? "#12151c"
-    : landing
-      ? "#ffffff"
-      : "#f9f7f2";
+  const background = landing
+    ? (theme.value === "dark" ? "#000000" : "#f2f2f7")
+    : (theme.value === "dark" ? "#12151c" : "#f9f7f2");
   document.documentElement.style.backgroundColor = background;
   document.body.style.backgroundColor = background;
   document.documentElement.style.colorScheme = theme.value;
@@ -1000,7 +998,7 @@ onBeforeUnmount(() => {
       {{ theme === "dark" ? "Light" : "Dark" }}
     </button>
 
-    <nav class="bottom-nav" aria-label="Primary">
+    <nav v-if="!onLanding" class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
         :key="section.name"
@@ -1022,52 +1020,22 @@ onBeforeUnmount(() => {
 
 .app-shell.landing,
 .app-shell.landing .app-main {
-  background: #ffffff;
+  background: #f2f2f7;
 }
 
 .app-shell.landing[data-theme="dark"],
 .app-shell.landing[data-theme="dark"] .app-main {
-  background: #12151c;
+  background: #000000;
 }
 
 .app-shell.landing .app-main {
   overflow: hidden;
-  padding: 0 0 calc(5.6rem + env(safe-area-inset-bottom, 0px));
+  padding: 0;
 }
 
 .app-shell.landing .view-frame {
   min-height: 0;
   height: 100%;
-}
-
-.app-shell.landing .bottom-nav {
-  background: #ffffff !important;
-  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.app-shell.landing .bottom-nav-link {
-  color: #8d8d8d;
-}
-
-.app-shell.landing .bottom-nav-link.active,
-.app-shell.landing .bottom-nav-link.active .bottom-nav-label {
-  color: #2f5d3a;
-}
-
-.app-shell.landing[data-theme="dark"] .bottom-nav {
-  background: #12151ce0 !important;
-  border-top-color: rgba(255, 255, 255, 0.08);
-}
-
-.app-shell.landing[data-theme="dark"] .bottom-nav-link {
-  color: #e8edf58c;
-}
-
-.app-shell.landing[data-theme="dark"] .bottom-nav-link.active,
-.app-shell.landing[data-theme="dark"] .bottom-nav-link.active .bottom-nav-label {
-  color: #3dd68c;
 }
 
 .theme-switch {
