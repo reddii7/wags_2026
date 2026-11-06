@@ -296,11 +296,6 @@ function chooseSeason(season) {
   router.push({ path: "/", query: { tab: "week" } });
 }
 
-function backToSeasons() {
-  triggerHapticFeedback();
-  router.push({ path: "/" });
-}
-
 watch(
   () => route.query.tab,
   (tab) => {
@@ -442,9 +437,6 @@ watch(
   <SeasonLanding v-if="showLanding" @choose="chooseSeason" />
   <section v-else class="winter-screen">
     <header class="season-mast">
-      <button type="button" class="season-back" @click="backToSeasons">
-        Seasons
-      </button>
       <div class="season-mast__top">
         <h1 class="season-mast__title">Winter</h1>
         <button
@@ -624,20 +616,6 @@ watch(
 .winter-screen {
   display: flex;
   flex-direction: column;
-}
-
-.season-back {
-  margin: 0 0 0.35rem;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-  text-align: left;
 }
 
 .quiet-list-row[role="row"][tabindex] {

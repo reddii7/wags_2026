@@ -445,6 +445,7 @@ function loadDataFromSupabase(...args) {
 }
 
 const winterSections = [
+  { name: "home", label: "Home", icon: "home", path: "/" },
   { name: "week", label: "This week", icon: "scores", path: "/" },
   { name: "best10", label: "Best 10", icon: "best14", path: "/" },
   { name: "summer", label: "Summer", icon: "trophy", path: "/stats" },
@@ -532,7 +533,7 @@ const onLanding = computed(() => {
 
 watch([onLanding, theme], ([landing]) => {
   const background = landing
-    ? "#f4f3ef"
+    ? "#ffffff"
     : theme.value === "dark"
       ? "#12151c"
       : "#f9f7f2";
@@ -550,6 +551,7 @@ const sections = computed(() =>
 
 const currentNavName = computed(() => {
   const routeName = String(route.name || "home");
+  if (onLanding.value) return "home";
   if (onSummerRoute.value) {
     return statsRouteNames.has(routeName) ? "stats" : routeName;
   }
@@ -998,7 +1000,7 @@ onBeforeUnmount(() => {
       {{ theme === "dark" ? "Light" : "Dark" }}
     </button>
 
-    <nav v-if="!onLanding" class="bottom-nav" aria-label="Primary">
+    <nav class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
         :key="section.name"
@@ -1020,13 +1022,29 @@ onBeforeUnmount(() => {
 
 .app-shell.landing,
 .app-shell.landing .app-main {
-  background: #f4f3ef;
+  background: #ffffff;
 }
 
 .app-shell.landing .app-main {
   overflow: auto;
-  padding: calc(env(safe-area-inset-top, 0px) + 0.7rem) 1.05rem
-    calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  padding: calc(env(safe-area-inset-top, 0px) + 0.45rem) 1.05rem
+    calc(6.1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.app-shell.landing .bottom-nav {
+  background: #ffffff !important;
+  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.app-shell.landing .bottom-nav-link {
+  color: #8d8d8d;
+}
+
+.app-shell.landing .bottom-nav-link.active,
+.app-shell.landing .bottom-nav-link.active .bottom-nav-label {
+  color: #2f5d3a;
 }
 
 .theme-switch {
