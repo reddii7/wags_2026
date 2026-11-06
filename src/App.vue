@@ -532,14 +532,14 @@ const onLanding = computed(() => {
 });
 
 watch([onLanding, theme], ([landing]) => {
-  const background = landing
-    ? "#ffffff"
-    : theme.value === "dark"
-      ? "#12151c"
+  const background = theme.value === "dark"
+    ? "#12151c"
+    : landing
+      ? "#ffffff"
       : "#f9f7f2";
   document.documentElement.style.backgroundColor = background;
   document.body.style.backgroundColor = background;
-  document.documentElement.style.colorScheme = landing ? "light" : theme.value;
+  document.documentElement.style.colorScheme = theme.value;
   document
     .querySelector('meta[name="theme-color"]')
     ?.setAttribute("content", background);
@@ -1025,6 +1025,11 @@ onBeforeUnmount(() => {
   background: #ffffff;
 }
 
+.app-shell.landing[data-theme="dark"],
+.app-shell.landing[data-theme="dark"] .app-main {
+  background: #12151c;
+}
+
 .app-shell.landing .app-main {
   overflow: auto;
   padding: calc(env(safe-area-inset-top, 0px) + 0.45rem) 1.05rem
@@ -1045,6 +1050,20 @@ onBeforeUnmount(() => {
 .app-shell.landing .bottom-nav-link.active,
 .app-shell.landing .bottom-nav-link.active .bottom-nav-label {
   color: #2f5d3a;
+}
+
+.app-shell.landing[data-theme="dark"] .bottom-nav {
+  background: #12151ce0 !important;
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+.app-shell.landing[data-theme="dark"] .bottom-nav-link {
+  color: #e8edf58c;
+}
+
+.app-shell.landing[data-theme="dark"] .bottom-nav-link.active,
+.app-shell.landing[data-theme="dark"] .bottom-nav-link.active .bottom-nav-label {
+  color: #3dd68c;
 }
 
 .theme-switch {

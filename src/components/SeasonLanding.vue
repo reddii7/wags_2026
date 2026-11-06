@@ -1,8 +1,17 @@
 <script setup>
+import { useTheme } from "../composables/useTheme.js";
+import { triggerHapticFeedback } from "../utils/haptics";
+
 const emit = defineEmits(["choose"]);
+const { theme, toggleTheme } = useTheme();
 
 function choose(season) {
   emit("choose", season);
+}
+
+function onToggleTheme() {
+  triggerHapticFeedback();
+  toggleTheme();
 }
 </script>
 
@@ -18,13 +27,14 @@ function choose(season) {
         <span class="season-landing__w">W</span>
         <span class="season-landing__ball"></span>
       </span>
-      <span class="season-landing__avatar" aria-hidden="true">
-        <svg viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="9" />
-          <circle cx="12" cy="10" r="2.2" />
-          <path d="M7.8 17.2a4.4 4.4 0 0 1 8.4 0" />
-        </svg>
-      </span>
+      <button
+        type="button"
+        class="theme-switch season-landing__theme"
+        :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+        @click="onToggleTheme"
+      >
+        {{ theme === "dark" ? "Light" : "Dark" }}
+      </button>
     </header>
 
     <h1 class="season-landing__title">WAGS Golf<br />Society.</h1>
@@ -76,16 +86,19 @@ function choose(season) {
   color: #2f5d3a;
 }
 
-.season-landing__icon,
-.season-landing__avatar {
+.season-landing__icon {
   width: 1.7rem;
   height: 1.7rem;
   display: inline-flex;
   color: #2f5d3a;
 }
 
-.season-landing__icon svg,
-.season-landing__avatar svg {
+.season-landing__theme {
+  position: relative;
+  z-index: 1;
+}
+
+.season-landing__icon svg {
   width: 100%;
   height: 100%;
   fill: none;
@@ -221,5 +234,27 @@ function choose(season) {
   line-height: 1;
   color: #1a1a1a;
   padding-bottom: 0.05rem;
+}
+
+:global([data-theme="dark"] .season-landing) {
+  color: #e8edf5;
+}
+
+:global([data-theme="dark"] .season-landing__bar),
+:global([data-theme="dark"] .season-landing__icon),
+:global([data-theme="dark"] .season-landing__w) {
+  color: #3dd68c;
+}
+
+:global([data-theme="dark"] .season-landing__ball) {
+  background: #3dd68c;
+}
+
+:global([data-theme="dark"] .season-landing__title) {
+  color: #e8edf5;
+}
+
+:global([data-theme="dark"] .season-landing__prompt) {
+  color: #e8edf5b8;
 }
 </style>
