@@ -12,7 +12,7 @@ const videoSrc =
   `https://www.youtube-nocookie.com/embed/${videoId}` +
   "?autoplay=1&mute=1&controls=0&playsinline=1&loop=1" +
   `&playlist=${videoId}&rel=0&modestbranding=1&enablejsapi=1` +
-  `&disablekb=1&fs=0&iv_load_policy=3&start=2&origin=${encodeURIComponent(window.location.origin)}`;
+  `&disablekb=1&fs=0&iv_load_policy=3&start=3&origin=${encodeURIComponent(window.location.origin)}`;
 const frame = ref(null);
 const playing = ref(false);
 let player;
@@ -23,7 +23,7 @@ function skipIntro() {
   if (!player?.getCurrentTime || !player?.seekTo) return;
   try {
     const time = player.getCurrentTime();
-    if (typeof time === "number" && time < 1.85) player.seekTo(2, true);
+    if (typeof time === "number" && time < 2.85) player.seekTo(3, true);
   } catch {
     /* ignore a seek before the film is ready */
   }
