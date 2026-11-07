@@ -6,7 +6,7 @@ import { triggerHapticFeedback } from "../utils/haptics";
 const emit = defineEmits(["choose"]);
 const { theme, toggleTheme } = useTheme();
 
-const videoId = "iNfH9cCcztY";
+const videoId = "md_CSMNegXI";
 const poster = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
 const frame = ref(null);
 const playing = ref(false);
@@ -96,14 +96,16 @@ function onToggleTheme() {
         </button>
       </header>
 
-      <p class="welcome__badge">Sutton WAGS</p>
-      <h1>Two seasons. The <em>best</em> golf, close to home.</h1>
-      <p class="welcome__lead">
-        Summer is the main season, with results and standings. Winter is the shorter game: this week and Best 10.
-      </p>
-      <div class="welcome__actions">
-        <button type="button" class="pill" @click="choose('summer')">Summer</button>
-        <button type="button" class="pill pill--gold" @click="choose('winter')">Winter</button>
+      <div class="welcome__copy">
+        <p class="welcome__badge">Sutton WAGS</p>
+        <h1>Two seasons. The <em>best</em> golf, close to home.</h1>
+        <p class="welcome__lead">
+          Summer is the main season, with results and standings. Winter is the shorter game: this week and Best 10.
+        </p>
+        <div class="welcome__actions">
+          <button type="button" class="pill" @click="choose('summer')">Summer</button>
+          <button type="button" class="pill pill--gold" @click="choose('winter')">Winter</button>
+        </div>
       </div>
     </div>
   </section>
@@ -149,12 +151,10 @@ function onToggleTheme() {
   position: absolute !important;
   top: 50% !important;
   left: 50% !important;
-  width: 178vh !important;
-  height: 100vh !important;
-  min-width: 100% !important;
-  min-height: 56.25vw !important;
+  width: max(100vw, 56.25vh) !important;
+  height: max(100vh, 177.78vw) !important;
   border: 0;
-  transform: translate(-50%, -50%) scale(1.12);
+  transform: translate(-50%, -50%) scale(1.08);
 }
 
 .welcome__shade {
@@ -197,28 +197,34 @@ function onToggleTheme() {
   -webkit-tap-highlight-color: transparent;
 }
 
+.welcome__copy {
+  margin-top: 11vh;
+}
+
 .welcome__badge {
-  margin: 1.7rem 0 0;
-  padding: 0.38rem 0.75rem;
+  display: inline-flex;
+  width: fit-content;
+  margin: 0;
+  padding: 0.42rem 0.8rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  font-size: 0.68rem;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 0.72rem;
   font-weight: 650;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
 
 .welcome__content h1 {
-  margin: 1.05rem 0 0;
-  max-width: 18rem;
+  margin: 1.15rem 0 0;
+  max-width: 16.2rem;
   font-family: var(--font-serif);
-  font-size: clamp(2.15rem, 8vw, 2.65rem);
+  font-size: clamp(2.35rem, 9vw, 2.85rem);
   font-weight: 650;
-  letter-spacing: -0.035em;
-  line-height: 1.05;
-  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
 }
 
 .welcome__content h1 em {
@@ -229,30 +235,31 @@ function onToggleTheme() {
 }
 
 .welcome__lead {
-  margin: 0.9rem 0 0;
-  max-width: 22rem;
+  margin: 0.95rem 0 0;
+  max-width: 19.5rem;
   color: rgba(255, 255, 255, 0.92);
-  font-size: 1rem;
-  line-height: 1.4;
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
+  font-size: 1.02rem;
+  line-height: 1.38;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
 }
 
 .welcome__actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  margin-top: 1.25rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin-top: 1.35rem;
 }
 
 .pill {
   margin: 0;
-  padding: 0.72rem 1.05rem;
+  padding: 0.78rem 1.15rem;
   border: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.94);
   color: #1c1c1e;
   font: inherit;
-  font-size: 0.98rem;
+  font-size: 1rem;
   font-weight: 650;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
