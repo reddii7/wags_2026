@@ -8,40 +8,53 @@ const { theme, toggleTheme } = useTheme();
 
 const videoId = "md_CSMNegXI";
 const poster = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
+const videoSrc =
+  `https://www.youtube-nocookie.com/embed/${videoId}` +
+  "?autoplay=1&mute=1&controls=0&playsinline=1&loop=1" +
+  `&playlist=${videoId}&rel=0&modestbranding=1&enablejsapi=1` +
+  `&disablekb=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}`;
 const frame = ref(null);
 const playing = ref(false);
 let player;
+let retries = [];
+
+function kick() {
+  if (!player?.playVideo) return;
+  try {
+    player.mute();
+    player.playVideo();
+  } catch {
+    /* the player can reject a start before it is ready */
+  }
+}
+
+function onGesture() {
+  kick();
+}
 
 function mountPlayer() {
-  if (!frame.value || !window.YT?.Player) return;
+  if (!frame.value || !window.YT?.Player || player) return;
   player = new window.YT.Player(frame.value, {
-    videoId,
-    playerVars: {
-      autoplay: 1,
-      mute: 1,
-      controls: 0,
-      rel: 0,
-      modestbranding: 1,
-      playsinline: 1,
-      loop: 1,
-      playlist: videoId,
-      disablekb: 1,
-      fs: 0,
-      iv_load_policy: 3,
-    },
     events: {
       onReady(event) {
         event.target.mute();
         event.target.playVideo();
+        retries.forEach(clearTimeout);
+        retries = [400, 1200, 2500].map((ms) => setTimeout(kick, ms));
       },
       onStateChange(event) {
-        if (event.data === window.YT.PlayerState.PLAYING) playing.value = true;
+        const state = window.YT.PlayerState;
+        if (event.data === state.PLAYING) playing.value = true;
+        if (event.data === state.CUED) kick();
       },
     },
   });
 }
 
 onMounted(() => {
+  window.addEventListener("pointerdown", onGesture, true);
+  window.addEventListener("touchstart", onGesture, { capture: true, passive: true });
+  document.addEventListener("visibilitychange", onGesture);
   if (window.YT?.Player) {
     mountPlayer();
     return;
@@ -60,6 +73,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  retries.forEach(clearTimeout);
+  window.removeEventListener("pointerdown", onGesture, true);
+  window.removeEventListener("touchstart", onGesture, { capture: true });
+  document.removeEventListener("visibilitychange", onGesture);
   player?.destroy?.();
 });
 
@@ -79,7 +96,14 @@ function onToggleTheme() {
     <div class="welcome__video" :class="{ 'is-on': playing }" aria-hidden="true">
       <img class="welcome__poster" :src="poster" alt="" />
       <div class="welcome__player">
-        <div ref="frame" />
+        <iframe
+          ref="frame"
+          :src="videoSrc"
+          title="Background film"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          referrerpolicy="strict-origin-when-cross-origin"
+          playsinline
+        />
       </div>
     </div>
     <div class="welcome__shade" aria-hidden="true" />
@@ -131,20 +155,22 @@ function onToggleTheme() {
 
 .welcome__poster {
   position: absolute;
+  z-index: 1;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: center center;
+  transition: opacity 400ms ease;
 }
 
 .welcome__player {
-  opacity: 0;
-  transition: opacity 500ms ease;
+  z-index: 0;
+  opacity: 1;
 }
 
-.welcome__video.is-on .welcome__player {
-  opacity: 1;
+.welcome__video.is-on .welcome__poster {
+  opacity: 0;
 }
 
 .welcome__player :deep(iframe) {
