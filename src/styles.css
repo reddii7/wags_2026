@@ -2,9 +2,10 @@
 
 /* Home hero block */
 .hero-block.home-hero {
-    background: transparent;
+    background: var(--surface-1);
     box-shadow: none;
-    border: none;
+    border: 0.5px solid var(--line);
+    border-radius: 28px;
 }
 
 .home-hero__intro {
@@ -20,11 +21,11 @@
     font-weight: 700;
     line-height: 1.1;
     letter-spacing: -0.01em;
-    color: #222;
+    color: var(--text);
 }
 
 :root[data-theme='dark'] .wags-headline {
-    color: #E5E5E7;
+    color: var(--text);
 }
 
 /* Body Style */
@@ -32,7 +33,7 @@
     font-family: var(--font-sans);
     font-size: 18px;
     line-height: 1.6;
-    color: #A1A1A1;
+    color: var(--muted);
 }
 
 .home-hero-sublabel2 {
@@ -41,7 +42,7 @@
     font-size: 1.2rem;
     font-weight: 700;
     letter-spacing: 0.05em;
-    color: #858585;
+    color: var(--muted);
     margin-bottom: 0.5em;
     font-family: inherit;
 }
@@ -52,7 +53,7 @@
     font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.05em;
-    color: #858585;
+    color: var(--muted);
     margin-bottom: 0.5em;
     font-family: inherit;
 }
@@ -63,7 +64,7 @@
     font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.05em;
-    color: #858585;
+    color: var(--muted);
     margin-bottom: 0.5em;
     font-family: inherit;
 }
@@ -151,23 +152,29 @@
 }
 
 :root {
-    --bg: #F9F7F2;
+    --bg: #f9f7f2;
     --bg-rgb: 249, 247, 242;
-    --bg-strong: rgba(249, 247, 242, 0.92);
-    --bg-soft: rgba(249, 247, 242, 0.8);
-    --text: #1A1A1A;
-    --muted: rgba(26, 26, 26, 0.56);
-    --secondary-info: #8E8E93;
-    --line: rgba(0, 0, 0, 0.05);
-    --accent: #3A5A40;
-    --surface-1: rgba(0, 0, 0, 0.025);
-    --surface-2: rgba(0, 0, 0, 0.04);
-    --surface-3: rgba(0, 0, 0, 0.06);
-    --surface-4: rgba(0, 0, 0, 0.085);
-    --surface-glow: rgba(58, 90, 64, 0.06);
-    --focus-ring: rgba(58, 90, 64, 0.18);
-    --shadow: 0 6px 18px rgba(16, 16, 18, 0.035);
-    --nav-glass-bg: rgba(249, 247, 242, 0.85);
+    --bg-strong: #f9f7f2;
+    --bg-soft: #f9f7f2;
+    --paper: #00000006;
+    --text: #1a1a1a;
+    --muted: #1a1a1a8f;
+    --secondary-info: #1a1a1a8f;
+    --line: #0000000d;
+    --accent: #3a5a40;
+    --positive: #3a5a40;
+    --negative: #b85c5c;
+    --surface-1: #00000006;
+    --surface-2: #0000000a;
+    --surface-3: #0000000f;
+    --surface-4: #00000014;
+    --surface-glow: rgba(58, 90, 64, 0.08);
+    --focus-ring: rgba(58, 90, 64, 0.28);
+    --shadow: 0 6px 18px #10101209;
+    --nav-glass-bg: #f9f7f2d9;
+    --radius-panel: 28px;
+    --radius-nest: 16px;
+    --radius: 28px;
     --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
     --font-serif: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
     --step-body: clamp(0.98rem, 0.96rem + 0.18vw, 1.04rem);
@@ -175,23 +182,26 @@
 }
 
 :root[data-theme='dark'] {
-    --bg: #1E1E1E;
-    --bg-rgb: 28, 28, 30;
-    --bg-strong: rgba(28, 28, 30, 0.92);
-    --bg-soft: rgba(28, 28, 30, 0.82);
-    --text: #E5E5E7;
-    --muted: rgba(229, 229, 231, 0.58);
-    --secondary-info: #8E8E93;
-    --line: rgba(255, 255, 255, 0.1);
-    --accent: #588157;
-    --surface-1: rgba(255, 255, 255, 0.035);
-    --surface-2: rgba(255, 255, 255, 0.05);
-    --surface-3: rgba(255, 255, 255, 0.07);
-    --surface-4: rgba(255, 255, 255, 0.1);
-    --surface-glow: rgba(88, 129, 87, 0.08);
-    --focus-ring: rgba(88, 129, 87, 0.22);
-    --shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
-    --nav-glass-bg: rgba(28, 28, 30, 0.85);
+    --bg: #12151c;
+    --bg-rgb: 18, 21, 28;
+    --bg-strong: #12151c;
+    --bg-soft: #12151c;
+    --paper: #ffffff09;
+    --text: #e8edf5;
+    --muted: #e8edf58c;
+    --secondary-info: #e8edf58c;
+    --line: #ffffff14;
+    --accent: #3dd68c;
+    --positive: #3dd68c;
+    --negative: #b85c5c;
+    --surface-1: #ffffff09;
+    --surface-2: #ffffff0e;
+    --surface-3: #ffffff14;
+    --surface-4: #ffffff1c;
+    --surface-glow: rgba(61, 214, 140, 0.12);
+    --focus-ring: rgba(61, 214, 140, 0.35);
+    --shadow: 0 10px 28px #00000047;
+    --nav-glass-bg: #12151ce0;
 }
 
 * {
@@ -276,7 +286,7 @@ select {
     text-decoration: none;
     color: var(--muted);
     transition: color 180ms ease, background-color 180ms ease, opacity 220ms ease, transform 220ms ease;
-    border-radius: 999px;
+    border-radius: var(--radius);
     text-align: center;
     cursor: pointer;
 }
@@ -378,11 +388,11 @@ select {
     width: 100%;
     padding: 0.52rem 0.56rem calc(0.86rem + env(safe-area-inset-bottom, 0px));
     border-radius: 0;
-    background: var(--bg);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    background: var(--nav-glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     box-shadow: none;
-    border-top: 0;
+    border-top: 0.5px solid var(--line);
     border-left: 0;
     border-right: 0;
     border-bottom: 0;
@@ -392,7 +402,7 @@ select {
 .bottom-nav-link {
     flex: 1 1 0;
     min-width: 0;
-    min-height: 5.05rem;
+    min-height: 4.15rem;
     font-size: 0.92rem;
     font-weight: 500;
     display: flex;
@@ -403,7 +413,7 @@ select {
     padding: 0.68rem 0.42rem;
     border-radius: 0;
     text-align: center;
-    color: color-mix(in srgb, var(--text) 72%, var(--muted));
+    color: var(--muted);
 }
 
 .bottom-nav-link:hover {
@@ -413,7 +423,7 @@ select {
 
 .bottom-nav-link.active,
 .bottom-nav-link.router-link-active {
-    color: var(--text);
+    color: var(--accent);
     background: transparent;
     box-shadow: none;
 }
@@ -454,8 +464,9 @@ select {
     width: 100%;
     text-align: center;
     font-size: 0.72rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    font-weight: 600;
     line-height: 1;
     opacity: 0.84;
 }
@@ -495,11 +506,11 @@ select {
     font-weight: 700;
     letter-spacing: -0.01em;
     line-height: 1.1;
-    color: #222;
+    color: var(--text);
 }
 
 :root[data-theme='dark'] .season-mast__title {
-    color: #E5E5E7;
+    color: var(--text);
 }
 
 .season-mast__year {
@@ -578,7 +589,7 @@ p.season-mast__year {
     }
 
     .home-hero {
-        padding: 1.5rem 1.2rem;
+        padding: 1.2rem 1.05rem;
     }
 
     .home-dashboard {
@@ -618,8 +629,8 @@ p.season-mast__year {
     }
 
     .home-hero {
-        padding: 1.2rem 0.95rem;
-        border-radius: 28px;
+        padding: 1.15rem 0.95rem;
+        border-radius: var(--radius);
         gap: 0.95rem;
     }
 
@@ -630,7 +641,7 @@ p.season-mast__year {
     .home-card {
         min-height: 0;
         padding: 1rem 0.9rem 0.95rem;
-        border-radius: 24px;
+        border-radius: var(--radius);
     }
 
     .home-card strong {
@@ -643,7 +654,7 @@ p.season-mast__year {
 
     .home-lead-stat {
         padding: 0.62rem 0.7rem;
-        border-radius: 16px;
+        border-radius: var(--radius);
     }
 
     .home-compact-row {
@@ -660,7 +671,7 @@ p.season-mast__year {
         width: min(100%, 520px);
         max-height: 80vh;
         padding: 0.82rem 0.82rem 0.92rem;
-        border-radius: 24px;
+        border-radius: var(--radius);
     }
 
     .app-dialog__header {
@@ -708,7 +719,7 @@ p.season-mast__year {
     }
 
     .bottom-nav-link {
-        min-height: 4.6rem;
+        min-height: 4.15rem;
         font-size: 0.76rem;
         padding: 0.52rem 0.22rem;
         gap: 0.34rem;
@@ -721,14 +732,14 @@ p.season-mast__year {
     }
 
     .bottom-nav-label {
-        font-size: 0.58rem;
-        letter-spacing: 0.06em;
+        font-size: 0.68rem;
+        letter-spacing: 0.01em;
     }
 }
 
 .hero-block {
     padding: 1.8rem;
-    border-radius: 36px;
+    border-radius: var(--radius);
 }
 
 .hero-copy {
@@ -755,9 +766,10 @@ p.season-mast__year {
 
 .home-hero {
     display: block;
-    padding: 1.6rem 1.45rem;
+    padding: 1.35rem 1.2rem;
     background: var(--surface-1);
     border: 0.5px solid var(--line);
+    border-radius: 28px;
 }
 
 .home-hero__intro {
@@ -781,10 +793,11 @@ p.season-mast__year {
     flex-direction: column;
     gap: 0.55rem;
     min-height: 0;
-    padding: 1.2rem 1.05rem 1.15rem;
+    padding: 1rem 0.95rem;
     border-radius: 28px;
+    border: 0.5px solid var(--line);
     text-decoration: none;
-    background: var(--bg);
+    background: var(--surface-1);
     box-shadow: none;
     transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
 }
@@ -807,8 +820,9 @@ p.season-mast__year {
     display: flex;
     flex-direction: column;
     gap: 0.14rem;
-    padding: 0.72rem 0.78rem;
-    border-radius: 18px;
+    padding: 0.85rem 0.9rem;
+    border-radius: 16px;
+    border: 0.5px solid var(--line);
     background: var(--surface-2);
 }
 
@@ -881,7 +895,7 @@ p.season-mast__year {
 
 .content-panel {
     padding: 1rem 0;
-    border-radius: 32px;
+    border-radius: var(--radius);
 }
 
 .content-panel--minimal {
@@ -940,10 +954,10 @@ p.season-mast__year {
 .quiet-select,
 .quiet-input {
     width: 100%;
-    border: 0;
+    border: 0.5px solid var(--line);
     border-radius: 16px;
-    padding: 0.72rem 0.82rem;
-    background: var(--surface-1);
+    padding: 0.65rem 0.8rem;
+    background: var(--bg);
     color: var(--text);
 }
 
@@ -962,10 +976,10 @@ p.season-mast__year {
 }
 
 .quiet-button {
-    border: 0;
+    border: 0.5px solid var(--line);
     border-radius: 999px;
+    background: var(--surface-2);
     padding: 0.88rem 1.1rem;
-    background: var(--surface-3);
     color: var(--text);
     cursor: pointer;
 }
@@ -983,7 +997,8 @@ p.season-mast__year {
 
 .notice-strip {
     padding: 0.75rem 0.9rem;
-    border-radius: 999px;
+    border-radius: 18px;
+    border: 0.5px solid var(--line);
     background: var(--surface-2);
     color: var(--text);
     font-size: 0.92rem;
@@ -1016,6 +1031,13 @@ p.season-mast__year {
     width: 100%;
     height: auto;
     display: block;
+}
+
+.quiet-list {
+    background: var(--surface-1);
+    border: 0.5px solid var(--line);
+    border-radius: 28px;
+    padding: 0.35rem 0.95rem 0.45rem;
 }
 
 .quiet-list-row {
@@ -1076,7 +1098,7 @@ p.season-mast__year {
     align-items: center;
     padding: 0.12rem 0.42rem;
     border-radius: 999px;
-    background: var(--surface-1);
+    background: var(--surface-3);
     line-height: 1.2;
 }
 
@@ -1092,6 +1114,16 @@ p.season-mast__year {
 .mini-pill--camel {
     background: var(--surface-2);
     color: var(--text);
+}
+
+.mini-pill--positive {
+    background: color-mix(in srgb, var(--positive) 18%, transparent);
+    color: var(--positive);
+}
+
+.mini-pill--negative {
+    background: color-mix(in srgb, var(--negative) 18%, transparent);
+    color: var(--negative);
 }
 
 .quiet-list-cell.results-change {
@@ -1133,9 +1165,9 @@ p.season-mast__year {
 }
 
 .app-dialog::backdrop {
-    background: rgba(10, 10, 12, 0.34);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     animation: dialog-backdrop-in 180ms ease;
 }
 
@@ -1145,6 +1177,9 @@ p.season-mast__year {
     overflow: auto;
     padding: 1rem 1rem 1.05rem;
     margin: 0 auto;
+    background: var(--surface-1);
+    border: 0.5px solid var(--line);
+    border-radius: 28px;
     animation: dialog-panel-in 220ms cubic-bezier(0.22, 0.9, 0.24, 1);
 }
 
@@ -1246,7 +1281,7 @@ p.season-mast__year {
     }
 
     .home-hero {
-        padding: 1.5rem 1.2rem;
+        padding: 1.2rem 1.05rem;
     }
 
     .home-dashboard {
@@ -1286,8 +1321,8 @@ p.season-mast__year {
     }
 
     .home-hero {
-        padding: 1.2rem 0.95rem;
-        border-radius: 28px;
+        padding: 1.15rem 0.95rem;
+        border-radius: var(--radius);
         gap: 0.95rem;
     }
 
@@ -1298,7 +1333,7 @@ p.season-mast__year {
     .home-card {
         min-height: 0;
         padding: 1rem 0.9rem 0.95rem;
-        border-radius: 24px;
+        border-radius: var(--radius);
     }
 
     .home-card strong {
@@ -1311,7 +1346,7 @@ p.season-mast__year {
 
     .home-lead-stat {
         padding: 0.62rem 0.7rem;
-        border-radius: 16px;
+        border-radius: var(--radius);
     }
 
     .home-compact-row {
@@ -1328,7 +1363,7 @@ p.season-mast__year {
         width: min(100%, 520px);
         max-height: 80vh;
         padding: 0.82rem 0.82rem 0.92rem;
-        border-radius: 24px;
+        border-radius: var(--radius);
     }
 
     .app-dialog__header {
@@ -1389,8 +1424,8 @@ p.season-mast__year {
     }
 
     .bottom-nav-label {
-        font-size: 0.58rem;
-        letter-spacing: 0.06em;
+        font-size: 0.68rem;
+        letter-spacing: 0.01em;
     }
 }
 

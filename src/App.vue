@@ -445,6 +445,7 @@ function loadDataFromSupabase(...args) {
 }
 
 const winterSections = [
+  { name: "home", label: "Home", icon: "home", path: "/" },
   { name: "week", label: "This week", icon: "scores", path: "/" },
   { name: "best10", label: "Best 10", icon: "best14", path: "/" },
   { name: "summer", label: "Summer", icon: "trophy", path: "/stats" },
@@ -524,12 +525,31 @@ const onSummerRoute = computed(() =>
   summerRouteNames.has(String(route.name || "")),
 );
 
+const onLanding = computed(() => {
+  if (String(route.name || "") !== "home") return false;
+  const tab = String(route.query.tab || "").toLowerCase();
+  return tab !== "week" && tab !== "best10";
+});
+
+watch([onLanding, theme], ([landing]) => {
+  const background = landing
+    ? "#000000"
+    : (theme.value === "dark" ? "#12151c" : "#f9f7f2");
+  document.documentElement.style.backgroundColor = background;
+  document.body.style.backgroundColor = background;
+  document.documentElement.style.colorScheme = theme.value;
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", background);
+}, { immediate: true });
+
 const sections = computed(() =>
   onSummerRoute.value ? summerSections : winterSections,
 );
 
 const currentNavName = computed(() => {
   const routeName = String(route.name || "home");
+  if (onLanding.value) return "home";
   if (onSummerRoute.value) {
     return statsRouteNames.has(routeName) ? "stats" : routeName;
   }
@@ -625,9 +645,18 @@ function findSection(name) {
 
 function switchSection(section) {
   triggerHapticFeedback();
-  if (section?.name === "week" || section?.name === "home") {
-    if (route.path !== "/" || route.query.tab || route.query.mode) {
+  if (section?.name === "home") {
+    if (route.path !== "/" || route.query.tab || route.query.mode || route.query.season) {
       router.push({ path: "/" });
+    }
+    return;
+  }
+  if (section?.name === "week") {
+    if (
+      route.path !== "/" ||
+      String(route.query.tab || "").toLowerCase() !== "week"
+    ) {
+      router.push({ path: "/", query: { tab: "week" } });
     }
     return;
   }
@@ -908,6 +937,7 @@ onBeforeUnmount(() => {
     :data-theme="theme"
     :class="{
       'chrome-hidden': chromeHidden,
+      landing: onLanding,
     }"
   >
     <div
@@ -968,7 +998,7 @@ onBeforeUnmount(() => {
       {{ theme === "dark" ? "Light" : "Dark" }}
     </button>
 
-    <nav class="bottom-nav" aria-label="Primary">
+    <nav v-if="!onLanding" class="bottom-nav" aria-label="Primary">
       <button
         v-for="section in sections"
         :key="section.name"
@@ -985,13 +1015,30 @@ onBeforeUnmount(() => {
 
 <style>
 .bottom-nav {
-  background: var(--bg) !important;
+  background: var(--nav-glass-bg) !important;
+}
+
+.app-shell.landing,
+.app-shell.landing .app-main,
+.app-shell.landing[data-theme="dark"],
+.app-shell.landing[data-theme="dark"] .app-main {
+  background: #000000;
+}
+
+.app-shell.landing .app-main {
+  overflow: hidden;
+  padding: 0;
+}
+
+.app-shell.landing .view-frame {
+  min-height: 0;
+  height: 100%;
 }
 
 .theme-switch {
   flex: 0 0 auto;
-  border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
-  background: transparent;
+  border: 0.5px solid var(--line, rgba(255, 255, 255, 0.14));
+  background: var(--surface-2);
   color: var(--text);
   border-radius: 999px;
   padding: 0.32rem 0.72rem;
@@ -1046,7 +1093,7 @@ onBeforeUnmount(() => {
   background: var(--bg, #111);
   color: var(--text, #eee);
   padding: 0.35rem 0.75rem;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
 }
