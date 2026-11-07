@@ -12,16 +12,28 @@ const videoSrc =
   `https://www.youtube-nocookie.com/embed/${videoId}` +
   "?autoplay=1&mute=1&controls=0&playsinline=1&loop=1" +
   `&playlist=${videoId}&rel=0&modestbranding=1&enablejsapi=1` +
-  `&disablekb=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}`;
+  `&disablekb=1&fs=0&iv_load_policy=3&start=2&origin=${encodeURIComponent(window.location.origin)}`;
 const frame = ref(null);
 const playing = ref(false);
 let player;
 let retries = [];
+let skipTimer;
+
+function skipIntro() {
+  if (!player?.getCurrentTime || !player?.seekTo) return;
+  try {
+    const time = player.getCurrentTime();
+    if (typeof time === "number" && time < 1.85) player.seekTo(2, true);
+  } catch {
+    /* ignore a seek before the film is ready */
+  }
+}
 
 function kick() {
   if (!player?.playVideo) return;
   try {
     player.mute();
+    skipIntro();
     player.playVideo();
   } catch {
     /* the player can reject a start before it is ready */
@@ -44,14 +56,18 @@ function mountPlayer() {
       },
       onStateChange(event) {
         const state = window.YT.PlayerState;
-        if (event.data === state.PLAYING) playing.value = true;
-        if (event.data === state.CUED) kick();
+        if (event.data === state.PLAYING) {
+          playing.value = true;
+          skipIntro();
+        }
+        if (event.data === state.CUED || event.data === state.ENDED) kick();
       },
     },
   });
 }
 
 onMounted(() => {
+  skipTimer = setInterval(skipIntro, 500);
   window.addEventListener("pointerdown", onGesture, true);
   window.addEventListener("touchstart", onGesture, { capture: true, passive: true });
   document.addEventListener("visibilitychange", onGesture);
@@ -73,6 +89,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  clearInterval(skipTimer);
   retries.forEach(clearTimeout);
   window.removeEventListener("pointerdown", onGesture, true);
   window.removeEventListener("touchstart", onGesture, { capture: true });
@@ -203,11 +220,22 @@ function onToggleTheme() {
   inset: -12%;
   z-index: 2;
   pointer-events: none;
-  opacity: 0.78;
+  opacity: 0.95;
   mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  background-size: 180px 180px;
-  animation: welcome-grain 0.4s steps(4) infinite;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 140px 140px;
+  animation: welcome-grain 0.32s steps(4) infinite;
+}
+
+.welcome__grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.85;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 90px 90px;
+  animation: welcome-grain 0.22s steps(3) infinite reverse;
 }
 
 @keyframes welcome-grain {
