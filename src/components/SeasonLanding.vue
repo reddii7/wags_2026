@@ -154,6 +154,10 @@ function onToggleTheme() {
   pointer-events: none;
 }
 
+.welcome__video {
+  filter: grayscale(1) contrast(1.22) brightness(0.88);
+}
+
 .welcome__poster {
   position: absolute;
   z-index: 1;
@@ -186,9 +190,11 @@ function onToggleTheme() {
 
 .welcome__shade {
   position: absolute;
+  z-index: 1;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.12) 32%, rgba(0, 0, 0, 0.08) 52%, rgba(0, 0, 0, 0.45) 100%);
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 36%, rgba(0, 0, 0, 0.62) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.08) 36%, rgba(0, 0, 0, 0.55) 100%);
   pointer-events: none;
 }
 
@@ -197,11 +203,11 @@ function onToggleTheme() {
   inset: -12%;
   z-index: 2;
   pointer-events: none;
-  opacity: 0.45;
+  opacity: 0.78;
   mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  background-size: 240px 240px;
-  animation: welcome-grain 0.55s steps(4) infinite;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 180px 180px;
+  animation: welcome-grain 0.4s steps(4) infinite;
 }
 
 @keyframes welcome-grain {
