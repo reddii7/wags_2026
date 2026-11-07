@@ -12,18 +12,29 @@ const videoSrc =
   `https://www.youtube-nocookie.com/embed/${videoId}` +
   "?autoplay=1&mute=1&controls=0&playsinline=1&loop=1" +
   `&playlist=${videoId}&rel=0&modestbranding=1&enablejsapi=1` +
-  `&disablekb=1&fs=0&iv_load_policy=3&start=3.5&origin=${encodeURIComponent(window.location.origin)}`;
+  `&disablekb=1&fs=0&iv_load_policy=3&start=3&origin=${encodeURIComponent(window.location.origin)}`;
 const frame = ref(null);
 const playing = ref(false);
 let player;
 let retries = [];
 let skipTimer;
+let parked = false;
 
 function skipIntro() {
-  if (!player?.getCurrentTime || !player?.seekTo) return;
+  if (!player?.getPlayerState || !player?.getCurrentTime || !player?.seekTo) return;
   try {
+    const state = window.YT?.PlayerState;
+    if (!state || player.getPlayerState() !== state.PLAYING) return;
     const time = player.getCurrentTime();
-    if (typeof time === "number" && time < 3.35) player.seekTo(3.5, true);
+    if (typeof time !== "number") return;
+    if (time < 1) parked = false;
+    if (time >= 3.35) {
+      parked = true;
+      return;
+    }
+    if (parked) return;
+    player.seekTo(3.5, true);
+    parked = true;
   } catch {
     /* ignore a seek before the film is ready */
   }
@@ -33,7 +44,6 @@ function kick() {
   if (!player?.playVideo) return;
   try {
     player.mute();
-    skipIntro();
     player.playVideo();
   } catch {
     /* the player can reject a start before it is ready */
@@ -120,6 +130,7 @@ function onToggleTheme() {
           allow="autoplay; encrypted-media; picture-in-picture"
           referrerpolicy="strict-origin-when-cross-origin"
           playsinline
+          webkit-playsinline
         />
       </div>
     </div>
@@ -199,13 +210,12 @@ function onToggleTheme() {
 
 .welcome__player :deep(iframe) {
   position: absolute !important;
-  top: 50% !important;
-  left: 50% !important;
-  width: max(100vw, 56.25vh) !important;
-  height: max(100vh, 177.78vw) !important;
+  top: calc(50% - max(100vh, 177.78vw) / 2) !important;
+  left: calc(50% - max(100vw, 56.25vh) / 2) !important;
+  width: calc(max(100vw, 56.25vh) * 1.34) !important;
+  height: calc(max(100vh, 177.78vw) * 1.34) !important;
   border: 0;
-  transform-origin: 0 0;
-  transform: translate(-50%, -50%) scale(1.34);
+  transform: none !important;
 }
 
 .welcome__shade {
