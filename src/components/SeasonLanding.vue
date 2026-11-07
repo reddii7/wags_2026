@@ -12,7 +12,7 @@ const videoSrc =
   `https://www.youtube-nocookie.com/embed/${videoId}` +
   "?autoplay=1&mute=1&controls=0&playsinline=1&loop=1" +
   `&playlist=${videoId}&rel=0&modestbranding=1&enablejsapi=1` +
-  `&disablekb=1&fs=0&iv_load_policy=3&start=3&origin=${encodeURIComponent(window.location.origin)}`;
+  `&disablekb=1&fs=0&iv_load_policy=3&start=3.3&origin=${encodeURIComponent(window.location.origin)}`;
 const frame = ref(null);
 const playing = ref(false);
 let player;
@@ -23,7 +23,7 @@ function skipIntro() {
   if (!player?.getCurrentTime || !player?.seekTo) return;
   try {
     const time = player.getCurrentTime();
-    if (typeof time === "number" && time < 2.85) player.seekTo(3, true);
+    if (typeof time === "number" && time < 3.15) player.seekTo(3.3, true);
   } catch {
     /* ignore a seek before the film is ready */
   }
@@ -178,11 +178,13 @@ function onToggleTheme() {
 .welcome__poster {
   position: absolute;
   z-index: 1;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  top: 0;
+  left: 50%;
+  width: 170%;
+  height: 124%;
   object-fit: cover;
-  object-position: center center;
+  object-position: center 18%;
+  transform: translateX(-50%);
   transition: opacity 400ms ease;
 }
 
@@ -202,7 +204,8 @@ function onToggleTheme() {
   width: max(100vw, 56.25vh) !important;
   height: max(100vh, 177.78vw) !important;
   border: 0;
-  transform: translate(-50%, -50%) scale(1.08);
+  transform-origin: 0 0;
+  transform: translate(-50%, -50%) scale(1.34);
 }
 
 .welcome__shade {
