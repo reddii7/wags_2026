@@ -533,7 +533,7 @@ const onLanding = computed(() => {
 
 watch([onLanding, theme], ([landing]) => {
   const background = landing
-    ? (theme.value === "dark" ? "#000000" : "#f2f2f7")
+    ? "#000000"
     : (theme.value === "dark" ? "#12151c" : "#f9f7f2");
   document.documentElement.style.backgroundColor = background;
   document.body.style.backgroundColor = background;
@@ -1019,10 +1019,7 @@ onBeforeUnmount(() => {
 }
 
 .app-shell.landing,
-.app-shell.landing .app-main {
-  background: #f2f2f7;
-}
-
+.app-shell.landing .app-main,
 .app-shell.landing[data-theme="dark"],
 .app-shell.landing[data-theme="dark"] .app-main {
   background: #000000;
