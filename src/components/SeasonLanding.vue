@@ -6,7 +6,7 @@ import { triggerHapticFeedback } from "../utils/haptics";
 const emit = defineEmits(["choose"]);
 const { theme, toggleTheme } = useTheme();
 
-const videoId = "lo5ACwfOXI8";
+const videoId = "iNfH9cCcztY";
 const poster = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
 const frame = ref(null);
 const playing = ref(false);
@@ -28,7 +28,6 @@ function mountPlayer() {
       disablekb: 1,
       fs: 0,
       iv_load_policy: 3,
-      start: 8,
     },
     events: {
       onReady(event) {
@@ -130,13 +129,11 @@ function onToggleTheme() {
 
 .welcome__poster {
   position: absolute;
-  left: 50%;
-  top: 0;
-  width: 190%;
-  height: 190%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  object-position: center 12%;
-  transform: translateX(-50%);
+  object-position: center center;
 }
 
 .welcome__player {
@@ -157,7 +154,7 @@ function onToggleTheme() {
   min-width: 100% !important;
   min-height: 56.25vw !important;
   border: 0;
-  transform: translate(-50%, -50%) scale(1.45);
+  transform: translate(-50%, -50%) scale(1.12);
 }
 
 .welcome__shade {
