@@ -107,6 +107,7 @@ function onToggleTheme() {
       </div>
     </div>
     <div class="welcome__shade" aria-hidden="true" />
+    <div class="welcome__grain" aria-hidden="true" />
 
     <div class="welcome__content">
       <header class="welcome__top">
@@ -191,9 +192,29 @@ function onToggleTheme() {
   pointer-events: none;
 }
 
+.welcome__grain {
+  position: absolute;
+  inset: -12%;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.45;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 240px 240px;
+  animation: welcome-grain 0.55s steps(4) infinite;
+}
+
+@keyframes welcome-grain {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-2.5%, 1.5%); }
+  50% { transform: translate(1.5%, -2%); }
+  75% { transform: translate(-1.5%, -1.5%); }
+  100% { transform: translate(0, 0); }
+}
+
 .welcome__content {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
