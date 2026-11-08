@@ -9,102 +9,21 @@ const { theme, toggleTheme } = useTheme();
 const videoId = "md_CSMNegXI";
 const poster = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
 const videoSrc =
-  `https://www.youtube-nocookie.com/embed/${videoId}` +
+  `https://www.youtube.com/embed/${videoId}` +
   "?autoplay=1&mute=1&controls=0&playsinline=1&loop=1" +
-  `&playlist=${videoId}&rel=0&modestbranding=1&enablejsapi=1` +
-  `&disablekb=1&fs=0&iv_load_policy=3&start=3&origin=${encodeURIComponent(window.location.origin)}`;
-const frame = ref(null);
-const playing = ref(false);
-let player;
-let retries = [];
-let skipTimer;
-let parked = false;
-
-function skipIntro() {
-  if (!player?.getPlayerState || !player?.getCurrentTime || !player?.seekTo) return;
-  try {
-    const state = window.YT?.PlayerState;
-    if (!state || player.getPlayerState() !== state.PLAYING) return;
-    const time = player.getCurrentTime();
-    if (typeof time !== "number") return;
-    if (time < 1) parked = false;
-    if (time >= 3.35) {
-      parked = true;
-      return;
-    }
-    if (parked) return;
-    player.seekTo(3.5, true);
-    parked = true;
-  } catch {
-    /* ignore a seek before the film is ready */
-  }
-}
-
-function kick() {
-  if (!player?.playVideo) return;
-  try {
-    player.mute();
-    player.playVideo();
-  } catch {
-    /* the player can reject a start before it is ready */
-  }
-}
-
-function onGesture() {
-  kick();
-}
-
-function mountPlayer() {
-  if (!frame.value || !window.YT?.Player || player) return;
-  player = new window.YT.Player(frame.value, {
-    events: {
-      onReady(event) {
-        event.target.mute();
-        event.target.playVideo();
-        retries.forEach(clearTimeout);
-        retries = [400, 1200, 2500].map((ms) => setTimeout(kick, ms));
-      },
-      onStateChange(event) {
-        const state = window.YT.PlayerState;
-        if (event.data === state.PLAYING) {
-          playing.value = true;
-          skipIntro();
-        }
-        if (event.data === state.CUED || event.data === state.ENDED) kick();
-      },
-    },
-  });
-}
+  `&playlist=${videoId}&rel=0&modestbranding=1` +
+  "&disablekb=1&fs=0&iv_load_policy=3&start=4";
+const revealed = ref(false);
+let revealTimer;
 
 onMounted(() => {
-  skipTimer = setInterval(skipIntro, 500);
-  window.addEventListener("pointerdown", onGesture, true);
-  window.addEventListener("touchstart", onGesture, { capture: true, passive: true });
-  document.addEventListener("visibilitychange", onGesture);
-  if (window.YT?.Player) {
-    mountPlayer();
-    return;
-  }
-  const previous = window.onYouTubeIframeAPIReady;
-  window.onYouTubeIframeAPIReady = () => {
-    previous?.();
-    mountPlayer();
-  };
-  if (!document.querySelector("script[data-youtube-iframe]")) {
-    const tag = document.createElement("script");
-    tag.src = "https://www.youtube.com/iframe_api";
-    tag.dataset.youtubeIframe = "true";
-    document.head.appendChild(tag);
-  }
+  revealTimer = setTimeout(() => {
+    revealed.value = true;
+  }, 1200);
 });
 
 onBeforeUnmount(() => {
-  clearInterval(skipTimer);
-  retries.forEach(clearTimeout);
-  window.removeEventListener("pointerdown", onGesture, true);
-  window.removeEventListener("touchstart", onGesture, { capture: true });
-  document.removeEventListener("visibilitychange", onGesture);
-  player?.destroy?.();
+  clearTimeout(revealTimer);
 });
 
 function choose(season) {
@@ -120,20 +39,18 @@ function onToggleTheme() {
 
 <template>
   <section class="welcome">
-    <div class="welcome__video" :class="{ 'is-on': playing }" aria-hidden="true">
-      <img class="welcome__poster" :src="poster" alt="" />
-      <div class="welcome__player">
-        <iframe
-          ref="frame"
-          :src="videoSrc"
-          title="Background film"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          referrerpolicy="strict-origin-when-cross-origin"
-          playsinline
-          webkit-playsinline
-        />
-      </div>
+    <div class="welcome__player">
+      <iframe
+        :src="videoSrc"
+        title="Background film"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        playsinline
+        webkit-playsinline
+        loading="eager"
+      />
     </div>
+    <img class="welcome__poster" :class="{ 'is-off': revealed }" :src="poster" alt="" />
+    <div class="welcome__mono" aria-hidden="true" />
     <div class="welcome__shade" aria-hidden="true" />
     <div class="welcome__grain" aria-hidden="true" />
 
@@ -172,23 +89,24 @@ function onToggleTheme() {
   overflow: hidden;
   background: #0c1210;
   color: #ffffff;
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  will-change: auto !important;
+  perspective: none !important;
+  backface-visibility: visible !important;
 }
 
-.welcome__video,
 .welcome__player {
   position: absolute;
   inset: 0;
+  z-index: 1;
   overflow: hidden;
-  pointer-events: none;
-}
-
-.welcome__video {
-  filter: grayscale(1) contrast(1.22) brightness(0.88);
 }
 
 .welcome__poster {
   position: absolute;
-  z-index: 1;
+  z-index: 3;
   top: 0;
   left: 50%;
   width: 170%;
@@ -196,16 +114,22 @@ function onToggleTheme() {
   object-fit: cover;
   object-position: center 18%;
   transform: translateX(-50%);
-  transition: opacity 400ms ease;
+  filter: grayscale(1) contrast(1.22) brightness(0.88);
+  pointer-events: none;
+  transition: opacity 500ms ease;
 }
 
-.welcome__player {
-  z-index: 0;
-  opacity: 1;
-}
-
-.welcome__video.is-on .welcome__poster {
+.welcome__poster.is-off {
   opacity: 0;
+}
+
+.welcome__mono {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #8d8d8d;
+  mix-blend-mode: color;
+  pointer-events: none;
 }
 
 .welcome__player :deep(iframe) {
@@ -220,7 +144,7 @@ function onToggleTheme() {
 
 .welcome__shade {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   inset: 0;
   background:
     radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 36%, rgba(0, 0, 0, 0.62) 100%),
@@ -231,7 +155,7 @@ function onToggleTheme() {
 .welcome__grain {
   position: absolute;
   inset: -12%;
-  z-index: 2;
+  z-index: 3;
   pointer-events: none;
   opacity: 0.95;
   mix-blend-mode: overlay;
@@ -261,11 +185,12 @@ function onToggleTheme() {
 
 .welcome__content {
   position: relative;
-  z-index: 3;
+  z-index: 4;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   min-height: 100dvh;
+  pointer-events: none;
   padding:
     calc(env(safe-area-inset-top, 0px) + 0.7rem)
     1.35rem
@@ -288,6 +213,7 @@ function onToggleTheme() {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   cursor: pointer;
+  pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -356,6 +282,7 @@ function onToggleTheme() {
   font-size: 1rem;
   font-weight: 650;
   cursor: pointer;
+  pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
 }
 

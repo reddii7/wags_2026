@@ -1033,6 +1033,20 @@ onBeforeUnmount(() => {
 .app-shell.landing .view-frame {
   min-height: 0;
   height: 100%;
+  perspective: none;
+  backface-visibility: visible;
+  transform: none;
+  will-change: auto;
+}
+
+.app-shell.landing .page-fade-enter-active,
+.app-shell.landing .page-fade-leave-active,
+.app-shell.landing .page-fade-enter-from,
+.app-shell.landing .page-fade-leave-to {
+  opacity: 1;
+  transform: none;
+  transition: none;
+  will-change: auto;
 }
 
 .theme-switch {
