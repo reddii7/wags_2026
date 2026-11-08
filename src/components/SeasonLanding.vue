@@ -1,30 +1,9 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useTheme } from "../composables/useTheme.js";
 import { triggerHapticFeedback } from "../utils/haptics";
 
 const emit = defineEmits(["choose"]);
 const { theme, toggleTheme } = useTheme();
-
-const videoId = "md_CSMNegXI";
-const poster = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
-const videoSrc =
-  `https://www.youtube.com/embed/${videoId}` +
-  "?autoplay=1&mute=1&controls=0&playsinline=1&loop=1" +
-  `&playlist=${videoId}&rel=0&modestbranding=1` +
-  "&disablekb=1&fs=0&iv_load_policy=3&start=4";
-const revealed = ref(false);
-let revealTimer;
-
-onMounted(() => {
-  revealTimer = setTimeout(() => {
-    revealed.value = true;
-  }, 1200);
-});
-
-onBeforeUnmount(() => {
-  clearTimeout(revealTimer);
-});
 
 function choose(season) {
   triggerHapticFeedback();
@@ -38,44 +17,21 @@ function onToggleTheme() {
 </script>
 
 <template>
-  <section class="welcome">
-    <div class="welcome__player">
-      <iframe
-        :src="videoSrc"
-        title="Background film"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        playsinline
-        webkit-playsinline
-        loading="eager"
-      />
-    </div>
-    <img class="welcome__poster" :class="{ 'is-off': revealed }" :src="poster" alt="" />
-    <div class="welcome__mono" aria-hidden="true" />
-    <div class="welcome__shade" aria-hidden="true" />
-    <div class="welcome__grain" aria-hidden="true" />
+  <section class="welcome" :data-theme="theme">
+    <button
+      type="button"
+      class="welcome__theme"
+      :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+      @click="onToggleTheme"
+    >
+      {{ theme === "dark" ? "Light" : "Dark" }}
+    </button>
 
-    <div class="welcome__content">
-      <header class="welcome__top">
-        <button
-          type="button"
-          class="welcome__theme"
-          :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-          @click="onToggleTheme"
-        >
-          {{ theme === "dark" ? "Light" : "Dark" }}
-        </button>
-      </header>
-
-      <div class="welcome__copy">
-        <p class="welcome__badge">Sutton WAGS</p>
-        <h1>Two seasons. The <em>best</em> golf, close to home.</h1>
-        <p class="welcome__lead">
-          Summer is the main season, with results and standings. Winter is the shorter game: this week and Best 10.
-        </p>
-        <div class="welcome__actions">
-          <button type="button" class="pill" @click="choose('summer')">Summer</button>
-          <button type="button" class="pill pill--gold" @click="choose('winter')">Winter</button>
-        </div>
+    <div class="welcome__copy">
+      <h1>Two seasons. Sutton Coldfield Golf Clubs' <em>best</em> society.</h1>
+      <div class="welcome__actions">
+        <button type="button" class="pill" @click="choose('summer')">Summer</button>
+        <button type="button" class="pill pill--gold" @click="choose('winter')">Winter</button>
       </div>
     </div>
   </section>
@@ -84,209 +40,84 @@ function onToggleTheme() {
 <style scoped>
 .welcome {
   position: relative;
+  display: flex;
+  align-items: center;
   min-height: 100dvh;
   height: 100%;
-  overflow: hidden;
-  background: #0c1210;
-  color: #ffffff;
-  opacity: 1 !important;
-  transform: none !important;
-  filter: none !important;
-  will-change: auto !important;
-  perspective: none !important;
-  backface-visibility: visible !important;
-}
-
-.welcome__player {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  overflow: hidden;
-}
-
-.welcome__poster {
-  position: absolute;
-  z-index: 3;
-  top: 0;
-  left: 50%;
-  width: 170%;
-  height: 124%;
-  object-fit: cover;
-  object-position: center 18%;
-  transform: translateX(-50%);
-  filter: grayscale(1) contrast(1.22) brightness(0.88);
-  pointer-events: none;
-  transition: opacity 500ms ease;
-}
-
-.welcome__poster.is-off {
-  opacity: 0;
-}
-
-.welcome__mono {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background: #8d8d8d;
-  mix-blend-mode: color;
-  pointer-events: none;
-}
-
-.welcome__player :deep(iframe) {
-  position: absolute !important;
-  top: calc(50% - max(100vh, 177.78vw) / 2) !important;
-  left: calc(50% - max(100vw, 56.25vh) / 2) !important;
-  width: calc(max(100vw, 56.25vh) * 1.34) !important;
-  height: calc(max(100vh, 177.78vw) * 1.34) !important;
-  border: 0;
-  transform: none !important;
-}
-
-.welcome__shade {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 36%, rgba(0, 0, 0, 0.62) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.08) 36%, rgba(0, 0, 0, 0.55) 100%);
-  pointer-events: none;
-}
-
-.welcome__grain {
-  position: absolute;
-  inset: -12%;
-  z-index: 3;
-  pointer-events: none;
-  opacity: 0.95;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  background-size: 140px 140px;
-  animation: welcome-grain 0.32s steps(4) infinite;
-}
-
-.welcome__grain::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0.85;
-  mix-blend-mode: soft-light;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  background-size: 90px 90px;
-  animation: welcome-grain 0.22s steps(3) infinite reverse;
-}
-
-@keyframes welcome-grain {
-  0% { transform: translate(0, 0); }
-  25% { transform: translate(-2.5%, 1.5%); }
-  50% { transform: translate(1.5%, -2%); }
-  75% { transform: translate(-1.5%, -1.5%); }
-  100% { transform: translate(0, 0); }
-}
-
-.welcome__content {
-  position: relative;
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-height: 100dvh;
-  pointer-events: none;
   padding:
-    calc(env(safe-area-inset-top, 0px) + 0.7rem)
+    calc(env(safe-area-inset-top, 0px) + 4.2rem)
     1.35rem
-    calc(env(safe-area-inset-bottom, 0px) + 1.8rem);
-}
-
-.welcome__top {
-  align-self: flex-end;
+    calc(env(safe-area-inset-bottom, 0px) + 2rem);
+  background: var(--bg);
+  color: var(--text);
 }
 
 .welcome__theme {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 0.7rem);
+  right: 1.1rem;
   margin: 0;
   padding: 0.45rem 0.85rem;
-  border: 0;
+  border: 0.5px solid var(--line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
+  background: transparent;
+  color: var(--text);
   font: inherit;
   font-size: 0.92rem;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   cursor: pointer;
-  pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
 }
 
 .welcome__copy {
-  margin-top: 11vh;
+  width: 100%;
 }
 
-.welcome__badge {
-  display: inline-flex;
-  width: fit-content;
+.welcome__copy h1 {
   margin: 0;
-  padding: 0.42rem 0.8rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
-.welcome__content h1 {
-  margin: 1.15rem 0 0;
-  max-width: 16.2rem;
+  max-width: 18rem;
   font-family: var(--font-serif);
-  font-size: clamp(2.35rem, 9vw, 2.85rem);
+  font-size: clamp(2.35rem, 9vw, 3.1rem);
   font-weight: 650;
   letter-spacing: -0.04em;
-  line-height: 1.02;
-  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  line-height: 1.05;
 }
 
-.welcome__content h1 em {
+.welcome__copy h1 em {
   font-family: Georgia, "Iowan Old Style", Palatino, serif;
   font-style: italic;
   font-weight: 500;
-  color: #e6c27a;
-}
-
-.welcome__lead {
-  margin: 0.95rem 0 0;
-  max-width: 19.5rem;
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 1.02rem;
-  line-height: 1.38;
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+  color: #c6a15a;
 }
 
 .welcome__actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
   gap: 0.7rem;
-  margin-top: 1.35rem;
+  margin-top: 1.6rem;
 }
 
 .pill {
   margin: 0;
-  padding: 0.78rem 1.15rem;
+  padding: 0.78rem 1.2rem;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #1c1c1e;
+  background: #1a1a1a;
+  color: #f9f7f2;
   font: inherit;
   font-size: 1rem;
   font-weight: 650;
   cursor: pointer;
-  pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
 }
 
-.pill--gold {
+.welcome[data-theme="dark"] .pill {
+  background: #f4f1ea;
+  color: #1a1a1a;
+}
+
+.pill--gold,
+.welcome[data-theme="dark"] .pill--gold {
   background: #c6a15a;
   color: #ffffff;
 }

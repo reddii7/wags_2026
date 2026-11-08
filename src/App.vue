@@ -531,10 +531,8 @@ const onLanding = computed(() => {
   return tab !== "week" && tab !== "best10";
 });
 
-watch([onLanding, theme], ([landing]) => {
-  const background = landing
-    ? "#000000"
-    : (theme.value === "dark" ? "#12151c" : "#f9f7f2");
+watch([onLanding, theme], () => {
+  const background = theme.value === "dark" ? "#12151c" : "#f9f7f2";
   document.documentElement.style.backgroundColor = background;
   document.body.style.backgroundColor = background;
   document.documentElement.style.colorScheme = theme.value;
@@ -1022,7 +1020,7 @@ onBeforeUnmount(() => {
 .app-shell.landing .app-main,
 .app-shell.landing[data-theme="dark"],
 .app-shell.landing[data-theme="dark"] .app-main {
-  background: #000000;
+  background: var(--bg);
 }
 
 .app-shell.landing .app-main {
