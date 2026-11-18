@@ -28,7 +28,11 @@ function onToggleTheme() {
     </button>
 
     <div class="welcome__copy">
-      <h1>Two seasons. Sutton Coldfield Golf Clubs' <em>best</em> society.</h1>
+      <h1>
+        <span>The WAGS</span>
+        <span>Sutton Coldfield Golf Club</span>
+        <span>Two seasons</span>
+      </h1>
       <div class="welcome__actions">
         <button type="button" class="pill" @click="choose('summer')">Summer</button>
         <button type="button" class="pill pill--gold" @click="choose('winter')">Winter</button>
@@ -69,37 +73,39 @@ function onToggleTheme() {
 }
 
 .welcome__copy {
-  width: 100%;
+  width: min(100%, 22rem);
+  margin-inline: auto;
+  text-align: center;
 }
 
 .welcome__copy h1 {
   margin: 0;
-  max-width: 18rem;
   font-family: var(--font-serif);
-  font-size: clamp(2.35rem, 9vw, 3.1rem);
+  font-size: clamp(2.05rem, 8vw, 2.7rem);
   font-weight: 650;
   letter-spacing: -0.04em;
-  line-height: 1.05;
+  line-height: 1.08;
 }
 
-.welcome__copy h1 em {
-  font-family: Georgia, "Iowan Old Style", Palatino, serif;
-  font-style: italic;
-  font-weight: 500;
-  color: #c6a15a;
+.welcome__copy h1 span {
+  display: block;
 }
 
 .welcome__actions {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  justify-content: center;
+  align-items: stretch;
   gap: 0.7rem;
+  width: 100%;
   margin-top: 1.6rem;
 }
 
 .pill {
+  flex: 1 1 0;
+  min-width: 0;
   margin: 0;
-  padding: 0.78rem 1.2rem;
+  padding: 0.78rem 0.6rem;
   border: 0;
   border-radius: 999px;
   background: #1a1a1a;
@@ -107,6 +113,7 @@ function onToggleTheme() {
   font: inherit;
   font-size: 1rem;
   font-weight: 650;
+  text-align: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
