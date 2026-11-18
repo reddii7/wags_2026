@@ -1,7 +1,9 @@
 <script setup>
 import { computed, ref, watch, nextTick } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import AppDialog from "../components/AppDialog.vue";
 import QuietList from "../components/QuietList.vue";
+import SeasonLanding from "../components/SeasonLanding.vue";
 import { resolveHomeDashboardBlock } from "../composables/resolveHomeDashboard.js";
 import { useTheme } from "../composables/useTheme.js";
 import { triggerHapticFeedback } from "../utils/haptics";
@@ -10,6 +12,7 @@ const props = defineProps({
   metadata: { type: Object, required: true },
 });
 const route = useRoute();
+const router = useRouter();
 const { theme, toggleTheme } = useTheme();
 
 const loading = ref(true);
@@ -23,6 +26,7 @@ const handicapMovements = ref([]);
 const winterTab = ref("week"); // week | best10
 const selectedWeekId = ref("");
 const selectedPlayerId = ref("");
+const isBest10Open = ref(false);
 const homePayload = ref({
   week_label: "WEEK — , —",
   hero_message: "No results yet.",
@@ -280,6 +284,20 @@ const weekColumns = [
 const best10Columns =
   "3.5rem minmax(0, 1fr) 4.75rem";
 
+const showLanding = computed(() => {
+  const tab = String(route.query.tab || "").toLowerCase();
+  return tab !== "week" && tab !== "best10";
+});
+
+function chooseSeason(season) {
+  triggerHapticFeedback();
+  if (season === "summer") {
+    router.push("/stats");
+    return;
+  }
+  router.push({ path: "/", query: { tab: "week" } });
+}
+
 watch(
   () => route.query.tab,
   (tab) => {
@@ -289,9 +307,52 @@ watch(
   { immediate: true },
 );
 
+const best10DetailColumns = [
+  {
+    key: "round",
+    label: "Round",
+    className: "player",
+    width: "minmax(0, 1fr)",
+  },
+  { key: "score", label: "Score", className: "numeric", width: "4.75rem" },
+];
+
+const selectedBest10 = computed(() => {
+  const id = String(selectedPlayerId.value || "");
+  if (!id) return null;
+  return (
+    best10Leaders.value.find(
+      (row) => String(row.user_id || row.id) === id,
+    ) || null
+  );
+});
+
+const best10DetailRows = computed(() => {
+  const row = selectedBest10.value;
+  if (!row) return [];
+  const mapScore = (score, counting) => ({
+    id: `${counting ? "in" : "out"}-${score.round_id}`,
+    label: `WK${score.week_number || "?"}`,
+    when: formatDayMonth(score.round_date),
+    kind: counting ? "Counting" : "Throw away",
+    score: score.score,
+  });
+  return [
+    ...best10Scores(row, true).map((score) => mapScore(score, true)),
+    ...best10Scores(row, false).map((score) => mapScore(score, false)),
+  ];
+});
+
 function openPlayerBest10(userId) {
-  selectedPlayerId.value =
-    String(selectedPlayerId.value) === String(userId) ? "" : String(userId);
+  if (!userId) return;
+  triggerHapticFeedback();
+  selectedPlayerId.value = String(userId);
+  isBest10Open.value = true;
+}
+
+function closePlayerBest10() {
+  isBest10Open.value = false;
+  selectedPlayerId.value = "";
 }
 
 function mapHomeBlock(dash) {
@@ -418,7 +479,8 @@ watch(
 </script>
 
 <template>
-  <section class="winter-screen">
+  <SeasonLanding v-if="showLanding" @choose="chooseSeason" />
+  <section v-else class="winter-screen">
     <header class="season-mast">
       <div class="season-mast__top">
         <h1 class="season-mast__title">Winter</h1>
@@ -535,9 +597,6 @@ watch(
                   class="quiet-list-row"
                   role="row"
                   tabindex="0"
-                  :aria-expanded="
-                    String(selectedPlayerId) === String(row.user_id || row.id)
-                  "
                   :style="{ gridTemplateColumns: best10Columns }"
                   @click="openPlayerBest10(row.user_id || row.id)"
                   @keydown.enter.prevent="openPlayerBest10(row.user_id || row.id)"
@@ -558,33 +617,6 @@ watch(
                     {{ row.total_score }}
                   </div>
                 </div>
-                <div
-                  v-if="String(selectedPlayerId) === String(row.user_id || row.id)"
-                  class="best10-sheet"
-                >
-                  <p class="best10-sheet__label">Counting</p>
-                  <div
-                    v-for="score in best10Scores(row, true)"
-                    :key="score.round_id"
-                    class="best10-line"
-                  >
-                    <span>WK{{ score.week_number || "?" }}</span>
-                    <span>{{ formatDayMonth(score.round_date) }}</span>
-                    <span>{{ score.score }}</span>
-                  </div>
-                  <template v-if="best10Scores(row, false).length">
-                    <p class="best10-sheet__label">Throw away</p>
-                    <div
-                      v-for="score in best10Scores(row, false)"
-                      :key="`drop-${score.round_id}`"
-                      class="best10-line best10-line--drop"
-                    >
-                      <span>WK{{ score.week_number || "?" }}</span>
-                      <span>{{ formatDayMonth(score.round_date) }}</span>
-                      <span>{{ score.score }}</span>
-                    </div>
-                  </template>
-                </div>
               </div>
             </div>
             <p v-else class="empty-state">No Best 10 yet.</p>
@@ -592,6 +624,37 @@ watch(
         </div>
       </section>
     </section>
+
+    <AppDialog
+      v-if="selectedBest10"
+      v-model="isBest10Open"
+      :aria-label="`${selectedBest10.full_name} best 10`"
+      @close="closePlayerBest10"
+    >
+      <template #header>
+        <div class="panel-heading">
+          <h3>{{ selectedBest10.full_name }}</h3>
+          <span>{{ selectedBest10.total_score }}</span>
+        </div>
+      </template>
+
+      <QuietList
+        :columns="best10DetailColumns"
+        :hide-head="true"
+        :rows="best10DetailRows"
+        empty-text="No Best 10 scores yet."
+      >
+        <template #round="{ row }">
+          <div class="player-cell player-cell--stacked">
+            <span>{{ row.label }}</span>
+            <div class="row-meta">
+              <span v-if="row.when" class="mini-pill">{{ row.when }}</span>
+              <span class="mini-pill">{{ row.kind }}</span>
+            </div>
+          </div>
+        </template>
+      </QuietList>
+    </AppDialog>
   </section>
 </template>
 
@@ -603,36 +666,5 @@ watch(
 
 .quiet-list-row[role="row"][tabindex] {
   cursor: pointer;
-}
-
-.best10-sheet {
-  padding: 0.15rem 0.05rem 0.35rem;
-}
-
-.best10-sheet__label {
-  margin: 0.35rem 0 0;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.best10-line {
-  display: grid;
-  grid-template-columns: 3.5rem minmax(0, 1fr) 4.75rem;
-  gap: 0.65rem;
-  align-items: center;
-  padding: 0.55rem 0.05rem;
-  border-top: 0.5px solid var(--line);
-  font-variant-numeric: tabular-nums;
-}
-
-.best10-line span:last-child {
-  text-align: right;
-}
-
-.best10-line--drop {
-  opacity: 0.45;
 }
 </style>

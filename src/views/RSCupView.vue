@@ -264,7 +264,7 @@ const roundsWithMatches = computed(() => {
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.05em;
-  color: #858585;
+  color: var(--muted);
   margin-bottom: 0.5em;
   font-family: inherit;
   text-align: center;
@@ -290,7 +290,7 @@ const roundsWithMatches = computed(() => {
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.05em;
-  color: #858585;
+  color: var(--muted);
   font-family: inherit;
   text-align: left;
   margin: 0 -1rem;
@@ -302,8 +302,9 @@ const roundsWithMatches = computed(() => {
 }
 
 .match-item {
-  background: var(--surface-2);
-  border-radius: 8px;
+  background: var(--surface-1);
+  border: 0.5px solid var(--line);
+  border-radius: 16px;
   padding: 0.75rem 1rem;
 }
 

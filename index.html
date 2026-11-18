@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" style="background-color: #1c1c1e">
+<html lang="en" style="background-color: #12151c">
 
 <head>
   <meta charset="UTF-8" />
@@ -14,29 +14,18 @@
 
   <!-- Android Chrome install identity (does not change iOS Web Clip behaviour) -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#1c1c1e">
+  <meta name="theme-color" content="#12151c">
   <link rel="manifest" href="/manifest.webmanifest">
 
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=__WAGS_SHELL_BUILD__" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=__WAGS_SHELL_BUILD__" />
   <link rel="icon" href="/favicon.ico?v=__WAGS_SHELL_BUILD__" sizes="any" />
 
-  <!-- Bust stale Web Clip cached documents when ?v= is missing (hash-safe vs string concat). -->
-  <script>
-    (function () {
-      try {
-        if (!window.location.search.includes("v=")) {
-          var u = new URL(window.location.href);
-          u.searchParams.set("v", String(Date.now()));
-          window.location.replace(u.toString());
-          return;
-        }
-      } catch (e) {}
-    })();
-  </script>
-
-  <!-- Catch stale Web Clip asset 404s (old hashed JS filename no longer on server).
-       Throttled to once per 10s to prevent reload loops. -->
+  <!-- Saved Home Screen icons keep the first copy of this page. Do not
+       location.replace before paint: iOS leaves that icon on a blank screen
+       while Safari still opens the same link. If the saved copy asks for a
+       file this deploy no longer has, boot.js (or this handler) opens the
+       current page with a new address the icon has not cached. -->
   <script>
     (function () {
       try {
@@ -44,34 +33,21 @@
           "error",
           function (e) {
             var t = e.target;
-            if (
-              t &&
-              (t.tagName === "SCRIPT" || t.tagName === "LINK") &&
-              t !== window
-            ) {
-              var lastKey = "wags-asset-reload";
-              var last = parseInt(localStorage.getItem(lastKey) || "0", 10);
-              if (Date.now() - last > 10000) {
-                localStorage.setItem(lastKey, String(Date.now()));
-                localStorage.removeItem("wags-shell-build");
-                location.reload();
-              }
-            }
+            if (!t || t === window) return;
+            var isScript = t.tagName === "SCRIPT";
+            var isStyle = t.tagName === "LINK" && t.rel === "stylesheet";
+            if (!isScript && !isStyle) return;
+            var lastKey = "wags-asset-reload";
+            var last = parseInt(localStorage.getItem(lastKey) || "0", 10);
+            if (Date.now() - last < 10000) return;
+            localStorage.setItem(lastKey, String(Date.now()));
+            var u = new URL("/", location.origin);
+            u.searchParams.set("boot", String(Date.now()));
+            location.href = u.toString();
           },
           true,
         );
-
-        var key = "wags-shell-build";
-        var cur = "__WAGS_SHELL_BUILD__";
-        var prev = localStorage.getItem(key);
-        if (prev && prev !== cur) {
-          localStorage.setItem(key, cur);
-          var u = new URL(location.href);
-          u.searchParams.set("v", String(Date.now()));
-          location.replace(u.toString());
-          return;
-        }
-        localStorage.setItem(key, cur);
+        localStorage.setItem("wags-shell-build", "__WAGS_SHELL_BUILD__");
       } catch (e) {}
     })();
   </script>
@@ -80,7 +56,7 @@
   <script type="module" src="/src/main.js"></script>
 </head>
 
-<body style="margin: 0; background-color: #1c1c1e">
+<body style="margin: 0; background-color: #12151c">
   <div id="app"></div>
 </body>
 
