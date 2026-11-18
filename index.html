@@ -21,22 +21,11 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=__WAGS_SHELL_BUILD__" />
   <link rel="icon" href="/favicon.ico?v=__WAGS_SHELL_BUILD__" sizes="any" />
 
-  <!-- Bust stale Web Clip cached documents when ?v= is missing (hash-safe vs string concat). -->
-  <script>
-    (function () {
-      try {
-        if (!window.location.search.includes("v=")) {
-          var u = new URL(window.location.href);
-          u.searchParams.set("v", String(Date.now()));
-          window.location.replace(u.toString());
-          return;
-        }
-      } catch (e) {}
-    })();
-  </script>
-
-  <!-- Catch stale Web Clip asset 404s (old hashed JS filename no longer on server).
-       Throttled to once per 10s to prevent reload loops. -->
+  <!-- Saved Home Screen icons keep the first copy of this page. Do not
+       location.replace before paint: iOS leaves that icon on a blank screen
+       while Safari still opens the same link. If the saved copy asks for a
+       file this deploy no longer has, boot.js (or this handler) opens the
+       current page with a new address the icon has not cached. -->
   <script>
     (function () {
       try {
@@ -44,34 +33,21 @@
           "error",
           function (e) {
             var t = e.target;
-            if (
-              t &&
-              (t.tagName === "SCRIPT" || t.tagName === "LINK") &&
-              t !== window
-            ) {
-              var lastKey = "wags-asset-reload";
-              var last = parseInt(localStorage.getItem(lastKey) || "0", 10);
-              if (Date.now() - last > 10000) {
-                localStorage.setItem(lastKey, String(Date.now()));
-                localStorage.removeItem("wags-shell-build");
-                location.reload();
-              }
-            }
+            if (!t || t === window) return;
+            var isScript = t.tagName === "SCRIPT";
+            var isStyle = t.tagName === "LINK" && t.rel === "stylesheet";
+            if (!isScript && !isStyle) return;
+            var lastKey = "wags-asset-reload";
+            var last = parseInt(localStorage.getItem(lastKey) || "0", 10);
+            if (Date.now() - last < 10000) return;
+            localStorage.setItem(lastKey, String(Date.now()));
+            var u = new URL("/", location.origin);
+            u.searchParams.set("boot", String(Date.now()));
+            location.href = u.toString();
           },
           true,
         );
-
-        var key = "wags-shell-build";
-        var cur = "__WAGS_SHELL_BUILD__";
-        var prev = localStorage.getItem(key);
-        if (prev && prev !== cur) {
-          localStorage.setItem(key, cur);
-          var u = new URL(location.href);
-          u.searchParams.set("v", String(Date.now()));
-          location.replace(u.toString());
-          return;
-        }
-        localStorage.setItem(key, cur);
+        localStorage.setItem("wags-shell-build", "__WAGS_SHELL_BUILD__");
       } catch (e) {}
     })();
   </script>

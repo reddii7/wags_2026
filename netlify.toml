@@ -26,6 +26,14 @@
   to = "/entry/index.html"
   status = 200
 
+# A saved Home Screen icon can still request a hashed file from an older
+# deploy. Serve a tiny stand-in instead of index.html, or the icon tries to
+# run HTML as JavaScript and stays blank. Real files in /assets are served first.
+[[redirects]]
+  from = "/assets/*"
+  to = "/.netlify/functions/asset-boot"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -73,6 +81,18 @@
   for = "/icon-512.png"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/boot.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Content-Type = "application/javascript; charset=UTF-8"
+
+[[headers]]
+  for = "/boot.css"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Content-Type = "text/css; charset=UTF-8"
 
 # Hashed Vite bundles — cache forever; HTML above always points at the current hash.
 [[headers]]
